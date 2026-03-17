@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 10%;
+    --primary: 220 70% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 25% 10%;
+    --muted: 220 15% 95%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 15% 92%;
+    --accent-foreground: 220 25% 10%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 70% 50%;
+    --radius: 0.5rem;
+
+    /* Financial semantic colors */
+    --profit: 152 69% 41%;
+    --profit-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --cap: 192 91% 46%;
+    --cap-foreground: 0 0% 100%;
+    --trust: 239 84% 67%;
+    --trust-foreground: 0 0% 100%;
+    --reserve: 271 76% 53%;
+    --reserve-foreground: 0 0% 100%;
+    --company: 210 100% 35%;
+    --company-foreground: 0 0% 100%;
+    --admin: 0 0% 45%;
+    --admin-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 220 10% 30%;
+    --sidebar-primary: 220 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 94%;
+    --sidebar-accent-foreground: 220 25% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 220 70% 50%;
+  }
+
+  .dark {
+    --background: 224 28% 7%;
+    --foreground: 210 20% 92%;
+    --card: 224 25% 10%;
+    --card-foreground: 210 20% 92%;
+    --popover: 224 25% 10%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 224 20% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 224 20% 14%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 224 20% 16%;
+    --accent-foreground: 210 20% 92%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 15% 18%;
+    --input: 224 15% 18%;
+    --ring: 217 91% 60%;
+
+    --profit: 152 69% 46%;
+    --profit-foreground: 152 69% 10%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 92% 10%;
+    --cap: 192 91% 50%;
+    --cap-foreground: 192 91% 10%;
+    --trust: 239 84% 67%;
+    --trust-foreground: 0 0% 100%;
+    --reserve: 271 76% 53%;
+    --reserve-foreground: 0 0% 100%;
+    --company: 210 100% 50%;
+    --company-foreground: 0 0% 100%;
+    --admin: 0 0% 60%;
+    --admin-foreground: 0 0% 100%;
+
+    --sidebar-background: 224 28% 6%;
+    --sidebar-foreground: 215 15% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224 20% 12%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 224 15% 14%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+/* Smooth theme transition for all themed elements */
+.dark .theme-transition,
+.light .theme-transition,
+.theme-transition {
+  transition: background-color 0.3s ease, 
+              border-color 0.3s ease, 
+              color 0.3s ease,
+              fill 0.3s ease,
+              stroke 0.3s ease;
+}
+
+/* Specific element transitions */
+.dark .bg-card,
+.light .bg-card,
+.bg-card {
+  transition: background-color 0.3s ease;
+}
+
+.dark .bg-sidebar,
+.light .bg-sidebar,
+.bg-sidebar {
+  transition: background-color 0.3s ease;
+}
+
+.dark .text-foreground,
+.light .text-foreground,
+.text-foreground {
+  transition: color 0.3s ease;
+}
+
+.dark .text-muted-foreground,
+.light .text-muted-foreground,
+.text-muted-foreground {
+  transition: color 0.3s ease;
+}
+
+.dark .border-border,
+.light .border-border,
+.border-border {
+  transition: border-color 0.3s ease;
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50;
+  }
+  .glow-profit {
+    box-shadow: 0 0 20px hsl(var(--profit) / 0.15);
+  }
+  .glow-warning {
+    box-shadow: 0 0 20px hsl(var(--warning) / 0.15);
+  }
+  .glow-cap {
+    box-shadow: 0 0 20px hsl(var(--cap) / 0.15);
+  }
+  .glow-trust {
+    box-shadow: 0 0 20px hsl(var(--trust) / 0.15);
+  }
+}

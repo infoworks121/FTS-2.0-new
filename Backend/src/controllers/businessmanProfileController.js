@@ -1,0 +1,139 @@
+const { pool } = require('../config/db');
+
+// Get businessman profile
+const getBusinessmanProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      SELECT 
+        u.id, u.full_name, u.email, u.phone, u.pan_number, u.profile_photo_url, r.role_code,
+        bp.id as profile_id, bp.type, bp.mode, bp.business_name, bp.business_address,
+        bp.gst_number, bp.bank_account, bp.ifsc_code,
+        bp.advance_amount, bp.assigned_core_body_id,
+        bp.monthly_target, bp.ytd_sales, bp.mtd_sales, bp.commission_earned,
+        bp.is_active, bp.activated_at, bp.last_order_at, bp.last_transaction_at,
+        bp.created_at, bp.updated_at,
+        d.name as district_name, d.id as district_id
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      JOIN businessman_profiles bp ON u.id = bp.user_id
+      LEFT JOIN districts d ON bp.district_id = d.id
+      WHERE u.id = $1 AND r.role_code = 'businessman'
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Businessman profile not found' });
+    }
+    
+    res.json({ profile: result.rows[0] });
+  } catch (error) {
+    console.error('Get businessman profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update businessman profile
+const updateBusinessmanProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { business_name, business_address, gst_number, bank_account, ifsc_code,
+            monthly_target, advance_amount, assigned_core_body_id } = req.body;
+    
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      await client.query(
+        `UPDATE businessman_profiles 
+         SET business_name = COALESCE($1, business_name),
+             business_address = COALESCE($2, business_address),
+             gst_number = COALESCE($3, gst_number),
+             bank_account = COALESCE($4, bank_account),
+             ifsc_code = COALESCE($5, ifsc_code),
+             monthly_target = COALESCE($6, monthly_target),
+             advance_amount = COALESCE($7, advance_amount),
+             assigned_core_body_id = COALESCE($8, assigned_core_body_id),
+             updated_at = NOW()
+         WHERE user_id = $9`,
+        [business_name, business_address, gst_number, bank_account, ifsc_code,
+         monthly_target, advance_amount, assigned_core_body_id, userId]
+      );
+      
+      await client.query('COMMIT');
+      res.json({ message: 'Businessman profile updated successfully' });
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('Update businessman profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get businessman dashboard stats
+const getBusinessmanDashboard = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get profile info
+    const profileQuery = `
+      SELECT bp.*, d.name as district_name
+      FROM businessman_profiles bp
+      LEFT JOIN districts d ON bp.district_id = d.id
+      WHERE bp.user_id = $1
+    `;
+    
+    const profileResult = await pool.query(profileQuery, [userId]);
+    
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+    
+    const profile = profileResult.rows[0];
+    
+    // Calculate target achievement
+    const targetAchievement = profile.monthly_target ? 
+      ((profile.mtd_sales / profile.monthly_target) * 100).toFixed(1) : 0;
+    
+    const stats = {
+      profile,
+      sales: {
+        ytd: profile.ytd_sales,
+        mtd: profile.mtd_sales,
+        monthly_target: profile.monthly_target,
+        target_achievement: targetAchievement,
+        commission_earned: profile.commission_earned
+      },
+      business: {
+        name: profile.business_name,
+        type: profile.type,
+        mode: profile.mode,
+        advance_amount: profile.advance_amount,
+        assigned_core_body_id: profile.assigned_core_body_id,
+        last_transaction_at: profile.last_transaction_at,
+        gst_number: profile.gst_number,
+        is_active: profile.is_active
+      }
+    };
+    
+    res.json({ stats });
+  } catch (error) {
+    console.error('Get businessman dashboard error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+module.exports = {
+  getBusinessmanProfile,
+  updateBusinessmanProfile,
+  getBusinessmanDashboard
+};

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FTS Project Workflow - সম্পূর্ণ মডিউল ম্যাপ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 40px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            width: 8.5%;
+            transition: width 1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .module-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .module-card.complete {
+            border-color: #48bb78;
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+        }
+
+        .module-card.pending {
+            border-color: #ed8936;
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+        }
+
+        .module-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .module-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .module-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .status-complete {
+            background: #48bb78;
+            color: white;
+        }
+
+        .status-pending {
+            background: #ed8936;
+            color: white;
+        }
+
+        .module-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .module-subtitle {
+            color: #718096;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+
+        .table-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .table-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            color: #4a5568;
+            font-size: 0.9em;
+        }
+
+        .table-list li:last-child {
+            border-bottom: none;
+        }
+
+        .table-count {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .workflow-diagram {
+            margin: 40px 0;
+            padding: 30px;
+            background: #f7fafc;
+            border-radius: 15px;
+            border: 2px dashed #cbd5e0;
+        }
+
+        .workflow-title {
+            text-align: center;
+            font-size: 1.8em;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .workflow-steps {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .workflow-step {
+            flex: 1;
+            min-width: 200px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .workflow-step::after {
+            content: '→';
+            position: absolute;
+            right: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2em;
+            color: #667eea;
+        }
+
+        .workflow-step:last-child::after {
+            display: none;
+        }
+
+        .step-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .step-title {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .step-desc {
+            font-size: 0.85em;
+            color: #718096;
+        }
+
+        @media (max-width: 768px) {
+            .workflow-steps {
+                flex-direction: column;
+            }
+            
+            .workflow-step::after {
+                content: '↓';
+                right: 50%;
+                top: auto;
+                bottom: -30px;
+                transform: translateX(50%);
+            }
+
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 FTS Project - Complete Workflow</h1>
+        <p class="subtitle">সম্পূর্ণ মডিউল ম্যাপ ও প্রগতি ট্র্যাকার</p>
+
+        <div class="progress-bar">
+            <div class="progress-fill">8.5%</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">12</div>
+                <div class="stat-label">মোট মডিউল</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1</div>
+                <div class="stat-label">সম্পন্ন মডিউল</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">94</div>
+                <div class="stat-label">মোট টেবিল</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">8</div>
+                <div class="stat-label">সম্পন্ন টেবিল</div>
+            </div>
+        </div>
+
+        <div class="workflow-diagram">
+            <div class="workflow-title">📊 সিস্টেম ওয়ার্কফ্লো</div>
+            <div class="workflow-steps">
+                <div class="workflow-step">
+                    <div class="step-icon">🔐</div>
+                    <div class="step-title">Authentication</div>
+                    <div class="step-desc">User Login & KYC</div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon">👤</div>
+                    <div class="step-title">Profile Setup</div>
+                    <div class="step-desc">Role & District</div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon">📦</div>
+                    <div class="step-title">Product Catalog</div>
+                    <div class="step-desc">Browse & Order</div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon">🛒</div>
+                    <div class="step-title">Order Process</div>
+                    <div class="step-desc">Fulfillment</div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon">💰</div>
+                    <div class="step-title">Profit Share</div>
+                    <div class="step-desc">Distribution</div>
+                </div>
+            </div>
+        </div>
+
+        <h2 style="text-align: center; color: #2d3748; margin: 40px 0 20px;">📋 সকল মডিউল বিস্তারিত</h2>
+
+        <div class="modules-grid">
+            <!-- Module 1 - COMPLETE -->
+            <div class="module-card complete">
+                <div class="module-header">
+                    <div class="module-number">M1</div>
+                    <div class="module-status status-complete">✅ সম্পন্ন</div>
+                </div>
+                <div class="module-title">Identity & Authentication</div>
+                <div class="module-subtitle">পরিচয় ও প্রমাণীকরণ সিস্টেম</div>
+                <ul class="table-list">
+                    <li>✓ users - ব্যবহারকারী তথ্য</li>
+                    <li>✓ user_roles - ভূমিকা ব্যবস্থাপনা</li>
+                    <li>✓ user_sessions - সেশন ট্র্যাকিং</li>
+                    <li>✓ user_devices - ডিভাইস ম্যানেজমেন্ট</li>
+                    <li>✓ otp_verifications - OTP যাচাই</li>
+                    <li>✓ kyc_documents - KYC ডকুমেন্ট</li>
+                    <li>✓ kyc_audit_log - KYC অডিট</li>
+                    <li>✓ login_attempts - লগইন ইতিহাস</li>
+                </ul>
+                <span class="table-count">8 টেবিল</span>
+            </div>
+
+            <!-- Module 2 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M2</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Geography & District Structure</div>
+                <div class="module-subtitle">ভৌগোলিক ও জেলা কাঠামো</div>
+                <ul class="table-list">
+                    <li>○ countries - দেশ তালিকা</li>
+                    <li>○ states - রাজ্য/বিভাগ</li>
+                    <li>○ districts - জেলা</li>
+                    <li>○ cities/pincodes - শহর/পিনকোড</li>
+                    <li>○ district_quota - জেলা কোটা</li>
+                    <li>○ district_coverage_map - কভারেজ ম্যাপ</li>
+                </ul>
+                <span class="table-count">6 টেবিল</span>
+            </div>
+
+            <!-- Module 3 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M3</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Role-Specific Profiles</div>
+                <div class="module-subtitle">ভূমিকা-ভিত্তিক প্রোফাইল</div>
+                <ul class="table-list">
+                    <li>○ core_body_profiles - কোর বডি প্রোফাইল</li>
+                    <li>○ core_body_installments - কিস্তি</li>
+                    <li>○ businessman_profiles - ব্যবসায়ী</li>
+                    <li>○ stock_point_profiles - স্টক পয়েন্ট</li>
+                    <li>○ dealer_profiles - ডিলার</li>
+                    <li>○ upgrade_demotion_log - আপগ্রেড লগ</li>
+                </ul>
+                <span class="table-count">6 টেবিল</span>
+            </div>
+
+            <!-- Module 4 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M4</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Product & Service Catalog</div>
+                <div class="module-subtitle">পণ্য ও সেবা ক্যাটালগ</div>
+                <ul class="table-list">
+                    <li>○ categories - ক্যাটাগরি</li>
+                    <li>○ sub_categories - সাব-ক্যাটাগরি</li>
+                    <li>○ products - পণ্য তালিকা</li>
+                    <li>○ product_variants - ভ্যারিয়েন্ট</li>
+                    <li>○ product_pricing - মূল্য নির্ধারণ</li>
+                    <li>○ service_catalog - সেবা ক্যাটালগ</li>
+                    <li>○ subscription_plans - সাবস্ক্রিপশন</li>
+                    <li>○ price_history - মূল্য ইতিহাস</li>
+                </ul>
+                <span class="table-count">8 টেবিল</span>
+            </div>
+
+            <!-- Module 5 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M5</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Inventory & Stock Management</div>
+                <div class="module-subtitle">ইনভেন্টরি ও স্টক ব্যবস্থাপনা</div>
+                <ul class="table-list">
+                    <li>○ inventory_ledger - ইনভেন্টরি লেজার</li>
+                    <li>○ stock_allocations - স্টক বরাদ্দ</li>
+                    <li>○ stock_point_inventory - স্টক পয়েন্ট</li>
+                    <li>○ stock_requests - স্টক অনুরোধ</li>
+                    <li>○ stock_movement_log - মুভমেন্ট লগ</li>
+                    <li>○ minimum_inventory_rules - ন্যূনতম নিয়ম</li>
+                </ul>
+                <span class="table-count">6 টেবিল</span>
+            </div>
+
+            <!-- Module 6 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M6</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Orders & Fulfillment</div>
+                <div class="module-subtitle">অর্ডার ও ডেলিভারি</div>
+                <ul class="table-list">
+                    <li>○ orders - অর্ডার তালিকা</li>
+                    <li>○ order_items - অর্ডার আইটেম</li>
+                    <li>○ order_status_log - স্ট্যাটাস লগ</li>
+                    <li>○ fulfillment_assignments - ফুলফিলমেন্ট</li>
+                    <li>○ delivery_tracking - ডেলিভারি ট্র্যাকিং</li>
+                    <li>○ return_requests - রিটার্ন অনুরোধ</li>
+                    <li>○ complaints - অভিযোগ</li>
+                    <li>○ + 3 more tables</li>
+                </ul>
+                <span class="table-count">10 টেবিল</span>
+            </div>
+
+            <!-- Module 7 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M7</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Profit Distribution Engine</div>
+                <div class="module-subtitle">লাভ বণ্টন ইঞ্জিন</div>
+                <ul class="table-list">
+                    <li>○ profit_rules - লাভ নিয়ম</li>
+                    <li>○ profit_distribution_log - বণ্টন লগ</li>
+                    <li>○ company_pool_log - কোম্পানি পুল</li>
+                    <li>○ reserve_fund_log - রিজার্ভ ফান্ড</li>
+                    <li>○ trust_fund_log - ট্রাস্ট ফান্ড</li>
+                    <li>○ cap_enforcement_log - ক্যাপ এনফোর্সমেন্ট</li>
+                    <li>○ + 3 more tables</li>
+                </ul>
+                <span class="table-count">9 টেবিল</span>
+            </div>
+
+            <!-- Module 8 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M8</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Wallet System</div>
+                <div class="module-subtitle">ওয়ালেট সিস্টেম</div>
+                <ul class="table-list">
+                    <li>○ wallets - ওয়ালেট তালিকা</li>
+                    <li>○ wallet_types - ওয়ালেট টাইপ</li>
+                    <li>○ wallet_transactions - লেনদেন</li>
+                    <li>○ withdrawal_requests - উত্তোলন অনুরোধ</li>
+                    <li>○ withdrawal_approvals - অনুমোদন</li>
+                    <li>○ wallet_balance_snapshot - ব্যালেন্স স্ন্যাপশট</li>
+                    <li>○ + 2 more tables</li>
+                </ul>
+                <span class="table-count">8 টেবিল</span>
+            </div>
+
+            <!-- Module 9 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M9</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Referral System</div>
+                <div class="module-subtitle">রেফারেল সিস্টেম</div>
+                <ul class="table-list">
+                    <li>○ referral_links - রেফারেল লিংক</li>
+                    <li>○ referral_registrations - রেজিস্ট্রেশন</li>
+                    <li>○ referral_earnings - আয়</li>
+                    <li>○ referral_payout_log - পেআউট লগ</li>
+                    <li>○ referral_reversal_log - রিভার্সাল লগ</li>
+                    <li>○ + 1 more table</li>
+                </ul>
+                <span class="table-count">6 টেবিল</span>
+            </div>
+
+            <!-- Module 10 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M10</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">System Configuration</div>
+                <div class="module-subtitle">সিস্টেম কনফিগারেশন</div>
+                <ul class="table-list">
+                    <li>○ system_config - সিস্টেম কনফিগ</li>
+                    <li>○ commission_rules - কমিশন নিয়ম</li>
+                    <li>○ cap_rules - ক্যাপ নিয়ম</li>
+                    <li>○ bulk_pricing_rules - বাল্ক প্রাইসিং</li>
+                    <li>○ sla_rules - SLA নিয়ম</li>
+                    <li>○ fee_config - ফি কনফিগ</li>
+                    <li>○ + 3 more tables</li>
+                </ul>
+                <span class="table-count">9 টেবিল</span>
+            </div>
+
+            <!-- Module 11 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M11</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Risk, Fraud & Compliance</div>
+                <div class="module-subtitle">ঝুঁকি, জালিয়াতি ও সম্মতি</div>
+                <ul class="table-list">
+                    <li>○ duplicate_detection_log - ডুপ্লিকেট সনাক্তকরণ</li>
+                    <li>○ fraud_case_log - জালিয়াতি কেস</li>
+                    <li>○ audit_log - অডিট লগ</li>
+                    <li>○ inactive_user_log - নিষ্ক্রিয় ব্যবহারকারী</li>
+                    <li>○ sla_breach_log - SLA লঙ্ঘন</li>
+                    <li>○ + 4 more tables</li>
+                </ul>
+                <span class="table-count">9 টেবিল</span>
+            </div>
+
+            <!-- Module 12 - PENDING -->
+            <div class="module-card pending">
+                <div class="module-header">
+                    <div class="module-number">M12</div>
+                    <div class="module-status status-pending">⏳ বাকি</div>
+                </div>
+                <div class="module-title">Reporting & Notifications</div>
+                <div class="module-subtitle">রিপোর্টিং ও নোটিফিকেশন</div>
+                <ul class="table-list">
+                    <li>○ financial_reports - আর্থিক রিপোর্ট</li>
+                    <li>○ earnings_summary - আয় সারাংশ</li>
+                    <li>○ notification_queue - নোটিফিকেশন সারি</li>
+                    <li>○ email_log - ইমেইল লগ</li>
+                    <li>○ sms_log - SMS লগ</li>
+                    <li>○ push_notification_log - পুশ লগ</li>
+                    <li>○ + 3 more tables</li>
+                </ul>
+                <span class="table-count">9 টেবিল</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>FTS Project</strong> - Full Tracking System</p>
+            <p>মোট অগ্রগতি: 1/12 মডিউল সম্পন্ন (8.5%) | 8/94 টেবিল সম্পন্ন</p>
+            <p style="margin-top: 10px; color: #48bb78;">✨ Module 1 সম্পূর্ণ সম্পন্ন - বাকি 11টি মডিউল কাজ চলছে</p>
+        </div>
+    </div>
+
+    <script>
+        // Animate progress bar on load
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.querySelector('.progress-fill').style.width = '8.5%';
+            }, 500);
+        });
+
+        // Add hover effect to module cards
+        document.querySelectorAll('.module-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-5px) scale(1.02)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>

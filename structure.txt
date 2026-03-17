@@ -1,0 +1,93 @@
+🔷 1. Admin Panel (Admin + Company Unified)
+
+FTS সিস্টেমের কেন্দ্রবিন্দু হলো Admin Panel, যেখানে Admin এবং Company একত্রে একটি unified controlling authority হিসেবে কাজ করে। এই panel থেকেই পুরো ecosystem পরিচালিত ও নিয়ন্ত্রিত হয়। Admin product ও service onboarding করে, বিভিন্ন business category (Agriculture, FMCG, Services, Digital Products, Logistics ইত্যাদি) তৈরি ও পরিচালনা করে এবং প্রতিটি product-এর price, margin, commission, referral percentage ও profit distribution rules নির্ধারণ করে।
+
+Admin panel থেকেই কেন্দ্রীয় stock তৈরি হয় এবং সেই stock সরাসরি বা Core Body-এর মাধ্যমে জেলা-ভিত্তিকভাবে বিতরণ করা হয়। এছাড়া Core Body, Businessman এবং Stock Point Holder—সব role-এর approval, suspension, upgrade এবং limit control Admin panel থেকেই হয়। FTS-এর dynamic profit-distribution engine, referral system, wallet management, trust fund, reserve fund এবং reporting—সবকিছুই Admin-maintained master rules অনুযায়ী স্বয়ংক্রিয়ভাবে কাজ করে।
+
+সংক্ষেপে বললে, Admin panel হলো পুরো FTS ecosystem-এর brain, rule-maker এবং controller—যার মাধ্যমে system scalable, transparent এবং fully controlled থাকে।
+
+🔷 2. Core Body Panel (District-Level Authority)
+
+Core Body হলো FTS-এর জেলা-ভিত্তিক শক্তিশালী distribution layer, যা Admin-এর অধীনে কাজ করে। Core Body মূলত regional inventory, supply chain এবং district-level business expansion পরিচালনা করে। প্রতিটি জেলায় সর্বোচ্চ ২০ জনের বেশি Core Body সদস্য থাকতে পারে না, যাতে control ও accountability বজায় থাকে।
+
+Core Body দুই ধরনের হতে পারে—Core Body A এবং Core Body B।
+Core Body A হতে হলে জেলা-স্তরে ব্যবসা পরিচালনার সক্ষমতা থাকতে হয় এবং Company-কে ₹১,০০,০০০ product advance investment (সর্বোচ্চ ৪ কিস্তিতে) দিতে হয়। এই রোলে একজন সদস্য বছরে সর্বোচ্চ ₹২৫ লক্ষ পর্যন্ত আয় করতে পারে।
+Core Body B-এর ক্ষেত্রে investment ₹৫০,০০০ থেকে ₹২,৫০,০০০ (৪ কিস্তিতে) এবং এখানে মাসিক সর্বোচ্চ আয় সীমা নির্ধারিত থাকে নিজের বিনিয়োগের সমপরিমাণ।
+
+Core Body Admin-এর মতোই product buy ও sell করতে পারে এবং approved Businessman-দের কাছে stock issue করতে পারে। এছাড়া Core Body-এর অধীনে Dealer কাজ করে—যারা product কিনতে ও বিক্রি করতে পারে, কিন্তু নতুন stock issue বা distribution তৈরি করতে পারে না। Dealer একাধিক থাকতে পারে এবং সাধারণত product-category specialist হয়।
+
+Core Body মূলত FTS-এর regional backbone, যেখানে control tight কিন্তু execution powerful।
+
+🔷 3. Businessman Panel (Retail + Bulk + Stock Point Unified)
+
+FTS-এর Businessman panel হলো execution-focused sales ও distribution layer। আগের Retailer A, Retailer B, Businessman এবং Stock Point—এই চারটি role এখন একত্রে Businessman হিসেবে কাজ করে, তবে কাজের ধরন অনুযায়ী তাদের মধ্যে functional difference থাকে।
+
+Businessman Admin বা Core Body থেকে product নিয়ে স্থানীয়ভাবে বিক্রয় করতে পারে, referral-based selling করতে পারে অথবা bulk buyer হিসেবে কাজ করতে পারে। Entry-level Businessman কোনো investment ছাড়াই কাজ শুরু করতে পারে (আগের Retailer B concept), আবার চাইলে product advance দিয়ে বড় পরিসরে কাজ করতে পারে (আগের Retailer A concept), যেখানে referral income একটি বড় earning source।
+
+Bulk-type Businessman একসাথে বড় পরিমাণে product কিনে নিজের network, অন্য Businessman বা local sellers-এর মাধ্যমে supply করে এবং Company বা Core Body-এর সাথে negotiated pricing-এ কাজ করতে পারে।
+
+Approved Businessman চাইলে Stock Point Holder হিসেবেও কাজ করতে পারে। Stock Point মূলত Businessman-এরই একটি sub-role—যেখানে সে system থেকে B2C purpose-এ product কিনে stock রাখে এবং Customer panel-এর online order fulfil করে। Stock Point হলো Customer-এর nearest fulfilment partner।
+
+Businessman panel-এ আয় হয় product margin, bulk distribution profit, referral income এবং B2C order fulfilment commission থেকে—সবই Admin master rules অনুযায়ী।
+
+🔷 4. Customer Panel (Marketplace Layer)
+
+Customer panel হলো FTS ecosystem-এর শেষ এবং সবচেয়ে গুরুত্বপূর্ণ অংশ, যার চারপাশে পুরো ব্যবসার প্রবাহ ঘোরে। এই panelটি একটি আধুনিক, scalable e-commerce marketplace হিসেবে কাজ করে, যেখানে একজন সাধারণ ব্যবহারকারী একাধিক category-র product ও service browse, compare ও purchase করতে পারে।
+
+Customer Admin (Company) অথবা নিজের নিকটবর্তী approved Businessman / Stock Point Holder-এর কাছ থেকে পণ্য অর্ডার করতে পারে। System location, stock availability এবং Admin-defined priority rules অনুযায়ী স্বয়ংক্রিয়ভাবে best fulfilment source নির্বাচন করে।
+
+Customer সহজেই secure payment করতে পারে, order tracking দেখতে পারে, delivery শেষে rating ও feedback দিতে পারে এবং প্রয়োজনে return, replacement বা complaint raise করতে পারে। এই panel Customer-কে একটি transparent, reliable এবং trust-based buying experience দেয়, যা long-term platform growth-এর জন্য সবচেয়ে গুরুত্বপূর্ণ।
+
+🔵 5. Profit Distribution Flow (Auto Engine – Updated)
+
+FTS সিস্টেমে Profit Distribution সম্পূর্ণভাবে একটি Admin-controlled Dynamic Auto Engine দ্বারা পরিচালিত হয়। প্রতিটি transaction-এর profit predefined master rules অনুযায়ী স্বয়ংক্রিয়ভাবে ভাগ হয় এবং সংশ্লিষ্ট wallet-এ real-time credit হয়।
+
+🔶 B2B Profit Flow (Admin/Core Body → Businessman Purchase)
+
+ধরা যাক, একটি B2B order-এ Total Profit = 100%
+প্রথম ধাপে—
+
+55% যায় FTS (Admin/Company)-এর কাছে
+
+45% যায় Referral Network-এ
+
+Company-এর 55% ভাগের মধ্যে—
+
+10% যায় Trust / Ecosystem Fund
+
+1% যায় Admin-এ
+
+বাকি 44% Company Pool থেকে—
+
+70% যায় Core Body Members-দের মধ্যে
+
+30% যায় Company Reserve / Growth Fund-এ
+
+এইভাবে B2B মডেলে distribution strength এবং referral-driven expansion একসাথে কাজ করে।
+
+🔶 B2C Profit Flow (Customer Purchase via Customer Panel)
+
+একটি B2C order-এ Total Profit = 100% হলে—
+প্রথমে fixed distribution হয়:
+
+10% → Trust
+
+1% → Admin
+
+10% → Company (FTS)
+মোট fixed = 21%
+
+এরপর বাকি 79% থেকে—
+
+40% → Businessman (Stock Point Holder)
+
+60% → Referral Network
+
+Referral অংশ direct ও indirect referral অনুযায়ী auto-split হয়, Admin master rules অনুসারে।
+
+
+✅ Final Note
+
+এইভাবেই FTS একটি rule-based, automated, transparent এবং infinitely scalable multi-business ecosystem হিসেবে কাজ করে—যা শুধু agriculture নয়, বরং যেকোনো future business vertical যুক্ত করার জন্য সম্পূর্ণ প্রস্তুত।
+
+abdus 

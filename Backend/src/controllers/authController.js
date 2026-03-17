@@ -1,0 +1,331 @@
+const bcrypt = require('bcryptjs');
+const { randomUUID } = require('crypto');
+const db = require('../config/db');
+const { generateToken } = require('../utils/token');
+const { sendVerificationEmail } = require('../utils/email');
+
+const register = async (req, res) => {
+    const { phone, email, full_name, password, role_code, district, businessman_type, investment_amount, installment_count, installment_amounts } = req.body;
+
+    try {
+        // Check if user exists
+        const userExists = await db.query('SELECT * FROM users WHERE phone = $1 OR (email = $2 AND email IS NOT NULL)', [phone, email]);
+        if (userExists.rows.length > 0) {
+            return res.status(400).json({ message: 'User already exists with this phone or email' });
+        }
+
+        // Get role_id
+        const roleResult = await db.query('SELECT id FROM user_roles WHERE role_code = $1', [role_code || 'customer']);
+        if (roleResult.rows.length === 0) {
+            return res.status(400).json({ message: 'Invalid role code' });
+        }
+        const role_id = roleResult.rows[0].id;
+
+        // Get district_id if district is provided
+        let district_id = null;
+        if (district) {
+            const districtResult = await db.query(
+                'SELECT id FROM districts WHERE LOWER(REPLACE(name, \' \', \'_\')) = LOWER($1)',
+                [district]
+            );
+            if (districtResult.rows.length > 0) {
+                district_id = districtResult.rows[0].id;
+            }
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+
+        // Generate unique referral code
+        const final_referral_code = `FTS${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+        // Insert user
+        const newUser = await db.query(
+            `INSERT INTO users (phone, email, full_name, password_hash, role_id, referral_code, district_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, phone, email, full_name, role_id`,
+            [phone, email, full_name, password_hash, role_id, final_referral_code, district_id]
+        );
+
+        const user = newUser.rows[0];
+
+        // Create core_body profile if role is core_body_a or core_body_b
+        if ((role_code === 'core_body_a' || role_code === 'core_body_b') && investment_amount) {
+            const coreBodyResult = await db.query(
+                `INSERT INTO core_body_profiles (user_id, type, district_id, investment_amount, installment_count)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+                [
+                    user.id,
+                    role_code === 'core_body_a' ? 'A' : 'B',
+                    district_id,
+                    investment_amount,
+                    installment_count || 1,
+                ]
+            );
+
+            const coreBodyId = coreBodyResult.rows[0].id;
+
+            // Insert installment records
+            if (installment_amounts && installment_amounts.length > 0) {
+                for (let i = 0; i < installment_amounts.length; i++) {
+                    await db.query(
+                        `INSERT INTO core_body_installments (core_body_id, installment_no, amount, status)
+                         VALUES ($1, $2, $3, 'pending')`,
+                        [coreBodyId, i + 1, installment_amounts[i]]
+                    );
+                }
+            }
+        }
+
+        // Create businessman profile if role is businessman
+        if (role_code === 'businessman' && businessman_type) {
+            const advanceAmount = businessman_type === 'retailer_a' ? (investment_amount || 0) : 0;
+            const bpResult = await db.query(
+                'INSERT INTO businessman_profiles (user_id, type, district_id, advance_amount) VALUES ($1, $2, $3, $4) RETURNING id',
+                [user.id, businessman_type, district_id, advanceAmount]
+            );
+
+            // Insert installment records for retailer_a
+            if (businessman_type === 'retailer_a' && investment_amount && installment_amounts && installment_amounts.length > 0) {
+                const bpId = bpResult.rows[0].id;
+                for (let i = 0; i < installment_amounts.length; i++) {
+                    await db.query(
+                        `INSERT INTO businessman_investments (businessman_id, installment_no, amount, status)
+                         VALUES ($1, $2, $3, 'pending')`,
+                        [bpId, i + 1, installment_amounts[i]]
+                    );
+                }
+            }
+        }
+
+        const token = generateToken({ id: user.id, role_code });
+
+        res.status(201).json({
+            message: 'Registration successful. Your account is pending admin approval.',
+            user,
+            token,
+        });
+    } catch (err) {
+        console.error('Registration error:', err);
+        res.status(500).json({ message: 'Server error during registration', error: err.message });
+    }
+};
+
+const login = async (req, res) => {
+    const { identifier, password, panel } = req.body;
+
+    try {
+        console.log('Login attempt:', { identifier, panel });
+
+        const userResult = await db.query(
+            `SELECT u.*, r.role_code 
+       FROM users u 
+       JOIN user_roles r ON u.role_id = r.id 
+       WHERE u.phone = $1 OR u.email = $1`,
+            [identifier]
+        );
+
+        if (userResult.rows.length === 0) {
+            console.log('User not found:', identifier);
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
+
+        const user = userResult.rows[0];
+        console.log('User found:', { id: user.id, role: user.role_code });
+
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            console.log('Password mismatch for:', identifier);
+            await db.query(
+                'INSERT INTO login_attempts (target, target_type, ip_address, success, panel, failure_reason) VALUES ($1, $2, $3, $4, $5, $6)',
+                [identifier, identifier.includes('@') ? 'email' : 'phone', req.ip, false, panel, 'Invalid password']
+            );
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
+
+        if (!user.is_active) {
+            console.log('Account deactivated:', identifier);
+            return res.status(403).json({ message: 'Account is deactivated' });
+        }
+
+        if (!user.is_approved) {
+            console.log('Account pending approval:', identifier);
+            return res.status(403).json({ message: 'Your account is pending admin approval' });
+        }
+
+        // Log success attempt
+        await db.query(
+            'INSERT INTO login_attempts (target, target_type, ip_address, success, panel) VALUES ($1, $2, $3, $4, $5)',
+            [identifier, identifier.includes('@') ? 'email' : 'phone', req.ip, true, panel]
+        );
+
+        // Track device and session
+        const deviceFingerprint = req.get('user-agent') || 'unknown'; // Simplified fingerprint
+
+        try {
+            await db.query(
+                `INSERT INTO user_devices (user_id, device_fingerprint, device_type, browser)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, device_fingerprint) 
+         DO UPDATE SET last_seen_at = NOW()`,
+                [user.id, deviceFingerprint, 'desktop', deviceFingerprint.split(' ')[0]]
+            );
+        } catch (deviceErr) {
+            console.warn('Could not log device fingerprint', deviceErr);
+        }
+
+        // Create session
+        const token = generateToken({ id: user.id, role_code: user.role_code });
+        const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        await db.query(
+            'INSERT INTO user_sessions (user_id, panel, token_hash, ip_address, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+            [user.id, panel || 'unknown', token, req.ip, req.get('user-agent'), expires_at]
+        );
+
+        res.json({
+            message: 'Login successful',
+            user: {
+                id: user.id,
+                phone: user.phone,
+                email: user.email,
+                full_name: user.full_name,
+                role_code: user.role_code,
+            },
+            token,
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error during login' });
+    }
+};
+
+const logout = async (req, res) => {
+    try {
+        const token = req.headers.authorization.split(' ')[1];
+        await db.query(
+            'UPDATE user_sessions SET revoked = TRUE, revoked_at = NOW() WHERE token_hash = $1',
+            [token]
+        );
+        res.json({ message: 'Logged out successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error during logout' });
+    }
+};
+
+const changePassword = async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const user_id = req.user.id;
+
+    try {
+        const userResult = await db.query('SELECT password_hash FROM users WHERE id = $1', [user_id]);
+        const user = userResult.rows[0];
+
+        const isMatch = await bcrypt.compare(oldPassword, user.password_hash);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Invalid current password' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const new_password_hash = await bcrypt.hash(newPassword, salt);
+
+        await db.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [new_password_hash, user_id]);
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getMe = async (req, res) => {
+    try {
+        const userResult = await db.query(
+            `SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.is_active, u.created_at 
+       FROM users u 
+       JOIN user_roles r ON u.role_id = r.id 
+       WHERE u.id = $1`,
+            [req.user.id]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json(userResult.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const sendOTP = async (req, res) => {
+    const { target, target_type, purpose } = req.body;
+
+    try {
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp_hash = await bcrypt.hash(otp, 10);
+        const expires_at = new Date(Date.now() + 10 * 60 * 1000);
+
+        await db.query(
+            'INSERT INTO otp_verifications (target, target_type, otp_hash, purpose, expires_at) VALUES ($1, $2, $3, $4, $5)',
+            [target, target_type, otp_hash, purpose, expires_at]
+        );
+
+        if (target_type === 'email') {
+            await sendVerificationEmail(target, otp);
+        }
+
+        console.log(`OTP for ${target}: ${otp}`);
+
+        res.json({ message: `OTP sent to ${target_type}` });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error during OTP generation' });
+    }
+};
+
+const verifyOTP = async (req, res) => {
+    const { target, otp, purpose } = req.body;
+
+    try {
+        const result = await db.query(
+            'SELECT * FROM otp_verifications WHERE target = $1 AND purpose = $2 AND verified = FALSE AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+            [target, purpose]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({ message: 'OTP expired or not found' });
+        }
+
+        const otpData = result.rows[0];
+        const isMatch = await bcrypt.compare(otp, otpData.otp_hash);
+
+        if (!isMatch) {
+            await db.query('UPDATE otp_verifications SET attempts = attempts + 1 WHERE id = $1', [otpData.id]);
+            return res.status(400).json({ message: 'Invalid OTP' });
+        }
+
+        await db.query('UPDATE otp_verifications SET verified = TRUE, verified_at = NOW() WHERE id = $1', [otpData.id]);
+
+        if (purpose === 'email_verification') {
+            await db.query('UPDATE users SET is_email_verified = TRUE WHERE email = $1', [target]);
+        }
+
+        res.json({ message: 'OTP verified successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error during OTP verification' });
+    }
+};
+
+module.exports = {
+    register,
+    login,
+    logout,
+    getMe,
+    sendOTP,
+    verifyOTP,
+    changePassword,
+};

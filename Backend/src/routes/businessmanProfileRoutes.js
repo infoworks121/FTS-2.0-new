@@ -1,0 +1,14 @@
+const express = require('express');
+const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+const {
+  getBusinessmanProfile,
+  updateBusinessmanProfile,
+  getBusinessmanDashboard
+} = require('../controllers/businessmanProfileController');
+
+router.get('/profile', protect, getBusinessmanProfile);
+router.put('/profile', protect, updateBusinessmanProfile);
+router.get('/dashboard', protect, getBusinessmanDashboard);
+
+module.exports = router;

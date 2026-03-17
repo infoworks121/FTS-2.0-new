@@ -1,0 +1,40 @@
+const express = require('express');
+const router = express.Router();
+const productCatalogController = require('../controllers/productCatalogController');
+const { protect, adminOnly, canIssueStock } = require('../middleware/authMiddleware');
+
+// Categories
+router.get('/categories', productCatalogController.getCategories);
+router.post('/categories', protect, adminOnly, productCatalogController.createCategory);
+
+// Products
+router.get('/products', productCatalogController.getProducts);
+router.post('/products', protect, adminOnly, productCatalogController.createProduct);
+
+// Admin Product Management (full CRUD)
+router.get('/admin/products', protect, adminOnly, productCatalogController.getAdminProducts);
+router.get('/admin/products/:id', protect, adminOnly, productCatalogController.getAdminProductById);
+router.post('/admin/products', protect, adminOnly, productCatalogController.createAdminProduct);
+router.put('/admin/products/:id', protect, adminOnly, productCatalogController.updateAdminProduct);
+router.delete('/admin/products/:id', protect, adminOnly, productCatalogController.deleteAdminProduct);
+
+// Pricing — admin only
+router.put('/pricing', protect, adminOnly, productCatalogController.updatePricing);
+
+// Stock Issue — admin, core_body_a, core_body_b, dealer (if approved), businessman (stock_point only)
+router.post('/stock/issue', protect, canIssueStock, productCatalogController.issueStock);
+
+// Dealer Stock Permission — admin only
+router.post('/dealer/permission/grant', protect, adminOnly, productCatalogController.grantDealerStockPermission);
+router.post('/dealer/permission/revoke', protect, adminOnly, productCatalogController.revokeDealerStockPermission);
+router.get('/dealer/permissions', protect, adminOnly, productCatalogController.getDealerStockPermissions);
+
+// Services
+router.get('/services', productCatalogController.getServices);
+router.post('/services', protect, adminOnly, productCatalogController.createService);
+
+// Subscription Plans
+router.get('/subscription-plans', productCatalogController.getSubscriptionPlans);
+router.post('/subscription-plans', protect, adminOnly, productCatalogController.createSubscriptionPlan);
+
+module.exports = router;
