@@ -21,6 +21,7 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const loginAttemptsRoutes = require('./routes/loginAttemptsRoutes');
 const businessmanInvestmentRoutes = require('./routes/businessmanInvestmentRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/login-attempts', loginAttemptsRoutes);
 app.use('/api/businessman-investments', businessmanInvestmentRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

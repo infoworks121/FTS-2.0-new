@@ -1,25 +1,16 @@
 const db = require('../config/db');
 
-// Categories
+// =============================================================================
+// CATEGORIES MANAGEMENT
+// =============================================================================
+
 exports.getCategories = async (req, res) => {
   try {
-    // Check which columns exist in categories table
-    const colCheck = await db.query(`
-      SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'categories'
-    `);
-    const cols = colCheck.rows.map(r => r.column_name);
-    const hasIsActive = cols.includes('is_active');
-    const hasSortOrder = cols.includes('sort_order');
-
-    const whereClause = hasIsActive ? 'WHERE c.is_active = true' : '';
-    const orderClause = hasSortOrder ? 'ORDER BY c.sort_order ASC, c.id ASC' : 'ORDER BY c.id ASC';
-
     const result = await db.query(`
-      SELECT c.id, c.name, c.description
+      SELECT c.id, c.name, c.slug, c.description, c.icon_url, c.is_active, c.sort_order, c.created_at
       FROM categories c
-      ${whereClause}
-      ${orderClause}
+      WHERE c.is_active = true
+      ORDER BY c.sort_order ASC, c.id ASC
     `);
     res.json({ categories: result.rows });
   } catch (error) {
@@ -29,126 +20,555 @@ exports.getCategories = async (req, res) => {
 
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, image_url, sort_order } = req.body;
+    const { name, description, icon_url, sort_order } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+    
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     
     const result = await db.query(
-      'INSERT INTO categories (name, description, slug, image_url, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, description, slug, image_url, sort_order || 0]
+      `INSERT INTO categories (name, description, slug, icon_url, sort_order) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, description || null, slug, icon_url || null, sort_order || 0]
     );
-    res.status(201).json({ category: result.rows[0] });
+    
+    res.status(201).json({ 
+      category: result.rows[0], 
+      message: 'Category created successfully' 
+    });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    if (error.code === '23505') { // Unique constraint violation
+      res.status(400).json({ error: 'Category name or slug already exists' });
+    } else {
+      res.status(400).json({ error: error.message });
+    }
   }
 };
 
-// Products
+// =============================================================================
+// PRODUCTS MANAGEMENT (FTS Schema Compatible)
+// =============================================================================
+
 exports.getProducts = async (req, res) => {
   try {
-    const { category_id, sub_category_id, featured } = req.query;
+    const { category_id, search, type, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
     let whereClause = 'WHERE p.is_active = true';
     const params = [];
     
     if (category_id) {
       params.push(category_id);
-      whereClause += ` AND sc.category_id = $${params.length}`;
+      whereClause += ` AND p.category_id = $${params.length}`;
     }
     
-    if (sub_category_id) {
-      params.push(sub_category_id);
-      whereClause += ` AND p.sub_category_id = $${params.length}`;
+    if (search) {
+      params.push(`%${search}%`);
+      whereClause += ` AND (p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`;
     }
     
-    if (featured) {
-      whereClause += ' AND p.featured = true';
+    if (type) {
+      params.push(type);
+      whereClause += ` AND p.type = $${params.length}`;
     }
     
+    // Get total count
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM products p ${whereClause}`,
+      params
+    );
+    
+    // Get products with variants and pricing
+    params.push(limit, offset);
     const result = await db.query(`
       SELECT p.*, 
-             sc.name as sub_category_name,
              c.name as category_name,
              COALESCE(
                json_agg(
                  json_build_object(
                    'id', pv.id,
                    'variant_name', pv.variant_name,
-                   'sku', pv.sku,
+                   'sku_suffix', pv.sku_suffix,
                    'attributes', pv.attributes
                  )
                ) FILTER (WHERE pv.id IS NOT NULL), 
                '[]'
-             ) as variants
+             ) as variants,
+             pp.mrp,
+             pp.base_price,
+             pp.selling_price,
+             pp.bulk_price
       FROM products p
-      JOIN sub_categories sc ON p.sub_category_id = sc.id
-      JOIN categories c ON sc.category_id = c.id
+      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN product_variants pv ON p.id = pv.product_id AND pv.is_active = true
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
       ${whereClause}
-      GROUP BY p.id, sc.name, c.name
+      GROUP BY p.id, c.name, pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price
       ORDER BY p.created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
     
-    res.json({ products: result.rows });
+    res.json({ 
+      products: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// COMPLETE PRODUCT CREATION FLOW (Schema-based)
 exports.createProduct = async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const { sub_category_id, name, description, sku, brand, unit, weight, dimensions, featured } = req.body;
-    const result = await db.query(
-      'INSERT INTO products (sub_category_id, name, description, sku, brand, unit, weight, dimensions, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [sub_category_id, name, description, sku, brand, unit, weight, dimensions, featured || false]
+    const {
+      // Basic Product Info
+      category_id, name, sku, description, type = 'physical', unit,
+      is_subscription = false, thumbnail_url, image_urls = [], tags = [],
+      
+      // Variants (optional)
+      variants = [],
+      
+      // Pricing Info
+      mrp, base_price, selling_price, admin_margin_pct, bulk_price,
+      
+      // Profit Distribution (B2B/B2C)
+      profit_channel = 'B2C', // 'B2B' or 'B2C'
+      
+      // Initial Stock
+      initial_stock_quantity = 0
+    } = req.body;
+
+    // Validation
+    if (!category_id || !name || !sku || !mrp || !base_price || !selling_price) {
+      return res.status(400).json({ 
+        error: 'category_id, name, sku, mrp, base_price, selling_price are required' 
+      });
+    }
+
+    if (!['physical', 'digital', 'service'].includes(type)) {
+      return res.status(400).json({ error: 'type must be physical, digital, or service' });
+    }
+
+    if (!['B2B', 'B2C'].includes(profit_channel)) {
+      return res.status(400).json({ error: 'profit_channel must be B2B or B2C' });
+    }
+
+    await client.query('BEGIN');
+
+    // Step 1: Insert Product
+    const productResult = await client.query(
+      `INSERT INTO products 
+       (category_id, name, sku, description, type, unit, is_subscription, 
+        thumbnail_url, image_urls, tags, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+       RETURNING *`,
+      [
+        category_id, name, sku, description, type, unit, is_subscription,
+        thumbnail_url, JSON.stringify(image_urls), tags, req.user.id
+      ]
     );
-    res.status(201).json({ product: result.rows[0] });
+    
+    const product = productResult.rows[0];
+    const productId = product.id;
+
+    // Step 2: Insert Variants (if provided)
+    const createdVariants = [];
+    if (variants && variants.length > 0) {
+      for (const variant of variants) {
+        const { variant_name, sku_suffix, attributes = {} } = variant;
+        
+        if (!variant_name) continue;
+        
+        const variantResult = await client.query(
+          `INSERT INTO product_variants 
+           (product_id, variant_name, sku_suffix, attributes) 
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+          [productId, variant_name, sku_suffix, JSON.stringify(attributes)]
+        );
+        
+        createdVariants.push(variantResult.rows[0]);
+      }
+    }
+
+    // Step 3: Insert Base Product Pricing
+    await client.query(
+      `INSERT INTO product_pricing 
+       (product_id, variant_id, mrp, base_price, selling_price, 
+        admin_margin_pct, bulk_price, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, true, $7)`,
+      [
+        productId, mrp, base_price, selling_price, 
+        admin_margin_pct || 0, bulk_price || null, req.user.id
+      ]
+    );
+
+    // Step 4: Assign Profit Rules (get current active rule for channel)
+    const profitRuleResult = await client.query(
+      `SELECT id FROM profit_rules 
+       WHERE channel = $1 AND is_current = true 
+       LIMIT 1`,
+      [profit_channel]
+    );
+    
+    if (profitRuleResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: `No active profit rule found for channel: ${profit_channel}` 
+      });
+    }
+
+    // Step 5: Create Initial Admin Stock Entry
+    if (initial_stock_quantity > 0) {
+      await client.query(
+        `INSERT INTO inventory_balances 
+         (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
+         VALUES ('admin', $1, $2, NULL, $3)`,
+        [req.user.id, productId, initial_stock_quantity]
+      );
+      
+      // Log in inventory_ledger
+      await client.query(
+        `INSERT INTO inventory_ledger 
+         (product_id, variant_id, entity_type, entity_id, transaction_type, 
+          quantity, reference_type, note, created_by) 
+         VALUES ($1, NULL, 'admin', $2, 'initial_stock', $3, 'product_creation', 
+                 'Initial stock added during product creation', $4)`,
+        [productId, req.user.id, initial_stock_quantity, req.user.id]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      message: 'Product created successfully',
+      product: {
+        ...product,
+        variants: createdVariants,
+        pricing: { mrp, base_price, selling_price, admin_margin_pct, bulk_price },
+        profit_channel,
+        initial_stock: initial_stock_quantity
+      }
+    });
+    
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    await client.query('ROLLBACK');
+    
+    if (error.code === '23505') { // Unique constraint violation
+      res.status(400).json({ error: 'SKU already exists' });
+    } else {
+      res.status(400).json({ error: error.message });
+    }
+  } finally {
+    client.release();
   }
 };
 
-// Services
-exports.getServices = async (req, res) => {
+// =============================================================================
+// PRODUCT VARIANTS MANAGEMENT
+// =============================================================================
+
+exports.getProductVariants = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM service_catalog WHERE is_active = true ORDER BY created_at DESC');
-    res.json({ services: result.rows });
+    const { product_id } = req.params;
+    
+    const result = await db.query(`
+      SELECT pv.*, 
+             pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price
+      FROM product_variants pv
+      LEFT JOIN product_pricing pp ON pv.id = pp.variant_id AND pp.is_current = true
+      WHERE pv.product_id = $1 AND pv.is_active = true
+      ORDER BY pv.created_at ASC
+    `, [product_id]);
+    
+    res.json({ variants: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.createService = async (req, res) => {
+exports.createProductVariant = async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const { name, description, service_type, duration, price } = req.body;
-    const result = await db.query(
-      'INSERT INTO service_catalog (name, description, service_type, duration, price) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, description, service_type, duration, price]
+    const { product_id } = req.params;
+    const { 
+      variant_name, sku_suffix, attributes = {},
+      mrp, base_price, selling_price, admin_margin_pct, bulk_price 
+    } = req.body;
+
+    if (!variant_name) {
+      return res.status(400).json({ error: 'variant_name is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Create variant
+    const variantResult = await client.query(
+      `INSERT INTO product_variants 
+       (product_id, variant_name, sku_suffix, attributes) 
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [product_id, variant_name, sku_suffix, JSON.stringify(attributes)]
     );
-    res.status(201).json({ service: result.rows[0] });
+    
+    const variant = variantResult.rows[0];
+
+    // Create pricing if provided
+    if (mrp && base_price && selling_price) {
+      await client.query(
+        `INSERT INTO product_pricing 
+         (product_id, variant_id, mrp, base_price, selling_price, 
+          admin_margin_pct, bulk_price, is_current, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+        [
+          product_id, variant.id, mrp, base_price, selling_price,
+          admin_margin_pct || 0, bulk_price || null, req.user.id
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      message: 'Product variant created successfully',
+      variant
+    });
+    
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
   }
 };
 
-// Subscription Plans
-exports.getSubscriptionPlans = async (req, res) => {
+// =============================================================================
+// PRODUCT PRICING MANAGEMENT
+// =============================================================================
+
+exports.updateProductPricing = async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const result = await db.query('SELECT * FROM subscription_plans WHERE is_active = true ORDER BY price ASC');
-    res.json({ plans: result.rows });
+    const { product_id, variant_id, mrp, base_price, selling_price, admin_margin_pct, bulk_price, reason } = req.body;
+
+    if (!product_id || !mrp || !base_price || !selling_price) {
+      return res.status(400).json({ 
+        error: 'product_id, mrp, base_price, selling_price are required' 
+      });
+    }
+
+    await client.query('BEGIN');
+
+    // Get current pricing for history
+    const currentResult = await client.query(
+      `SELECT * FROM product_pricing 
+       WHERE product_id = $1 AND ($2::uuid IS NULL OR variant_id = $2) AND is_current = true`,
+      [product_id, variant_id || null]
+    );
+
+    if (currentResult.rows.length > 0) {
+      const current = currentResult.rows[0];
+      
+      // Record price history
+      await client.query(
+        `INSERT INTO price_history 
+         (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) 
+         VALUES ($1, $2, $3, $4, 'selling_price', $5, $6)`,
+        [product_id, variant_id || null, current.selling_price, selling_price, req.user.id, reason || 'Price update']
+      );
+      
+      // Update existing pricing
+      await client.query(
+        `UPDATE product_pricing SET 
+         mrp = $1, base_price = $2, selling_price = $3, 
+         admin_margin_pct = $4, bulk_price = $5, updated_at = NOW() 
+         WHERE id = $6`,
+        [mrp, base_price, selling_price, admin_margin_pct || 0, bulk_price || null, current.id]
+      );
+    } else {
+      // Create new pricing
+      await client.query(
+        `INSERT INTO product_pricing 
+         (product_id, variant_id, mrp, base_price, selling_price, 
+          admin_margin_pct, bulk_price, is_current, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+        [
+          product_id, variant_id || null, mrp, base_price, selling_price,
+          admin_margin_pct || 0, bulk_price || null, req.user.id
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    res.json({ message: 'Product pricing updated successfully' });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================================================
+// PROFIT RULES MANAGEMENT
+// =============================================================================
+
+exports.getProfitRules = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM profit_rules 
+      WHERE is_current = true 
+      ORDER BY channel ASC
+    `);
+    
+    res.json({ profit_rules: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.createSubscriptionPlan = async (req, res) => {
+exports.createProfitRule = async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const { name, description, duration_months, price, features } = req.body;
-    const result = await db.query(
-      'INSERT INTO subscription_plans (name, description, duration_months, price, features) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, description, duration_months, price, JSON.stringify(features)]
+    const {
+      channel, rule_name,
+      fts_share_pct, referral_share_pct, trust_fund_pct, admin_pct, company_pct,
+      core_body_pool_pct, company_reserve_pct, stock_point_pct, referral_pct
+    } = req.body;
+
+    if (!channel || !rule_name) {
+      return res.status(400).json({ error: 'channel and rule_name are required' });
+    }
+
+    if (!['B2B', 'B2C'].includes(channel)) {
+      return res.status(400).json({ error: 'channel must be B2B or B2C' });
+    }
+
+    await client.query('BEGIN');
+
+    // Deactivate existing rule for this channel
+    await client.query(
+      `UPDATE profit_rules SET is_current = false WHERE channel = $1 AND is_current = true`,
+      [channel]
     );
-    res.status(201).json({ plan: result.rows[0] });
+
+    // Create new rule
+    const result = await client.query(
+      `INSERT INTO profit_rules 
+       (channel, rule_name, fts_share_pct, referral_share_pct, trust_fund_pct, 
+        admin_pct, company_pct, core_body_pool_pct, company_reserve_pct, 
+        stock_point_pct, referral_pct, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+       RETURNING *`,
+      [
+        channel, rule_name, fts_share_pct || 0, referral_share_pct || 0, trust_fund_pct || 0,
+        admin_pct || 0, company_pct || 0, core_body_pool_pct || 0, company_reserve_pct || 0,
+        stock_point_pct || 0, referral_pct || 0, req.user.id
+      ]
+    );
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      message: 'Profit rule created successfully',
+      profit_rule: result.rows[0]
+    });
+    
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================================================
+// INVENTORY MANAGEMENT
+// =============================================================================
+
+exports.getInventoryBalances = async (req, res) => {
+  try {
+    const { entity_type, entity_id, product_id } = req.query;
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    
+    if (entity_type) {
+      params.push(entity_type);
+      whereClause += ` AND ib.entity_type = $${params.length}`;
+    }
+    
+    if (entity_id) {
+      params.push(entity_id);
+      whereClause += ` AND ib.entity_id = $${params.length}`;
+    }
+    
+    if (product_id) {
+      params.push(product_id);
+      whereClause += ` AND ib.product_id = $${params.length}`;
+    }
+    
+    const result = await db.query(`
+      SELECT ib.*, 
+             p.name as product_name, p.sku, p.unit,
+             pv.variant_name,
+             u.full_name as entity_name
+      FROM inventory_balances ib
+      LEFT JOIN products p ON ib.product_id = p.id
+      LEFT JOIN product_variants pv ON ib.variant_id = pv.id
+      LEFT JOIN users u ON ib.entity_id = u.id
+      ${whereClause}
+      ORDER BY ib.last_updated_at DESC
+    `, params);
+    
+    res.json({ inventory_balances: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.addInitialStock = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { product_id, variant_id, quantity, note } = req.body;
+
+    if (!product_id || !quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'product_id and positive quantity are required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Add to admin inventory
+    await client.query(
+      `INSERT INTO inventory_balances 
+       (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
+       VALUES ('admin', $1, $2, $3, $4)
+       ON CONFLICT (entity_type, entity_id, product_id, COALESCE(variant_id, '00000000-0000-0000-0000-000000000000'::uuid))
+       DO UPDATE SET quantity_on_hand = inventory_balances.quantity_on_hand + $4, last_updated_at = NOW()`,
+      [req.user.id, product_id, variant_id || null, quantity]
+    );
+
+    // Log in inventory_ledger
+    await client.query(
+      `INSERT INTO inventory_ledger 
+       (product_id, variant_id, entity_type, entity_id, transaction_type, 
+        quantity, reference_type, note, created_by) 
+       VALUES ($1, $2, 'admin', $3, 'stock_in', $4, 'manual_addition', $5, $6)`,
+      [product_id, variant_id || null, req.user.id, quantity, note || 'Manual stock addition', req.user.id]
+    );
+
+    await client.query('COMMIT');
+    
+    res.json({ message: 'Stock added successfully' });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -354,48 +774,67 @@ exports.getAdminProducts = async (req, res) => {
 
     if (search) {
       params.push(`%${search}%`);
-      whereClause += ` AND (ap.name ILIKE $${params.length} OR ap.sku ILIKE $${params.length})`;
+      whereClause += ` AND (p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`;
     }
     if (category_id) {
       params.push(category_id);
-      whereClause += ` AND ap.category_id = $${params.length}`;
+      whereClause += ` AND p.category_id = $${params.length}`;
     }
     if (type) {
       params.push(type);
-      whereClause += ` AND ap.product_type = $${params.length}`;
+      whereClause += ` AND p.type = $${params.length}`;
     }
     if (status) {
-      params.push(status);
-      whereClause += ` AND ap.status = $${params.length}`;
+      if (status === 'active') {
+        whereClause += ` AND p.is_active = true`;
+      } else if (status === 'archived' || status === 'draft') {
+        whereClause += ` AND p.is_active = false`;
+      }
     }
     if (min_price) {
       params.push(min_price);
-      whereClause += ` AND ap.base_price >= $${params.length}`;
+      whereClause += ` AND pp.base_price >= $${params.length}`;
     }
     if (max_price) {
       params.push(max_price);
-      whereClause += ` AND ap.base_price <= $${params.length}`;
+      whereClause += ` AND pp.base_price <= $${params.length}`;
     }
     if (min_margin) {
       params.push(min_margin);
-      whereClause += ` AND ap.margin_percent >= $${params.length}`;
+      whereClause += ` AND pp.admin_margin_pct >= $${params.length}`;
     }
 
-    const countResult = await db.query(
-      `SELECT COUNT(*) FROM admin_products ap ${whereClause}`,
-      params
-    );
+    const countQuery = `
+      SELECT COUNT(DISTINCT p.id) 
+      FROM products p
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+      ${whereClause}
+    `;
+    const countResult = await db.query(countQuery, params);
 
     params.push(limit, offset);
-    const result = await db.query(
-      `SELECT ap.*, c.name as category_name
-       FROM admin_products ap
-       LEFT JOIN categories c ON ap.category_id = c.id
-       ${whereClause}
-       ORDER BY ap.created_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
-      params
-    );
+    
+    // Select aliases to match frontend expect: base_price -> selling_price (or mrp), cost_price -> pp.base_price, status -> is_active, stock_quantity -> ib.quantity_on_hand
+    const query = `
+      SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, p.created_at, p.updated_at,
+             CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
+             p.type = 'digital' as is_digital, p.type = 'service' as is_service,
+             c.name as category_name,
+             pp.selling_price as base_price,
+             pp.base_price as cost_price,
+             pp.admin_margin_pct as min_margin_percent,
+             CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
+             COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
+             true as stock_required
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+      LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
+      ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
+    const result = await db.query(query, params);
 
     res.json({
       products: result.rows,
@@ -412,10 +851,21 @@ exports.getAdminProductById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT ap.*, c.name as category_name
-       FROM admin_products ap
-       LEFT JOIN categories c ON ap.category_id = c.id
-       WHERE ap.id = $1`,
+      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, p.created_at, p.updated_at,
+             CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
+             p.type = 'digital' as is_digital, p.type = 'service' as is_service,
+             c.name as category_name,
+             pp.selling_price as base_price,
+             pp.base_price as cost_price,
+             pp.admin_margin_pct as min_margin_percent,
+             CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
+             COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
+             true as stock_required
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+       LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
+       WHERE p.id = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -426,6 +876,7 @@ exports.getAdminProductById = async (req, res) => {
 };
 
 exports.createAdminProduct = async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const {
       name, sku, category_id, product_type, base_price, cost_price,
@@ -437,88 +888,137 @@ exports.createAdminProduct = async (req, res) => {
       return res.status(400).json({ error: 'name, sku, category_id, product_type, base_price are required' });
     }
 
-    // Check duplicate SKU
-    const skuCheck = await db.query('SELECT id FROM admin_products WHERE sku = $1', [sku]);
-    if (skuCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'SKU already exists' });
-    }
+    const type = is_digital ? 'digital' : (is_service ? 'service' : product_type);
+    const is_active = status === 'active';
 
-    const margin_percent = cost_price > 0
-      ? ((base_price - cost_price) / base_price) * 100
-      : 0;
+    await client.query('BEGIN');
 
-    const result = await db.query(
-      `INSERT INTO admin_products
-       (name, sku, category_id, product_type, base_price, cost_price, margin_percent,
-        min_margin_percent, stock_required, stock_quantity, is_digital, is_service,
-        description, status, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    // Step 1: Insert Product
+    const productResult = await client.query(
+      `INSERT INTO products 
+       (category_id, name, sku, description, type, is_active, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
-      [
-        name, sku, category_id, product_type, base_price, cost_price || 0,
-        margin_percent, min_margin_percent || 15, stock_required ?? true,
-        stock_quantity || 0, is_digital ?? false, is_service ?? false,
-        description || null, status, req.user.id
-      ]
+      [category_id, name, sku, description || null, type, is_active, req.user.id]
+    );
+    const product = productResult.rows[0];
+
+    // Step 2: Insert Pricing (frontend base_price -> expect mrp/selling, cost_price -> backend base_price)
+    await client.query(
+      `INSERT INTO product_pricing 
+       (product_id, mrp, base_price, selling_price, admin_margin_pct, is_current, created_by) 
+       VALUES ($1, $2, $3, $4, $5, true, $6)`,
+      [product.id, base_price, cost_price || 0, base_price, min_margin_percent || 15, req.user.id]
     );
 
-    res.status(201).json({ product: result.rows[0], message: 'Product created successfully' });
+    // Step 3: Insert Initial Stock if any
+    if (stock_quantity > 0) {
+      await client.query(
+        `INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity_on_hand) 
+         VALUES ('admin', $1, $2, $3)`,
+        [req.user.id, product.id, stock_quantity]
+      );
+      await client.query(
+        `INSERT INTO inventory_ledger (product_id, entity_type, entity_id, transaction_type, quantity, reference_type, note, created_by) 
+         VALUES ($1, 'admin', $2, 'initial_stock', $3, 'product_creation', 'Initial stock added from admin panel', $4)`,
+        [product.id, req.user.id, stock_quantity, req.user.id]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ product: { ...product, id: product.id }, message: 'Product created successfully' });
   } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') {
+       return res.status(400).json({ error: 'SKU already exists' });
+    }
     res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
   }
 };
 
 exports.updateAdminProduct = async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
       name, sku, category_id, product_type, base_price, cost_price,
-      min_margin_percent, stock_required, stock_quantity, is_digital,
+      min_margin_percent, stock_quantity, is_digital,
       is_service, description, status
     } = req.body;
 
-    const existing = await db.query('SELECT id FROM admin_products WHERE id = $1', [id]);
-    if (existing.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    await client.query('BEGIN');
 
-    // Check SKU conflict with other products
-    if (sku) {
-      const skuCheck = await db.query('SELECT id FROM admin_products WHERE sku = $1 AND id != $2', [sku, id]);
-      if (skuCheck.rows.length > 0) return res.status(400).json({ error: 'SKU already exists' });
+    const existing = await client.query('SELECT id FROM products WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Product not found' });
     }
 
-    const margin_percent = (base_price && cost_price > 0)
-      ? ((base_price - cost_price) / base_price) * 100
-      : undefined;
+    if (sku) {
+      const skuCheck = await client.query('SELECT id FROM products WHERE sku = $1 AND id != $2', [sku, id]);
+      if (skuCheck.rows.length > 0) {
+         await client.query('ROLLBACK');
+         return res.status(400).json({ error: 'SKU already exists' });
+      }
+    }
 
-    const result = await db.query(
-      `UPDATE admin_products SET
+    const type = is_digital ? 'digital' : (is_service ? 'service' : product_type);
+    const is_active = status ? (status === 'active') : undefined;
+
+    await client.query(
+      `UPDATE products SET
         name = COALESCE($1, name),
         sku = COALESCE($2, sku),
         category_id = COALESCE($3, category_id),
-        product_type = COALESCE($4, product_type),
-        base_price = COALESCE($5, base_price),
-        cost_price = COALESCE($6, cost_price),
-        margin_percent = COALESCE($7, margin_percent),
-        min_margin_percent = COALESCE($8, min_margin_percent),
-        stock_required = COALESCE($9, stock_required),
-        stock_quantity = COALESCE($10, stock_quantity),
-        is_digital = COALESCE($11, is_digital),
-        is_service = COALESCE($12, is_service),
-        description = COALESCE($13, description),
-        status = COALESCE($14, status),
+        type = COALESCE($4, type),
+        description = COALESCE($5, description),
+        is_active = COALESCE($6, is_active),
         updated_at = NOW()
-       WHERE id = $15
-       RETURNING *`,
-      [
-        name, sku, category_id, product_type, base_price, cost_price,
-        margin_percent, min_margin_percent, stock_required, stock_quantity,
-        is_digital, is_service, description, status, id
-      ]
+       WHERE id = $7`,
+      [name, sku, category_id, type, description, is_active, id]
     );
 
-    res.json({ product: result.rows[0], message: 'Product updated successfully' });
+    if (base_price !== undefined || cost_price !== undefined || min_margin_percent !== undefined) {
+      const existingPricing = await client.query('SELECT id FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL', [id]);
+      if (existingPricing.rows.length > 0) {
+        await client.query(
+          `UPDATE product_pricing SET
+            mrp = COALESCE($1, mrp),
+            selling_price = COALESCE($1, selling_price),
+            base_price = COALESCE($2, base_price),
+            admin_margin_pct = COALESCE($3, admin_margin_pct),
+            updated_at = NOW()
+           WHERE product_id = $4 AND is_current = true AND variant_id IS NULL`,
+          [base_price, cost_price, min_margin_percent, id]
+        );
+      } else if (base_price !== undefined) {
+        await client.query(
+          `INSERT INTO product_pricing (product_id, mrp, base_price, selling_price, admin_margin_pct, is_current, created_by)
+           VALUES ($1, $2, $3, $4, $5, true, $6)`,
+          [id, base_price, cost_price || 0, base_price, min_margin_percent || 15, req.user.id]
+        );
+      }
+    }
+
+    if (stock_quantity !== undefined) {
+      await client.query(
+        `INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity_on_hand)
+         VALUES ('admin', $1, $2, $3)
+         ON CONFLICT (entity_type, entity_id, product_id, COALESCE(variant_id, '00000000-0000-0000-0000-000000000000'::uuid))
+         DO UPDATE SET quantity_on_hand = $3, last_updated_at = NOW()`,
+        [req.user.id, id, stock_quantity]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Product updated successfully' });
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -526,7 +1026,7 @@ exports.deleteAdminProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `UPDATE admin_products SET status = 'archived', updated_at = NOW() WHERE id = $1 RETURNING id`,
+      `UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -570,6 +1070,90 @@ exports.updatePricing = async (req, res) => {
     }
     
     res.json({ message: 'Pricing updated successfully' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// =============================================================================
+// SERVICES MANAGEMENT
+// =============================================================================
+
+exports.getServices = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM products 
+      WHERE type = 'service' AND is_active = true
+      ORDER BY created_at DESC
+    `);
+    res.json({ services: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.createService = async (req, res) => {
+  try {
+    const { name, description, category_id, base_price } = req.body;
+    
+    if (!name || !category_id || !base_price) {
+      return res.status(400).json({ error: 'name, category_id, and base_price are required' });
+    }
+    
+    const sku = `SRV-${Date.now()}`;
+    
+    const result = await db.query(
+      `INSERT INTO products (name, sku, description, category_id, type, created_by) 
+       VALUES ($1, $2, $3, $4, 'service', $5) RETURNING *`,
+      [name, sku, description, category_id, req.user.id]
+    );
+    
+    res.status(201).json({ 
+      service: result.rows[0], 
+      message: 'Service created successfully' 
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// =============================================================================
+// SUBSCRIPTION PLANS MANAGEMENT
+// =============================================================================
+
+exports.getSubscriptionPlans = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM products 
+      WHERE is_subscription = true AND is_active = true
+      ORDER BY created_at DESC
+    `);
+    res.json({ subscription_plans: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.createSubscriptionPlan = async (req, res) => {
+  try {
+    const { name, description, category_id, base_price, duration_months } = req.body;
+    
+    if (!name || !category_id || !base_price) {
+      return res.status(400).json({ error: 'name, category_id, and base_price are required' });
+    }
+    
+    const sku = `SUB-${Date.now()}`;
+    
+    const result = await db.query(
+      `INSERT INTO products (name, sku, description, category_id, type, is_subscription, created_by) 
+       VALUES ($1, $2, $3, $4, 'digital', true, $5) RETURNING *`,
+      [name, sku, description, category_id, req.user.id]
+    );
+    
+    res.status(201).json({ 
+      subscription_plan: result.rows[0], 
+      message: 'Subscription plan created successfully' 
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
