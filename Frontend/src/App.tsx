@@ -53,6 +53,10 @@ import CategoryList from "./pages/categories/CategoryList";
 import ManageCategory from "./pages/categories/ManageCategory";
 import CategoryCommissionRules from "./pages/categories/CategoryCommissionRules";
 
+// Services Pages
+import AllServices from "./pages/services/AllServices";
+import AddNewService from "./pages/services/AddNewService";
+
 // Products Page Layout
 import { ProductsPageLayout } from "./components/products/ProductsPageLayout";
 
@@ -176,6 +180,11 @@ const App = () => {
             <Route path="/admin/products/new" element={<ProductsPageLayout><AddNewProduct /></ProductsPageLayout>} />
             <Route path="/admin/products/pricing" element={<ProductsPageLayout><ProductPricing /></ProductsPageLayout>} />
             <Route path="/admin/products/status" element={<ProductsPageLayout><ProductStatus /></ProductsPageLayout>} />
+            
+            {/* Service Catalog Routes */}
+            <Route path="/admin/services" element={<ProductsPageLayout><AllServices /></ProductsPageLayout>} />
+            <Route path="/admin/services/new" element={<ProductsPageLayout><AddNewService /></ProductsPageLayout>} />
+
             <Route path="/admin/categories" element={<ProductsPageLayout><CategoryList /></ProductsPageLayout>} />
             <Route path="/admin/categories/manage" element={<ProductsPageLayout><ManageCategory /></ProductsPageLayout>} />
             <Route path="/admin/categories/commission" element={<ProductsPageLayout><CategoryCommissionRules /></ProductsPageLayout>} />

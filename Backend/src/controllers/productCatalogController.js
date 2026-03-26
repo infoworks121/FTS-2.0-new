@@ -1082,9 +1082,14 @@ exports.updatePricing = async (req, res) => {
 exports.getServices = async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT * FROM products 
-      WHERE type = 'service' AND is_active = true
-      ORDER BY created_at DESC
+      SELECT p.*, 
+             sc.service_type, sc.delivery_mode, sc.duration_minutes, sc.requires_booking,
+             pp.mrp, pp.base_price, pp.selling_price
+      FROM products p
+      LEFT JOIN service_catalog sc ON p.id = sc.product_id
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+      WHERE p.type = 'service' AND p.is_active = true
+      ORDER BY p.created_at DESC
     `);
     res.json({ services: result.rows });
   } catch (error) {
@@ -1093,27 +1098,62 @@ exports.getServices = async (req, res) => {
 };
 
 exports.createService = async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const { name, description, category_id, base_price } = req.body;
+    const { 
+      // Basic Product Info
+      name, description, category_id, thumbnail_url,
+      // Pricing
+      mrp, base_price, selling_price,
+      // Service specific info
+      service_type, delivery_mode, duration_minutes, requires_booking 
+    } = req.body;
     
-    if (!name || !category_id || !base_price) {
-      return res.status(400).json({ error: 'name, category_id, and base_price are required' });
+    if (!name || !category_id || !base_price || !selling_price || !mrp) {
+      return res.status(400).json({ error: 'name, category_id, mrp, base_price and selling_price are required' });
     }
+    
+    await client.query('BEGIN');
     
     const sku = `SRV-${Date.now()}`;
     
-    const result = await db.query(
-      `INSERT INTO products (name, sku, description, category_id, type, created_by) 
-       VALUES ($1, $2, $3, $4, 'service', $5) RETURNING *`,
-      [name, sku, description, category_id, req.user.id]
+    // 1. Insert into products
+    const productResult = await client.query(
+      `INSERT INTO products (category_id, name, sku, description, type, thumbnail_url, created_by) 
+       VALUES ($1, $2, $3, $4, 'service', $5, $6) RETURNING *`,
+      [category_id, name, sku, description, thumbnail_url, req.user.id]
     );
     
+    const product = productResult.rows[0];
+    const productId = product.id;
+
+    // 2. Insert Base Product Pricing
+    await client.query(
+      `INSERT INTO product_pricing 
+       (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, true, $5)`,
+      [productId, mrp, base_price, selling_price, req.user.id]
+    );
+
+    // 3. Insert into service_catalog
+    const serviceResult = await client.query(
+      `INSERT INTO service_catalog 
+       (product_id, service_type, delivery_mode, duration_minutes, requires_booking) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [productId, service_type, delivery_mode, duration_minutes, requires_booking || false]
+    );
+
+    await client.query('COMMIT');
+    
     res.status(201).json({ 
-      service: result.rows[0], 
+      service: { ...product, ...serviceResult.rows[0], pricing: { mrp, base_price, selling_price } }, 
       message: 'Service created successfully' 
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
   }
 };
 
