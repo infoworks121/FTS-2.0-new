@@ -28,8 +28,6 @@ import { navItems } from "@/pages/CoreBodyDashboard";
 
 type RecipientType = "Dealer" | "Businessman";
 
-const hasIssueAuthority = true; // Core Body A only (permission-based)
-
 const recipients = [
   { id: "RCP-001", type: "Dealer" as RecipientType, name: "Arjun Traders", status: "Active" as const },
   { id: "RCP-002", type: "Dealer" as RecipientType, name: "Kumar Dist.", status: "Inactive" as const },
@@ -45,6 +43,19 @@ const products = [
 ];
 
 export default function IssueStock() {
+  const [user] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const hasIssueAuthority = 
+    user?.panel === 'admin' || 
+    (user?.panel === 'core_body' && user?.role_code === 'core_body_a') ||
+    user?.panel === 'businessman';
+
   const [recipientType, setRecipientType] = useState<RecipientType>("Dealer");
   const [recipientSearch, setRecipientSearch] = useState("");
   const [recipientId, setRecipientId] = useState("");

@@ -17,7 +17,17 @@ import { useState, useEffect } from "react";
 
 import { getCoreBodyFlatNavItems } from "@/config/coreBodySidebarConfig";
 
-export const navItems = getCoreBodyFlatNavItems("A");
+const getUserType = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.role_code === 'core_body_b') return 'B';
+    if (user.role_code === 'dealer') return 'Dealer';
+    return 'A';
+  } catch {
+    return 'A';
+  }
+};
+export const navItems = getCoreBodyFlatNavItems(getUserType() as any);
 
 const earningsData = [
   { week: "W1", earnings: 8200 },

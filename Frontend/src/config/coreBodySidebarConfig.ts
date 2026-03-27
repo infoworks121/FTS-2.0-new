@@ -44,7 +44,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type CoreBodyType = "A" | "B";
+export type CoreBodyType = "A" | "B" | "Dealer";
 
 export interface CoreBodyBadge {
   count: number;
@@ -610,7 +610,7 @@ export function getCoreBodyFlatNavItems(coreBodyType: CoreBodyType): CoreBodyNav
   const groups = getCoreBodyNavGroups(coreBodyType);
   return groups.flatMap((group) =>
     group.items.filter((item) => {
-      if (item.coreBodyAOnly && coreBodyType === "B") return false;
+      if (item.coreBodyAOnly && coreBodyType !== "A") return false;
       return true;
     })
   );
