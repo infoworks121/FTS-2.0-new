@@ -54,13 +54,11 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
     // We fetch base_price from product_pricing for precise profit calc
     // But since pricing can change, the ideal schema has base_price at order time
     // For now we rely on order.total_profit or recalc. We will use recalc assuming 'unit_profit' exists
-    // Wait, let's fetch 'unit_profit' from order_items if it exists, else recalculate
+    // Fetch 'unit_profit' directly from order_items as it represents the precise profit at the time of order creation
     const itemsProfitResult = await client.query(`
-      SELECT oi.id, oi.quantity, oi.unit_price, pp.base_price,
-             (oi.unit_price - pp.base_price) as unit_profit
-      FROM order_items oi
-      JOIN product_pricing pp ON oi.product_id = pp.product_id AND pp.is_current = true
-      WHERE oi.order_id = $1 AND (pp.variant_id = oi.variant_id OR (pp.variant_id IS NULL AND oi.variant_id IS NULL))
+      SELECT id, quantity, unit_price, unit_profit
+      FROM order_items
+      WHERE order_id = $1
     `, [orderId]);
 
     let totalCalculatedProfit = 0;
