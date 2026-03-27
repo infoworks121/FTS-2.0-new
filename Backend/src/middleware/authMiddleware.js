@@ -86,4 +86,5 @@ const canIssueStock = async (req, res, next) => {
     next();
 };
 
-module.exports = { protect, authorize, adminOnly, canIssueStock };
+const authenticate = protect;
+module.exports = { protect, authenticate, authorize, adminOnly, canIssueStock };

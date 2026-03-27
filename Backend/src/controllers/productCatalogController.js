@@ -7,8 +7,11 @@ const db = require('../config/db');
 exports.getCategories = async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT c.id, c.name, c.slug, c.description, c.icon_url, c.is_active, c.sort_order, c.created_at
+      SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.icon_url, 
+             c.commission_rule_id, cr.name as commission_rule_name,
+             c.is_active, c.sort_order, c.created_at
       FROM categories c
+      LEFT JOIN commission_rules cr ON c.commission_rule_id = cr.id
       WHERE c.is_active = true
       ORDER BY c.sort_order ASC, c.id ASC
     `);
@@ -20,7 +23,7 @@ exports.getCategories = async (req, res) => {
 
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, icon_url, sort_order } = req.body;
+    const { name, description, icon_url, sort_order, parent_id, commission_rule_id } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Category name is required' });
@@ -29,9 +32,9 @@ exports.createCategory = async (req, res) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     
     const result = await db.query(
-      `INSERT INTO categories (name, description, slug, icon_url, sort_order) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, description || null, slug, icon_url || null, sort_order || 0]
+      `INSERT INTO categories (name, description, slug, icon_url, sort_order, parent_id, commission_rule_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, description || null, slug, icon_url || null, sort_order || 0, parent_id || null, commission_rule_id === 'none' ? null : commission_rule_id || null]
     );
     
     res.status(201).json({ 
@@ -44,6 +47,57 @@ exports.createCategory = async (req, res) => {
     } else {
       res.status(400).json({ error: error.message });
     }
+  }
+};
+
+// =============================================================================
+// PRODUCTS MANAGEMENT (FTS Schema Compatible)
+// =============================================================================
+
+exports.updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, icon_url, sort_order, parent_id, commission_rule_id, is_active } = req.body;
+    
+    const slug = name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : undefined;
+    
+    // Check if category exists
+    const existing = await db.query('SELECT * FROM categories WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    const cat = existing.rows[0];
+
+    const updatedName = name !== undefined ? name : cat.name;
+    const updatedSlug = slug !== undefined ? slug : cat.slug;
+    const updatedDescription = description !== undefined ? description : cat.description;
+    const updatedIcon = icon_url !== undefined ? icon_url : cat.icon_url;
+    const updatedSort = sort_order !== undefined ? sort_order : cat.sort_order;
+    const updatedParent = parent_id !== undefined ? (parent_id === 'none' ? null : parent_id) : cat.parent_id;
+    const updatedRule = commission_rule_id !== undefined ? (commission_rule_id === 'none' ? null : commission_rule_id) : cat.commission_rule_id;
+    const updatedActive = is_active !== undefined ? is_active : cat.is_active;
+
+    const result = await db.query(
+      `UPDATE categories 
+       SET name = $1, description = $2, slug = $3, icon_url = $4, sort_order = $5, parent_id = $6, commission_rule_id = $7, is_active = $8, updated_at = NOW()
+       WHERE id = $9 RETURNING *`,
+      [updatedName, updatedDescription, updatedSlug, updatedIcon, updatedSort, updatedParent, updatedRule, updatedActive, id]
+    );
+    
+    res.json({ category: result.rows[0], message: 'Category updated successfully' });
+  } catch (error) {
+    if (error.code === '23505') res.status(400).json({ error: 'Category name already exists' });
+    else res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query(`UPDATE categories SET is_active = false WHERE id = $1`, [id]);
+    res.json({ message: 'Category deactivated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -1196,5 +1250,62 @@ exports.createSubscriptionPlan = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+// =============================================================================
+// MARKET CATALOG (Issued Products)
+// =============================================================================
+exports.getIssuedProducts = async (req, res) => {
+  try {
+    const { category_id, search, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    const params = [];
+    
+    let whereClause = "WHERE p.is_active = true";
+
+    if (category_id && category_id !== 'all') {
+      params.push(category_id);
+      whereClause += ` AND p.category_id = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereClause += ` AND (p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`;
+    }
+
+    const countResult = await db.query(`
+      SELECT COUNT(DISTINCT p.id) 
+      FROM products p
+      ${whereClause}
+    `, params);
+
+    params.push(limit, offset);
+    const result = await db.query(`
+      SELECT p.id, p.name, p.sku, p.description, p.thumbnail_url, p.image_urls,
+             c.name as category_name,
+             pp.mrp, pp.selling_price, p.unit,
+             COALESCE(bp.business_name, u.full_name, 'FTS Official') as seller_name,
+             COALESCE(bp.business_address, 'Main Hub') as business_address,
+             COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+      JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+      LEFT JOIN inventory_balances ib ON p.id = ib.product_id
+      LEFT JOIN users u ON ib.entity_id = u.id
+      LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+      ${whereClause}
+      ORDER BY p.name ASC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+
+    res.json({
+      products: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };

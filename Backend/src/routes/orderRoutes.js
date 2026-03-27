@@ -8,4 +8,7 @@ const { protect } = require('../middleware/authMiddleware');
 // Place a B2B order
 router.post('/b2b', protect, orderController.createB2BOrder);
 
+// Place a B2C order
+router.post('/b2c', protect, orderController.createB2COrder);
+
 module.exports = router;

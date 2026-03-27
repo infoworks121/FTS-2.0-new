@@ -1,96 +1,61 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FinanceLayout from "@/components/finance/FinanceLayout";
 import BalanceCard from "@/components/finance/BalanceCard";
 import LedgerTable, { LedgerTransaction } from "@/components/finance/LedgerTable";
 import { Button } from "@/components/ui/button";
-import { Calendar, Download, Filter, RefreshCw, Lock, Shield, AlertTriangle, FileText } from "lucide-react";
+import { RefreshCw, Lock, Shield, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import api from "@/lib/api";
 
-// Mock data
-const mockTransactions: LedgerTransaction[] = [
-  {
-    id: "TRUST001",
-    date: "2026-02-19",
-    time: "00:00:00",
-    description: "Monthly Contribution - February",
-    reference: "TRUST/CONTRIB/2026/02",
-    type: "credit",
-    amount: 50000.00,
-    balance: 2500000.00,
-    status: "completed",
-    remarks: "Auto-contribution from platform fees",
-  },
-  {
-    id: "TRUST002",
-    date: "2026-02-15",
-    time: "14:30:00",
-    description: "Fraud Protection Payout",
-    reference: "TRUST/PAYOUT/045",
-    type: "debit",
-    amount: 25000.00,
-    balance: 2450000.00,
-    status: "completed",
-    user: "Refund Recipient",
-    remarks: "Fraud victim reimbursement",
-  },
-  {
-    id: "TRUST003",
-    date: "2026-02-01",
-    time: "00:00:00",
-    description: "Monthly Contribution - January",
-    reference: "TRUST/CONTRIB/2026/01",
-    type: "credit",
-    amount: 50000.00,
-    balance: 2475000.00,
-    status: "completed",
-    remarks: "Auto-contribution from platform fees",
-  },
-  {
-    id: "TRUST004",
-    date: "2026-01-20",
-    time: "10:15:00",
-    description: "Dispute Resolution Payout",
-    reference: "TRUST/DISPUTE/012",
-    type: "debit",
-    amount: 15000.00,
-    balance: 2425000.00,
-    status: "completed",
-    user: "Dispute Winner",
-    remarks: "Customer dispute settlement",
-  },
-  {
-    id: "TRUST005",
-    date: "2026-01-15",
-    time: "09:00:00",
-    description: "Trust Fund Utilization Report",
-    reference: "AUDIT/2026/01",
-    type: "debit",
-    amount: 0.00,
-    balance: 2440000.00,
-    status: "completed",
-    remarks: "Monthly audit verification",
-  },
-];
+
 
 export default function TrustWallet() {
-  const [dateRange, setDateRange] = useState<string>("last30days");
   const [isLoading, setIsLoading] = useState(false);
+  const [trustBalance, setTrustBalance] = useState(0);
+  const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [overviewRes, logRes] = await Promise.all([
+        api.get('/wallet/admin/overview'),
+        api.get('/wallet/admin/trust-fund?limit=20'),
+      ]);
+      setTrustBalance(overviewRes.data.trust_fund || 0);
+      // Map backend data to LedgerTransaction shape
+      const mapped = (logRes.data.transactions || []).map((t: any) => ({
+        id: t.id,
+        date: new Date(t.created_at).toLocaleDateString('en-IN'),
+        time: new Date(t.created_at).toLocaleTimeString('en-IN'),
+        description: t.note || t.source_type,
+        reference: `TRUST/${t.source_type}/${t.source_ref_id || t.id}`,
+        type: t.credit_amount > 0 ? 'credit' : 'debit',
+        amount: parseFloat(t.credit_amount || t.debit_amount || 0),
+        balance: parseFloat(t.balance_after || 0),
+        status: 'completed',
+        remarks: t.note || '',
+      }));
+      setTransactions(mapped);
+    } catch (err) {
+      console.error('Failed to fetch trust fund data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const fmt = (n: number) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(n);
+
 
   const stats = [
-    { label: "Total Trust Balance", value: "₹25,00,000.00", type: "positive" as const, icon: "up" as const },
-    { label: "Monthly Contribution", value: "₹50,000.00", type: "neutral" as const, icon: "neutral" as const },
-    { label: "Utilization This Month", value: "₹40,000.00", type: "negative" as const, icon: "down" as const },
-    { label: "Active Disputes", value: "2", type: "warning" as const, icon: "neutral" as const },
+    { label: "Trust Balance", value: `₹${fmt(trustBalance)}`, type: "positive" as const, icon: "up" as const },
+    { label: "Monthly Contribution", value: "Auto", type: "neutral" as const, icon: "neutral" as const },
+    { label: "Total Entries", value: String(transactions.length), type: "neutral" as const, icon: "neutral" as const },
+    { label: "Active Disputes", value: "—", type: "warning" as const, icon: "neutral" as const },
   ];
 
-  const handleExport = () => {
-    console.log("Exporting trust fund ledger...");
-  };
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
-  };
+  const handleRefresh = () => { fetchData(); };
 
   return (
     <FinanceLayout
@@ -113,23 +78,12 @@ export default function TrustWallet() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              Date Range
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
           </div>
+
         </div>
       </div>
 
@@ -137,30 +91,28 @@ export default function TrustWallet() {
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <BalanceCard
-            title="Total Trust Balance"
-            amount={2500000.00}
+            title="Trust Fund Balance"
+            amount={trustBalance}
             type="available"
-            trend={{ value: 2.1, direction: "up" }}
-            subtext="Cumulative trust fund"
+            subtext="Live from backend"
           />
           <BalanceCard
-            title="Monthly Contribution"
-            amount={50000.00}
+            title="Recent Credits"
+            amount={transactions.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0)}
             type="credit"
-            trend={{ value: 0, direction: "up" }}
-            subtext="Auto-contribution from fees"
+            subtext="This page (20 entries)"
           />
           <BalanceCard
-            title="Utilization This Month"
-            amount={40000.00}
+            title="Recent Debits"
+            amount={transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0)}
             type="debit"
-            subtext="Disputes & fraud protection"
+            subtext="This page (20 entries)"
           />
           <BalanceCard
-            title="Active Disputes"
-            amount={2}
+            title="Net"
+            amount={transactions.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0) - transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0)}
             type="blocked"
-            subtext="Under review"
+            subtext="Page net"
           />
         </div>
 
@@ -200,11 +152,11 @@ export default function TrustWallet() {
 
         {/* Transaction Ledger */}
         <LedgerTable
-          transactions={mockTransactions}
-          title="Trust Fund Ledger (Read-Only)"
+          transactions={transactions}
+          title="Trust Fund Ledger (Live)"
           showExport={true}
           showFilters={true}
-          onExport={handleExport}
+          onExport={() => console.log('export')}
         />
       </div>
 

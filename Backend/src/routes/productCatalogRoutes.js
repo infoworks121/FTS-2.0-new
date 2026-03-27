@@ -6,6 +6,8 @@ const { protect, adminOnly, canIssueStock } = require('../middleware/authMiddlew
 // Categories
 router.get('/categories', productCatalogController.getCategories);
 router.post('/categories', protect, adminOnly, productCatalogController.createCategory);
+router.put('/categories/:id', protect, adminOnly, productCatalogController.updateCategory);
+router.delete('/categories/:id', protect, adminOnly, productCatalogController.deleteCategory);
 
 // Products
 router.get('/products', productCatalogController.getProducts);
@@ -23,6 +25,9 @@ router.put('/pricing', protect, adminOnly, productCatalogController.updatePricin
 
 // Stock Issue — admin, core_body_a, core_body_b, dealer (if approved), businessman (stock_point only)
 router.post('/stock/issue', protect, canIssueStock, productCatalogController.issueStock);
+
+// Market Catalog (Issued Products) - Public/Authenticated
+router.get('/issued-products', productCatalogController.getIssuedProducts);
 
 // Dealer Stock Permission — admin only
 router.post('/dealer/permission/grant', protect, adminOnly, productCatalogController.grantDealerStockPermission);

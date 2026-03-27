@@ -169,3 +169,157 @@ exports.createB2BOrder = async (req, res) => {
     client.release();
   }
 };
+
+exports.createB2COrder = async (req, res) => {
+  const client = await db.pool.connect();
+  
+  try {
+    const { items, payment_method, notes, delivery_address, district_id, pincode_id, referral_code } = req.body;
+    const user = req.user;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Order items are required.' });
+    }
+
+    if (!delivery_address) {
+      return res.status(400).json({ error: 'Delivery address is required for B2C orders.' });
+    }
+
+    await client.query('BEGIN');
+
+    let subtotal = 0;
+    let total_profit = 0;
+    const orderItemsData = [];
+    const stockCheckQuery = []; // We will check stock points later
+
+    // 1. Process Items and Prices
+    for (const item of items) {
+      const { product_id, variant_id, quantity } = item;
+      
+      const priceResult = await client.query(
+        `SELECT pp.mrp, pp.base_price, pp.selling_price 
+         FROM product_pricing pp 
+         WHERE pp.product_id = $1 AND ($2::uuid IS NULL OR pp.variant_id = $2) AND pp.is_current = true`,
+        [product_id, variant_id || null]
+      );
+
+      if (priceResult.rows.length === 0) {
+        throw new Error(`Pricing not found for product_id: ${product_id}`);
+      }
+
+      const pricing = priceResult.rows[0];
+      const unit_price = parseFloat(pricing.selling_price); // B2C always uses selling_price
+      const item_total = unit_price * quantity;
+      const unit_profit = unit_price - parseFloat(pricing.base_price);
+
+      subtotal += item_total;
+      total_profit += (unit_profit * quantity);
+
+      orderItemsData.push({
+        product_id,
+        variant_id: variant_id || null,
+        quantity,
+        unit_price,
+        mrp: pricing.mrp,
+        total_price: item_total,
+        unit_profit
+      });
+    }
+
+    const order_number = await generateOrderNumber(client).then(n => n.replace('B2B', 'B2C'));
+    const delivery_charge = 50; // Flat delivery fee for B2C
+    const total_amount = subtotal + delivery_charge;
+
+    let referral_user_id = null;
+    if (referral_code) {
+      const refUser = await client.query('SELECT id FROM users WHERE phone = $1 OR email = $1', [referral_code]);
+      if (refUser.rows.length > 0) {
+        referral_user_id = refUser.rows[0].id;
+      }
+    }
+
+    // 2. Create Order
+    const orderResult = await client.query(
+      `INSERT INTO orders 
+       (order_number, customer_id, order_type, status, subtotal, delivery_charge, total_amount, total_profit, 
+        payment_method, delivery_address, district_id, pincode_id, referral_code_used, referral_user_id, notes) 
+       VALUES ($1, $2, 'B2C', 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+       RETURNING *`,
+      [
+        order_number, user.id, subtotal, delivery_charge, total_amount, total_profit, 
+        payment_method || 'online', JSON.stringify(delivery_address), district_id || null, pincode_id || null,
+        referral_code || null, referral_user_id, notes || null
+      ]
+    );
+
+    const newOrder = orderResult.rows[0];
+
+    // 3. Insert Items
+    for (const data of orderItemsData) {
+      await client.query(
+        `INSERT INTO order_items 
+         (order_id, product_id, variant_id, quantity, unit_price, mrp, total_price, unit_profit) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [newOrder.id, data.product_id, data.variant_id, data.quantity, data.unit_price, data.mrp, data.total_price, data.unit_profit]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO order_status_log (order_id, new_status, note, performed_by) 
+       VALUES ($1, 'pending', 'Order placed by B2C customer', $2)`,
+      [newOrder.id, user.id]
+    );
+
+    // 4. Auto Assignment Engine (Find nearest stock point)
+    let assignedStockPoint = null;
+    if (district_id) {
+       // Query Stock Points in the same district that have SLA score > 50
+       const spsResult = await client.query(
+         `SELECT sp.id, sp.sla_score, sp.businessman_id 
+          FROM stock_point_profiles sp 
+          WHERE sp.district_id = $1 AND sp.is_active = true AND sp.sla_score >= 50
+          ORDER BY sp.sla_score DESC`,
+         [district_id]
+       );
+
+       // Simple logic: Just pick the Stock Point with the highest SLA score for now
+       // (A full system would verify stock for ALL items in the order before assigning)
+       if (spsResult.rows.length > 0) {
+         assignedStockPoint = spsResult.rows[0];
+       }
+    }
+
+    if (assignedStockPoint) {
+       // Create assignment immediately
+       await client.query(
+         `INSERT INTO fulfillment_assignments (order_id, fulfiller_type, fulfiller_id, status) 
+          VALUES ($1, 'stock_point', $2, 'assigned')`,
+         [newOrder.id, assignedStockPoint.id]
+       );
+       
+       const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000); 
+       await client.query(
+         `INSERT INTO order_sla_log (order_id, stock_point_id, sla_type, sla_deadline) 
+          VALUES ($1, $2, 'dispatch', $3)`,
+         [newOrder.id, assignedStockPoint.id, deadline]
+       );
+
+       await client.query(`UPDATE orders SET status = 'assigned' WHERE id = $1`, [newOrder.id]);
+    }
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      message: 'B2C Order placed successfully',
+      order: newOrder,
+      assigned_to: assignedStockPoint ? 'Nearest Stock Point' : 'Admin Queue'
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+

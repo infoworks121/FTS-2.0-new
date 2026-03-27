@@ -1,8 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
   CommissionLayout,
@@ -10,168 +8,102 @@ import {
   PercentageSummary,
   FlowDiagram,
   RuleHistoryTable,
-  ChangePreview,
 } from "@/components/commission";
 import { defaultB2BFlowNodes } from "@/components/commission/FlowDiagram";
-import { Users, Building2, Shield, Percent, Wallet, Info } from "lucide-react";
-
-interface B2BCommissionData {
-  directReferral: number;
-  companyFTS: number;
-  trustFund: number;
-  admin: number;
-  companyPool: {
-    reserve: number;
-    upgradeFunding: number;
-    operational: number;
-  };
-}
-
-const initialData: B2BCommissionData = {
-  directReferral: 15,
-  companyFTS: 35,
-  trustFund: 10,
-  admin: 5,
-  companyPool: {
-    reserve: 20,
-    upgradeFunding: 10,
-    operational: 5,
-  },
-};
-
-const historyData = [
-  {
-    id: "1",
-    version: 3,
-    effectiveFrom: "2026-01-01",
-    effectiveTo: "—",
-    status: "active" as const,
-    changes: "Updated trust fund and admin percentages",
-    changedBy: "Admin",
-    changedAt: "2025-12-28 14:30",
-    details: [
-      { field: "Trust Fund", oldValue: "8%", newValue: "10%" },
-      { field: "Admin", oldValue: "3%", newValue: "5%" },
-    ],
-  },
-  {
-    id: "2",
-    version: 2,
-    effectiveFrom: "2025-10-15",
-    effectiveTo: "2025-12-31",
-    status: "archived" as const,
-    changes: "Increased company pool allocation",
-    changedBy: "Admin",
-    changedAt: "2025-10-14 09:15",
-    details: [
-      { field: "Company Pool Reserve", oldValue: "15%", newValue: "20%" },
-    ],
-  },
-  {
-    id: "3",
-    version: 1,
-    effectiveFrom: "2025-06-01",
-    effectiveTo: "2025-10-14",
-    status: "archived" as const,
-    changes: "Initial B2B commission structure",
-    changedBy: "Admin",
-    changedAt: "2025-05-28 11:00",
-    details: [],
-  },
-];
+import { Building2, Percent, Wallet, Info, RefreshCw } from "lucide-react";
+import api from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 
 export default function B2BCommission() {
-  const [data, setData] = useState<B2BCommissionData>(initialData);
-  const [originalData] = useState<B2BCommissionData>(initialData);
+  const [isLoading, setIsLoading] = useState(true);
+  const [rule, setRule] = useState<any>(null);
+  const [originalRule, setOriginalRule] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get("/wallet/admin/profit-rules");
+      const b2bRule = response.data.rules.find((r: any) => r.channel === 'B2B');
+      if (b2bRule) {
+        setRule(b2bRule);
+        setOriginalRule(b2bRule);
+      }
+    } catch (error) {
+      console.error("Error fetching B2B rules:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load B2B commission rules",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  if (!rule) return <div className="p-8 text-center text-muted-foreground"><RefreshCw className="animate-spin h-8 w-8 mx-auto mb-2"/> Loading...</div>;
 
   const totalMain =
-    data.directReferral +
-    data.companyFTS +
-    data.trustFund +
-    data.admin;
+    parseFloat(rule.referral_share_pct) +
+    parseFloat(rule.fts_share_pct) +
+    parseFloat(rule.trust_fund_pct) +
+    parseFloat(rule.admin_pct) +
+    parseFloat(rule.core_body_pool_pct);
 
-  const totalPool =
-    data.companyPool.reserve +
-    data.companyPool.upgradeFunding +
-    data.companyPool.operational;
-
-  const updateField = (
-    field: keyof B2BCommissionData,
-    value: number
-  ) => {
-    setData((prev) => ({ ...prev, [field]: value }));
+  const updateField = (field: string, value: number) => {
+    setRule((prev: any) => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const updatePoolField = (
-    field: keyof B2BCommissionData["companyPool"],
-    value: number
-  ) => {
-    setData((prev) => ({
-      ...prev,
-      companyPool: { ...prev.companyPool, [field]: value },
-    }));
-    setHasChanges(true);
-  };
+  const handleSave = async () => {
+    if (totalMain !== 100) {
+      toast({
+        title: "Validation Error",
+        description: "Total allocation must equal 100%",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const getChanges = (): ChangePreview[] => {
-    const changes: ChangePreview[] = [];
-    
-    if (data.directReferral !== originalData.directReferral) {
-      changes.push({
-        field: "Direct Referral",
-        oldValue: `${originalData.directReferral}%`,
-        newValue: `${data.directReferral}%`,
-      });
-    }
-    if (data.companyFTS !== originalData.companyFTS) {
-      changes.push({
-        field: "Company (FTS)",
-        oldValue: `${originalData.companyFTS}%`,
-        newValue: `${data.companyFTS}%`,
-      });
-    }
-    if (data.trustFund !== originalData.trustFund) {
-      changes.push({
-        field: "Trust Fund",
-        oldValue: `${originalData.trustFund}%`,
-        newValue: `${data.trustFund}%`,
-      });
-    }
-    if (data.admin !== originalData.admin) {
-      changes.push({
-        field: "Admin",
-        oldValue: `${originalData.admin}%`,
-        newValue: `${data.admin}%`,
-      });
-    }
-    
-    return changes;
-  };
-
-  const handleSave = () => {
     setIsSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await api.put(`/wallet/admin/profit-rules/${rule.id}`, rule);
+      toast({
+        title: "Success",
+        description: "B2B Commission structure updated successfully",
+      });
       setHasChanges(false);
-    }, 1500);
+      fetchData(); // Refresh to get the new ID and updated history (if UI supported history)
+    } catch (error) {
+      console.error("Error saving B2B rules:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
-    setData(initialData);
+    setRule(originalRule);
     setHasChanges(false);
   };
 
-  // Flow nodes with current values
   const flowNodes = [
     { ...defaultB2BFlowNodes[0], value: 100 },
-    { ...defaultB2BFlowNodes[1], value: data.directReferral },
-    { ...defaultB2BFlowNodes[2], value: data.companyFTS },
-    { ...defaultB2BFlowNodes[3], value: data.trustFund },
-    { ...defaultB2BFlowNodes[4], value: data.admin },
+    { ...defaultB2BFlowNodes[1], value: parseFloat(rule.referral_share_pct) },
+    { ...defaultB2BFlowNodes[2], value: parseFloat(rule.fts_share_pct) },
+    { ...defaultB2BFlowNodes[3], value: parseFloat(rule.trust_fund_pct) },
+    { ...defaultB2BFlowNodes[4], value: parseFloat(rule.admin_pct) },
   ];
 
   return (
@@ -179,54 +111,56 @@ export default function B2BCommission() {
       title="B2B Commission Structure"
       description="Define how B2B profit is split between stakeholders"
       status="active"
-      lastUpdated={{ by: "Admin", time: "2025-12-28 14:30" }}
+      lastUpdated={{ by: "System Admin", time: new Date(rule.created_at).toLocaleString() }}
       onSave={handleSave}
       onReset={handleReset}
       isSaving={isSaving}
       hasChanges={hasChanges}
-      changes={getChanges()}
+      changes={[]}
       historySection={
-        <RuleHistoryTable history={historyData} title="" />
+        <RuleHistoryTable history={[]} title="Amendment History" />
       }
     >
-      {/* Current Active Rule Summary */}
       <Card className="border-profit/30 bg-profit/5">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Wallet className="h-4 w-4 text-profit" />
-              Current Active Rule Summary
+              Current Active Rule Configuration
             </CardTitle>
             <Badge variant="outline" className="text-profit border-profit/30">
-              v3 (Active)
+              v{rule.id} (Live)
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Direct Referral</span>
-              <p className="font-mono font-bold text-profit">{data.directReferral}%</p>
+              <p className="font-mono font-bold text-profit">{rule.referral_share_pct}%</p>
             </div>
             <div>
               <span className="text-muted-foreground">Company (FTS)</span>
-              <p className="font-mono font-bold text-company">{data.companyFTS}%</p>
+              <p className="font-mono font-bold text-company">{rule.fts_share_pct}%</p>
             </div>
             <div>
               <span className="text-muted-foreground">Trust Fund</span>
-              <p className="font-mono font-bold text-trust">{data.trustFund}%</p>
+              <p className="font-mono font-bold text-trust">{rule.trust_fund_pct}%</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Admin</span>
-              <p className="font-mono font-bold text-admin">{data.admin}%</p>
+              <span className="text-muted-foreground">Admin Fee</span>
+              <p className="font-mono font-bold text-admin">{rule.admin_pct}%</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Core Body Pool</span>
+              <p className="font-mono font-bold text-purple-600">{rule.core_body_pool_pct}%</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Visual Flow Diagram */}
       <FlowDiagram
-        title="Profit Distribution Flow"
+        title="Profit Distribution Visualizer"
         nodes={flowNodes}
         connections={[
           { from: "total", to: "direct" },
@@ -236,46 +170,52 @@ export default function B2BCommission() {
         ]}
       />
 
-      {/* Total Profit Allocation */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Percent className="h-5 w-5" />
-            Total Profit Allocation (100%)
+            Profit Allocation Matrix (Must = 100%)
           </CardTitle>
           <CardDescription>
-            Configure the main profit distribution percentages
+            Configure the main profit distribution percentages for all B2B transactions
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <PercentageCard
-              label="Direct Referral"
-              value={data.directReferral}
-              onChange={(v) => updateField("directReferral", v)}
+              label="Direct Referral Share"
+              value={parseFloat(rule.referral_share_pct)}
+              onChange={(v) => updateField("referral_share_pct", v)}
               tooltip="Percentage of profit shared with the referring businessman"
               variant="profit"
             />
             <PercentageCard
-              label="Company (FTS)"
-              value={data.companyFTS}
-              onChange={(v) => updateField("companyFTS", v)}
+              label="Company (FTS) Direct"
+              value={parseFloat(rule.fts_share_pct)}
+              onChange={(v) => updateField("fts_share_pct", v)}
               tooltip="Company's direct share of B2B profit"
               variant="company"
             />
             <PercentageCard
-              label="Trust Fund"
-              value={data.trustFund}
-              onChange={(v) => updateField("trustFund", v)}
+              label="Trust Fund Allocation"
+              value={parseFloat(rule.trust_fund_pct)}
+              onChange={(v) => updateField("trust_fund_pct", v)}
               tooltip="Allocated to trust fund for safety and security"
               variant="trust"
             />
             <PercentageCard
-              label="Admin"
-              value={data.admin}
-              onChange={(v) => updateField("admin", v)}
+              label="Administrative Fee"
+              value={parseFloat(rule.admin_pct)}
+              onChange={(v) => updateField("admin_pct", v)}
               tooltip="Administrative fee for platform management"
               variant="admin"
+            />
+            <PercentageCard
+              label="Core Body Pool"
+              value={parseFloat(rule.core_body_pool_pct)}
+              onChange={(v) => updateField("core_body_pool_pct", v)}
+              tooltip="Share distributed to Core Body Pool"
+              variant="default"
             />
           </div>
 
@@ -296,56 +236,43 @@ export default function B2BCommission() {
         </CardContent>
       </Card>
 
-      {/* Company Pool Breakdown */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Company Pool Breakdown
+            Company Portion Details
           </CardTitle>
           <CardDescription>
-            How the company portion (FTS) is further distributed
+            Further breakdown of the FTS portion for internal funds
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <PercentageCard
-              label="Reserve Fund"
-              value={data.companyPool.reserve}
-              onChange={(v) => updatePoolField("reserve", v)}
-              tooltip="Emergency reserve for company operations"
-              variant="reserve"
-            />
-            <PercentageCard
-              label="Upgrade Funding"
-              value={data.companyPool.upgradeFunding}
-              onChange={(v) => updatePoolField("upgradeFunding", v)}
-              tooltip="Funding for platform upgrades and development"
+              label="Company Direct Profit"
+              value={parseFloat(rule.company_pct)}
+              onChange={(v) => updateField("company_pct", v)}
+              tooltip="Net profit retained by company"
               variant="company"
             />
             <PercentageCard
-              label="Operational"
-              value={data.companyPool.operational}
-              onChange={(v) => updatePoolField("operational", v)}
-              tooltip="Day-to-day operational expenses"
-              variant="default"
+              label="Company Reserve Fund"
+              value={parseFloat(rule.company_reserve_pct)}
+              onChange={(v) => updateField("company_reserve_pct", v)}
+              tooltip="Allocated to company emergency reserve"
+              variant="reserve"
             />
           </div>
 
           <Separator />
 
-          <PercentageSummary
-            total={totalPool}
-            target={100}
-            showWarning={true}
-          />
-
           <div className="flex items-center gap-2 p-3 rounded-lg border border-muted bg-muted/30 text-muted-foreground text-sm">
             <Info className="h-4 w-4 flex-shrink-0" />
-            <span>Applies to: New Transactions Only</span>
+            <span>Updates affect new orders immediately. Past orders remain unchanged.</span>
           </div>
         </CardContent>
       </Card>
     </CommissionLayout>
   );
 }
+

@@ -128,6 +128,12 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
           safety: "monitor",
         },
         {
+          title: "Marketplace",
+          icon: ShoppingCart,
+          url: "/products-issued",
+          safety: "monitor",
+        },
+        {
           title: "Earnings vs Cap",
           icon: CircleDollarSign,
           url: "/corebody/dashboard/earnings-vs-cap",

@@ -83,6 +83,8 @@ export interface CategoryFormData {
   parentId?: string;
   description?: string;
   commissionRuleId?: string;
+  iconUrl?: string;
+  sortOrder?: number;
   status: "active" | "inactive";
 }
 

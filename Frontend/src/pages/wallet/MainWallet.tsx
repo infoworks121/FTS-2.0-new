@@ -1,118 +1,95 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FinanceLayout from "@/components/finance/FinanceLayout";
 import BalanceCard from "@/components/finance/BalanceCard";
 import LedgerTable, { LedgerTransaction } from "@/components/finance/LedgerTable";
 import { Button } from "@/components/ui/button";
-import { Calendar, Download, Filter, RefreshCw, Eye, Lock } from "lucide-react";
+import { RefreshCw, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
-// Mock data
-const mockTransactions: LedgerTransaction[] = [
-  {
-    id: "TXN001",
-    date: "2026-02-19",
-    time: "10:30:45",
-    description: "Order Commission - Order #ORD12345",
-    reference: "REF/2026/02/001",
-    type: "credit",
-    amount: 2500.00,
-    balance: 125000.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "Commission earned from B2C sale",
-  },
-  {
-    id: "TXN002",
-    date: "2026-02-18",
-    time: "14:22:10",
-    description: "Withdrawal Processed",
-    reference: "WTH/2026/02/045",
-    type: "debit",
-    amount: 10000.00,
-    balance: 122500.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "Bank transfer completed",
-  },
-  {
-    id: "TXN003",
-    date: "2026-02-18",
-    time: "09:15:30",
-    description: "Referral Bonus",
-    reference: "REF/BONUS/023",
-    type: "credit",
-    amount: 500.00,
-    balance: 132500.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "Referral signup bonus",
-  },
-  {
-    id: "TXN004",
-    date: "2026-02-17",
-    time: "16:45:00",
-    description: "TDS Deduction",
-    reference: "TDS/2026/02/012",
-    type: "debit",
-    amount: 250.00,
-    balance: 132000.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "TDS @ 5% on commission",
-  },
-  {
-    id: "TXN005",
-    date: "2026-02-17",
-    time: "11:20:15",
-    description: "Order Commission - Order #ORD12340",
-    reference: "REF/2026/02/002",
-    type: "credit",
-    amount: 5000.00,
-    balance: 132250.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "Commission earned from B2B sale",
-  },
-  {
-    id: "TXN006",
-    date: "2026-02-16",
-    time: "15:30:00",
-    description: "Processing Fee",
-    reference: "FEE/2026/02/008",
-    type: "debit",
-    amount: 25.00,
-    balance: 127250.00,
-    status: "completed",
-    user: "John Businessman",
-    remarks: "Withdrawal processing fee",
-  },
-];
+import api from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function MainWallet() {
-  const [dateRange, setDateRange] = useState<string>("last30days");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [overview, setOverview] = useState<any>(null);
+  const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
+  const { toast } = useToast();
 
-  const stats = [
-    { label: "Current Balance", value: "₹1,25,000.00", type: "neutral" as const, icon: "neutral" as const },
-    { label: "Total Credits", value: "₹45,50,000.00", type: "positive" as const, icon: "up" as const },
-    { label: "Total Debits", value: "₹44,25,000.00", type: "negative" as const, icon: "down" as const },
-    { label: "Blocked Amount", value: "₹0.00", type: "neutral" as const, icon: "neutral" as const },
-  ];
-
-  const handleExport = () => {
-    // Export functionality
-    console.log("Exporting ledger...");
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [overviewRes, ledgerRes] = await Promise.all([
+        api.get("/wallet/admin/overview"),
+        api.get("/wallet/admin/company-pool")
+      ]);
+      
+      setOverview(overviewRes.data);
+      
+      // Transform company_pool_log to LedgerTransaction
+      const transformed: LedgerTransaction[] = ledgerRes.data.transactions.map((tx: any) => ({
+        id: tx.id.toString(),
+        date: new Date(tx.created_at).toLocaleDateString(),
+        time: new Date(tx.created_at).toLocaleTimeString(),
+        description: `Core Body Share - Order #${tx.order_number}`,
+        reference: `POOL/DIST/${tx.distribution_id.split('-')[0].toUpperCase()}`,
+        type: "credit",
+        amount: parseFloat(tx.total_pool_amount),
+        balance: 0, // Backend doesn't provide running balance for pool yet, defaulting to 0 or total
+        status: "completed",
+        remarks: `Channel: ${tx.channel} | CB Share: ₹${tx.core_body_share}`
+      }));
+      
+      setTransactions(transformed);
+    } catch (error) {
+      console.error("Error fetching wallet data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load wallet data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+    fetchData();
   };
+
+  const stats = [
+    { 
+      label: "Company Pool", 
+      value: overview ? `₹${parseFloat(overview.company_pool).toLocaleString()}` : "₹0.00", 
+      type: "neutral" as const, 
+      icon: "neutral" as const 
+    },
+    { 
+      label: "Total Distributed", 
+      value: overview ? `₹${parseFloat(overview.total_distributed).toLocaleString()}` : "₹0.00", 
+      type: "positive" as const, 
+      icon: "up" as const 
+    },
+    { 
+      label: "Withdrawals Paid", 
+      value: overview ? `₹${parseFloat(overview.total_withdrawals_paid).toLocaleString()}` : "₹0.00", 
+      type: "negative" as const, 
+      icon: "down" as const 
+    },
+    { 
+      label: "Pending Payouts", 
+      value: overview ? `₹${parseFloat(overview.pending_withdrawals).toLocaleString()}` : "₹0.00", 
+      type: "neutral" as const, 
+      icon: "neutral" as const 
+    },
+  ];
 
   return (
     <FinanceLayout
-      title="Main Wallet"
-      description="Primary earnings wallet for the platform"
+      title="Master Wallet Overview"
+      description="Platform-wide financial health and pool allocation"
       icon="wallet"
       stats={stats}
     >
@@ -121,29 +98,17 @@ export default function MainWallet() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
-              Wallet Status: Active
+              System Health: Optimal
             </Badge>
             <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
-              Auto-settlement: Enabled
+              Profit Engine: Live
             </Badge>
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
-            </Button>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              {dateRange === "last30days" ? "Last 30 Days" : dateRange}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
             </Button>
           </div>
         </div>
@@ -153,41 +118,38 @@ export default function MainWallet() {
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <BalanceCard
-            title="Current Balance"
-            amount={125000.00}
+            title="Company Pool (Total)"
+            amount={overview ? parseFloat(overview.company_pool) : 0}
             type="available"
-            trend={{ value: 12.5, direction: "up" }}
-            subtext="Available for withdrawal"
+            subtext="Core Body & Reserve Share"
           />
           <BalanceCard
-            title="Total Credits"
-            amount={4550000.00}
+            title="Total Distributed"
+            amount={overview ? parseFloat(overview.total_distributed) : 0}
             type="credit"
-            trend={{ value: 8.2, direction: "up" }}
-            subtext="Since account creation"
+            subtext="Earnings sent to users"
           />
           <BalanceCard
-            title="Total Debits"
-            amount={4425000.00}
+            title="Total Withdrawals"
+            amount={overview ? parseFloat(overview.total_withdrawals_paid) : 0}
             type="debit"
-            trend={{ value: 5.1, direction: "down" }}
-            subtext="Withdrawals & deductions"
+            subtext="Successfully paid out"
           />
           <BalanceCard
-            title="Blocked Amount"
-            amount={0.00}
+            title="Pending Payouts"
+            amount={overview ? parseFloat(overview.pending_withdrawals) : 0}
             type="blocked"
-            subtext="No active blocks"
+            subtext="Requests awaiting approval"
           />
         </div>
 
         {/* Transaction Ledger */}
         <LedgerTable
-          transactions={mockTransactions}
-          title="Transaction History"
+          transactions={transactions}
+          title="Pool Allocation History"
+          isLoading={isLoading}
           showExport={true}
-          showFilters={true}
-          onExport={handleExport}
+          showFilters={false}
         />
       </div>
 
@@ -196,18 +158,19 @@ export default function MainWallet() {
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-4">
             <span>
-              <strong>Last Updated:</strong> 2026-02-19 10:30:45 IST
+              <strong>Network:</strong> FTS Mainnet
             </span>
             <span>
-              <strong>Admin View:</strong> System Admin
+              <strong>Admin View:</strong> {overview ? "Verified" : "Loading..."}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4" />
-            <span>All wallet operations are immutable and logged</span>
+            <span>Real-time ACID compliant financial ledger</span>
           </div>
         </div>
       </div>
     </FinanceLayout>
   );
 }
+

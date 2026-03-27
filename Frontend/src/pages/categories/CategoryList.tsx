@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,150 +20,100 @@ import {
 } from "lucide-react";
 import { CategoryTree, CategoryListItem } from "@/components/categories";
 import { Category } from "@/types/product";
-
-// Mock categories with hierarchy
-const mockCategories: Category[] = [
-  {
-    id: "cat-1",
-    name: "Electronics",
-    description: "All electronic devices and accessories",
-    productCount: 156,
-    commissionRuleId: "rule-1",
-    commissionRuleName: "Standard Commission",
-    status: "active",
-    sortOrder: 1,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-15T00:00:00Z",
-    children: [
-      {
-        id: "cat-1-1",
-        name: "Mobile Phones",
-        parentId: "cat-1",
-        parentName: "Electronics",
-        productCount: 45,
-        commissionRuleId: "rule-1",
-        commissionRuleName: "Standard Commission",
-        status: "active",
-        sortOrder: 1,
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-      {
-        id: "cat-1-2",
-        name: "Laptops",
-        parentId: "cat-1",
-        parentName: "Electronics",
-        productCount: 32,
-        commissionRuleId: "rule-1",
-        commissionRuleName: "Standard Commission",
-        status: "active",
-        sortOrder: 2,
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-      {
-        id: "cat-1-3",
-        name: "Accessories",
-        parentId: "cat-1",
-        parentName: "Electronics",
-        productCount: 79,
-        status: "active",
-        sortOrder: 3,
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-    ],
-  },
-  {
-    id: "cat-2",
-    name: "Digital Products",
-    description: "E-books, courses, and digital downloads",
-    productCount: 48,
-    commissionRuleId: "rule-2",
-    commissionRuleName: "Digital Products Commission",
-    status: "active",
-    sortOrder: 2,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-15T00:00:00Z",
-    children: [
-      {
-        id: "cat-2-1",
-        name: "E-Books",
-        parentId: "cat-2",
-        parentName: "Digital Products",
-        productCount: 23,
-        commissionRuleId: "rule-2",
-        commissionRuleName: "Digital Products Commission",
-        status: "active",
-        sortOrder: 1,
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-      {
-        id: "cat-2-2",
-        name: "Online Courses",
-        parentId: "cat-2",
-        parentName: "Digital Products",
-        productCount: 25,
-        commissionRuleId: "rule-2",
-        commissionRuleName: "Digital Products Commission",
-        status: "active",
-        sortOrder: 2,
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-15T00:00:00Z",
-      },
-    ],
-  },
-  {
-    id: "cat-3",
-    name: "Services",
-    description: "Professional and home services",
-    productCount: 34,
-    commissionRuleId: "rule-3",
-    commissionRuleName: "Service Commission",
-    status: "active",
-    sortOrder: 3,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-15T00:00:00Z",
-  },
-  {
-    id: "cat-4",
-    name: "Fashion",
-    description: "Clothing and fashion accessories",
-    productCount: 89,
-    status: "inactive",
-    sortOrder: 4,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-15T00:00:00Z",
-  },
-];
+import { productApi } from "@/lib/productApi";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function CategoryList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchCategories = async () => {
+    setIsLoading(true);
+    try {
+      const data = await productApi.getCategories();
+      const rawCats = data.categories || [];
+      
+      // Build tree
+      const map = new Map();
+      rawCats.forEach((c: any) => {
+        map.set(c.id.toString(), {
+          id: c.id.toString(),
+          name: c.name,
+          parentId: c.parent_id ? c.parent_id.toString() : undefined,
+          description: c.description || "",
+          productCount: 0, 
+          commissionRuleId: c.commission_rule_id,
+          commissionRuleName: c.commission_rule_name,
+          status: c.is_active ? "active" : "inactive",
+          sortOrder: c.sort_order,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at || c.created_at,
+          children: []
+        });
+      });
+
+      const tree: Category[] = [];
+      rawCats.forEach((c: any) => {
+        const cat = map.get(c.id.toString());
+        if (cat.parentId) {
+          const parent = map.get(cat.parentId);
+          if (parent) {
+            cat.parentName = parent.name;
+            parent.children.push(cat);
+          } else {
+            tree.push(cat);
+          }
+        } else {
+          tree.push(cat);
+        }
+      });
+      
+      // Sort tree by sortOrder
+      const sortTree = (nodes: Category[]) => {
+        nodes.sort((a, b) => a.sortOrder - b.sortOrder);
+        nodes.forEach(n => {
+          if (n.children && n.children.length > 0) sortTree(n.children);
+        });
+      };
+      sortTree(tree);
+
+      setCategories(tree);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to load categories", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   // Calculate stats
-  const totalCategories = mockCategories.reduce((acc, cat) => {
-    return acc + 1 + (cat.children?.length || 0);
-  }, 0);
-  const activeCategories = mockCategories.filter(c => c.status === "active").length;
-  const totalProducts = mockCategories.reduce((acc, cat) => acc + cat.productCount, 0);
-  const categoriesWithRules = mockCategories.filter(c => c.commissionRuleId).length;
-
-  // Flatten categories for search
+  // Flatten categories
   const flattenCategories = (cats: Category[]): Category[] => {
     return cats.reduce((acc: Category[], cat) => {
       acc.push(cat);
-      if (cat.children) {
+      if (cat.children && cat.children.length > 0) {
         acc.push(...flattenCategories(cat.children));
       }
       return acc;
     }, []);
   };
 
-  const allCategories = flattenCategories(mockCategories);
+  const allCategories = flattenCategories(categories);
+  const totalCategories = allCategories.length;
+  const activeCategories = allCategories.filter(c => c.status === "active").length;
+  // TODO: Add real product count from backend once aggregation is added
+  const totalProducts = allCategories.reduce((acc, cat) => acc + (cat.productCount || 0), 0);
+  const categoriesWithRules = allCategories.filter(c => c.commissionRuleId).length;
+
   const filteredCategories = searchQuery
     ? allCategories.filter(c => 
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -179,17 +129,28 @@ export default function CategoryList() {
     navigate(`/admin/categories/manage?id=${category.id}`);
   };
 
-  const handleDeleteCategory = (category: Category) => {
-    if (category.productCount > 0) {
-      alert(`Cannot delete category "${category.name}" as it contains ${category.productCount} products.`);
-      return;
+  const handleDeleteCategory = async (category: Category) => {
+    if (confirm(`Are you sure you want to deactivate category "${category.name}"?`)) {
+      try {
+        await productApi.deleteCategory(category.id);
+        toast({ title: "Success", description: "Category deactivated successfully" });
+        fetchCategories(); // Refresh list
+        if (selectedCategory?.id === category.id) {
+          setSelectedCategory(null);
+        }
+      } catch (err) {
+        toast({ title: "Error", description: "Failed to delete category", variant: "destructive" });
+      }
     }
-    // Would handle deletion here
   };
 
   const handleViewProducts = (category: Category) => {
     navigate(`/admin/products?category=${category.id}`);
   };
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-muted-foreground">Loading categories...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -295,13 +256,19 @@ export default function CategoryList() {
           </CardHeader>
           <CardContent className="p-4">
             <CategoryTree
-              categories={mockCategories}
+              categories={categories}
               onSelect={handleCategorySelect}
               onEdit={handleEditCategory}
               onDelete={handleDeleteCategory}
               onViewProducts={handleViewProducts}
               selectedId={selectedCategory?.id}
             />
+            {categories.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Folder className="h-12 w-12 mb-4 opacity-50" />
+                <p>No categories found</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

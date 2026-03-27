@@ -62,6 +62,12 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
   },
   {
+    title: "Marketplace",
+    icon: ShoppingCart,
+    url: "/products-issued",
+    requiredRole: "admin",
+  },
+  {
     title: "User Approval",
     icon: UserCheck,
     url: "/admin/approval",
@@ -79,11 +85,9 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
     submenu: [
       { title: "All Products", url: "/admin/products" },
-      { title: "Add New Product", url: "/admin/products/new" },
       { title: "Product Pricing & Margin", url: "/admin/products/pricing" },
       { title: "Product Status", url: "/admin/products/status" },
       { title: "Category List", url: "/admin/categories" },
-      { title: "Add / Edit Category", url: "/admin/categories/manage" },
       { title: "Category Commission Rules", url: "/admin/categories/commission" },
       { title: "Services & Digital Products", url: "/admin/services" },
     ],

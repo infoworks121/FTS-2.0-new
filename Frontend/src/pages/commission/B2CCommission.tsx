@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -8,135 +8,100 @@ import {
   PercentageSummary,
   ProfitFlowVisualization,
   RuleHistoryTable,
-  ChangePreview,
 } from "@/components/commission";
-import { Info, Wallet, Users, Shield, Percent, Building2, Package } from "lucide-react";
-
-interface B2CCommissionData {
-  trustFund: number;
-  admin: number;
-  company: number;
-  stockPoint: number;
-  referral: number;
-}
-
-const initialData: B2CCommissionData = {
-  trustFund: 5,
-  admin: 8,
-  company: 25,
-  stockPoint: 12,
-  referral: 10,
-};
-
-const historyData = [
-  {
-    id: "1",
-    version: 2,
-    effectiveFrom: "2025-11-01",
-    effectiveTo: "—",
-    status: "active" as const,
-    changes: "Added stock point commission tier",
-    changedBy: "Admin",
-    changedAt: "2025-10-28 16:00",
-    details: [
-      { field: "Stock Point", oldValue: "0%", newValue: "12%" },
-    ],
-  },
-  {
-    id: "2",
-    version: 1,
-    effectiveFrom: "2025-06-01",
-    effectiveTo: "2025-10-31",
-    status: "archived" as const,
-    changes: "Initial B2C commission structure",
-    changedBy: "Admin",
-    changedAt: "2025-05-25 10:30",
-    details: [],
-  },
-];
+import { Wallet, Users, Percent, Building2, Package, RefreshCw, Info } from "lucide-react";
+import api from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function B2CCommission() {
-  const [data, setData] = useState<B2CCommissionData>(initialData);
-  const [originalData] = useState<B2CCommissionData>(initialData);
+  const [isLoading, setIsLoading] = useState(true);
+  const [rule, setRule] = useState<any>(null);
+  const [originalRule, setOriginalRule] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get("/wallet/admin/profit-rules");
+      const b2cRule = response.data.rules.find((r: any) => r.channel === 'B2C');
+      if (b2cRule) {
+        setRule(b2cRule);
+        setOriginalRule(b2cRule);
+      }
+    } catch (error) {
+      console.error("Error fetching B2C rules:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load B2C commission rules",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  if (!rule) return <div className="p-8 text-center text-muted-foreground"><RefreshCw className="animate-spin h-8 w-8 mx-auto mb-2"/> Loading...</div>;
 
   const total =
-    data.trustFund +
-    data.admin +
-    data.company +
-    data.stockPoint +
-    data.referral;
+    parseFloat(rule.trust_fund_pct) +
+    parseFloat(rule.admin_pct) +
+    parseFloat(rule.company_pct) +
+    parseFloat(rule.stock_point_pct) +
+    parseFloat(rule.referral_pct);
 
-  const updateField = (
-    field: keyof B2CCommissionData,
-    value: number
-  ) => {
-    setData((prev) => ({ ...prev, [field]: value }));
+  const updateField = (field: string, value: number) => {
+    setRule((prev: any) => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const getChanges = (): ChangePreview[] => {
-    const changes: ChangePreview[] = [];
-    
-    if (data.trustFund !== originalData.trustFund) {
-      changes.push({
-        field: "Trust Fund",
-        oldValue: `${originalData.trustFund}%`,
-        newValue: `${data.trustFund}%`,
+  const handleSave = async () => {
+    if (total !== 100) {
+      toast({
+        title: "Validation Error",
+        description: "Total allocation must equal 100%",
+        variant: "destructive",
       });
+      return;
     }
-    if (data.admin !== originalData.admin) {
-      changes.push({
-        field: "Admin",
-        oldValue: `${originalData.admin}%`,
-        newValue: `${data.admin}%`,
-      });
-    }
-    if (data.company !== originalData.company) {
-      changes.push({
-        field: "Company",
-        oldValue: `${originalData.company}%`,
-        newValue: `${data.company}%`,
-      });
-    }
-    if (data.stockPoint !== originalData.stockPoint) {
-      changes.push({
-        field: "Stock Point",
-        oldValue: `${originalData.stockPoint}%`,
-        newValue: `${data.stockPoint}%`,
-      });
-    }
-    if (data.referral !== originalData.referral) {
-      changes.push({
-        field: "Referral",
-        oldValue: `${originalData.referral}%`,
-        newValue: `${data.referral}%`,
-      });
-    }
-    
-    return changes;
-  };
 
-  const handleSave = () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await api.put(`/wallet/admin/profit-rules/${rule.id}`, rule);
+      toast({
+        title: "Success",
+        description: "B2C Commission structure updated successfully",
+      });
       setHasChanges(false);
-    }, 1500);
+      fetchData();
+    } catch (error) {
+      console.error("Error saving B2C rules:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
-    setData(initialData);
+    setRule(originalRule);
     setHasChanges(false);
   };
 
   const flows = [
-    { label: "Trust Fund", percentage: data.trustFund, color: "trust" as const },
-    { label: "Admin", percentage: data.admin, color: "admin" as const },
-    { label: "Company", percentage: data.company, color: "company" as const },
-    { label: "Stock Point", percentage: data.stockPoint, color: "reserve" as const },
-    { label: "Referral", percentage: data.referral, color: "profit" as const },
+    { label: "Trust Fund", percentage: parseFloat(rule.trust_fund_pct), color: "trust" as const },
+    { label: "Admin", percentage: parseFloat(rule.admin_pct), color: "admin" as const },
+    { label: "Company", percentage: parseFloat(rule.company_pct), color: "company" as const },
+    { label: "Stock Point", percentage: parseFloat(rule.stock_point_pct), color: "reserve" as const },
+    { label: "Referral", percentage: parseFloat(rule.referral_pct), color: "profit" as const },
   ];
 
   return (
@@ -144,26 +109,25 @@ export default function B2CCommission() {
       title="B2C Commission Structure"
       description="Configure customer-facing profit distribution"
       status="active"
-      lastUpdated={{ by: "Admin", time: "2025-10-28 16:00" }}
+      lastUpdated={{ by: "System Admin", time: new Date(rule.created_at).toLocaleString() }}
       onSave={handleSave}
       onReset={handleReset}
       isSaving={isSaving}
       hasChanges={hasChanges}
-      changes={getChanges()}
+      changes={[]}
       historySection={
-        <RuleHistoryTable history={historyData} title="" />
+        <RuleHistoryTable history={[]} title="Amendment History" />
       }
     >
-      {/* Current Active Rule Summary */}
       <Card className="border-profit/30 bg-profit/5">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Wallet className="h-4 w-4 text-profit" />
-              Current Active Rule Summary
+              Current Active Configuration
             </CardTitle>
             <Badge variant="outline" className="text-profit border-profit/30">
-              v2 (Active)
+              v{rule.id} (Live)
             </Badge>
           </div>
         </CardHeader>
@@ -171,32 +135,30 @@ export default function B2CCommission() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Trust Fund</span>
-              <p className="font-mono font-bold text-trust">{data.trustFund}%</p>
+              <p className="font-mono font-bold text-trust">{rule.trust_fund_pct}%</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Admin</span>
-              <p className="font-mono font-bold text-admin">{data.admin}%</p>
+              <span className="text-muted-foreground">Admin Fee</span>
+              <p className="font-mono font-bold text-admin">{rule.admin_pct}%</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Company</span>
-              <p className="font-mono font-bold text-company">{data.company}%</p>
+              <span className="text-muted-foreground">Company Share</span>
+              <p className="font-mono font-bold text-company">{rule.company_pct}%</p>
             </div>
             <div>
               <span className="text-muted-foreground">Stock Point</span>
-              <p className="font-mono font-bold text-reserve">{data.stockPoint}%</p>
+              <p className="font-mono font-bold text-reserve">{rule.stock_point_pct}%</p>
             </div>
             <div>
               <span className="text-muted-foreground">Referral</span>
-              <p className="font-mono font-bold text-profit">{data.referral}%</p>
+              <p className="font-mono font-bold text-profit">{rule.referral_pct}%</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Visual Allocation Bar */}
       <ProfitFlowVisualization totalProfit={total} flows={flows} />
 
-      {/* B2C Commission Cards */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -204,43 +166,43 @@ export default function B2CCommission() {
             Profit Distribution Configuration
           </CardTitle>
           <CardDescription>
-            Configure how customer transaction profits are distributed
+            Configure how customer transaction profits are distributed among stakeholders
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <PercentageCard
               label="Trust Fund"
-              value={data.trustFund}
-              onChange={(v) => updateField("trustFund", v)}
+              value={parseFloat(rule.trust_fund_pct)}
+              onChange={(v) => updateField("trust_fund_pct", v)}
               tooltip="Percentage allocated to trust fund for customer safety"
               variant="trust"
             />
             <PercentageCard
-              label="Admin"
-              value={data.admin}
-              onChange={(v) => updateField("admin", v)}
+              label="Platform Admin"
+              value={parseFloat(rule.admin_pct)}
+              onChange={(v) => updateField("admin_pct", v)}
               tooltip="Administrative fee for platform management"
               variant="admin"
             />
             <PercentageCard
-              label="Company"
-              value={data.company}
-              onChange={(v) => updateField("company", v)}
+              label="Company Direct"
+              value={parseFloat(rule.company_pct)}
+              onChange={(v) => updateField("company_pct", v)}
               tooltip="Company's share of B2C profit"
               variant="company"
             />
             <PercentageCard
-              label="Stock Point"
-              value={data.stockPoint}
-              onChange={(v) => updateField("stockPoint", v)}
+              label="Stock Point Comms"
+              value={parseFloat(rule.stock_point_pct)}
+              onChange={(v) => updateField("stock_point_pct", v)}
               tooltip="Commission for stock point fulfillment"
               variant="reserve"
             />
             <PercentageCard
-              label="Referral"
-              value={data.referral}
-              onChange={(v) => updateField("referral", v)}
+              label="Customer Referral"
+              value={parseFloat(rule.referral_pct)}
+              onChange={(v) => updateField("referral_pct", v)}
               tooltip="Referral bonus for customer referrals"
               variant="profit"
             />
@@ -259,59 +221,21 @@ export default function B2CCommission() {
         </CardContent>
       </Card>
 
-      {/* Stock Point Dependency Info */}
       <Card className="border-reserve/30 bg-reserve/5">
         <CardHeader>
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Package className="h-4 w-4 text-reserve" />
-            Stock Point Dependency
+            B2C Stock Point Logic
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Stock Point Commission</span>
-              <Badge variant="outline">{data.stockPoint}%</Badge>
+              <span className="text-muted-foreground">Current Rate</span>
+              <Badge variant="outline">{rule.stock_point_pct}%</Badge>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Minimum Order Value</span>
-              <span className="font-mono">₹500</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">SLA Requirement</span>
-              <span className="font-mono">24 hours</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Inventory Required</span>
-              <span className="font-mono">Yes</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Rule Priority */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Rule Priority</CardTitle>
-          <CardDescription>How rules are applied when multiple conditions match</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-3 p-2 rounded bg-muted/30">
-              <span className="font-mono text-xs text-muted-foreground">01</span>
-              <span className="text-card-foreground">Stock Point Order (Highest Priority)</span>
-            </div>
-            <div className="flex items-center gap-3 p-2 rounded bg-muted/30">
-              <span className="font-mono text-xs text-muted-foreground">02</span>
-              <span className="text-card-foreground">Referral Commission</span>
-            </div>
-            <div className="flex items-center gap-3 p-2 rounded bg-muted/30">
-              <span className="font-mono text-xs text-muted-foreground">03</span>
-              <span className="text-card-foreground">Company & Admin Share</span>
-            </div>
-            <div className="flex items-center gap-3 p-2 rounded bg-muted/30">
-              <span className="font-mono text-xs text-muted-foreground">04</span>
-              <span className="text-card-foreground">Trust Fund Allocation</span>
+            <div className="p-3 rounded-lg bg-white/50 border text-xs text-muted-foreground">
+              Stock Point commission is calculated based on the total cart value of B2C orders fulfilled by the designated stockist.
             </div>
           </div>
         </CardContent>
@@ -319,3 +243,4 @@ export default function B2CCommission() {
     </CommissionLayout>
   );
 }
+

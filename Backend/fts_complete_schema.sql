@@ -406,16 +406,30 @@ CREATE TABLE upgrade_demotion_log (
 -- MODULE 4: PRODUCT & SERVICE CATALOG
 -- =============================================================================
 
-CREATE TABLE categories (
-    id              SERIAL PRIMARY KEY,
-    parent_id       INT REFERENCES categories(id) ON DELETE RESTRICT,
+CREATE TABLE commission_rules (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(150) NOT NULL,
-    slug            VARCHAR(150) UNIQUE NOT NULL,
-    icon_url        TEXT,
     description     TEXT,
-    is_active       BOOLEAN DEFAULT TRUE,
-    sort_order      INT DEFAULT 0,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
+    percentage      NUMERIC(5,2) NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
+    type            VARCHAR(20) DEFAULT 'category', -- 'category', 'product', 'global'
+    status          VARCHAR(20) DEFAULT 'active', -- 'active', 'scheduled', 'archived'
+    effective_from  TIMESTAMPTZ DEFAULT NOW(),
+    effective_to    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE categories (
+    id                  SERIAL PRIMARY KEY,
+    parent_id           INT REFERENCES categories(id) ON DELETE RESTRICT,
+    name                VARCHAR(150) NOT NULL,
+    slug                VARCHAR(150) UNIQUE NOT NULL,
+    icon_url            TEXT,
+    description         TEXT,
+    commission_rule_id  UUID REFERENCES commission_rules(id) ON DELETE SET NULL,
+    is_active           BOOLEAN DEFAULT TRUE,
+    sort_order          INT DEFAULT 0,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE products (

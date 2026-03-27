@@ -109,6 +109,12 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
       badge: businessmanSidebarBadgeState.alerts > 0 ? { count: businessmanSidebarBadgeState.alerts, variant: "warning" } : undefined,
     },
     {
+      key: "dashboard",
+      title: "Marketplace",
+      url: "/products-issued",
+      icon: ShoppingCart,
+    },
+    {
       key: "purchaseAdvance",
       title: "Purchase / Advance",
       url: "/businessman/purchase",

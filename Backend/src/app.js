@@ -22,6 +22,13 @@ const sessionRoutes = require('./routes/sessionRoutes');
 const loginAttemptsRoutes = require('./routes/loginAttemptsRoutes');
 const businessmanInvestmentRoutes = require('./routes/businessmanInvestmentRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const geographyRoutes = require('./routes/geographyRoutes');
+const stockRequestRoutes = require('./routes/stockRequestRoutes');
+const commissionRuleRoutes = require('./routes/commissionRuleRoutes');
+const fulfillmentRoutes = require('./routes/fulfillmentRoutes');
+const returnComplaintRoutes = require('./routes/returnComplaintRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+
 
 const app = express();
 
@@ -55,6 +62,13 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/login-attempts', loginAttemptsRoutes);
 app.use('/api/businessman-investments', businessmanInvestmentRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/geography', geographyRoutes);
+app.use('/api/stock-requests', stockRequestRoutes);
+app.use('/api/commission-rules', commissionRuleRoutes);
+app.use('/api/fulfillments', fulfillmentRoutes);
+app.use('/api/customer-service', returnComplaintRoutes);
+app.use('/api/wallet', walletRoutes);
+
 
 // Health check
 app.get('/health', (req, res) => {

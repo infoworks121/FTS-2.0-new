@@ -84,4 +84,48 @@ export const productApi = {
     const res = await api.get('/catalog/categories');
     return res.data;
   },
+
+  // Get commission rules
+  getCommissionRules: async () => {
+    const res = await api.get('/commission-rules');
+    return res.data;
+  },
+  createCommissionRule: async (data: any) => {
+    const res = await api.post('/commission-rules', data);
+    return res.data;
+  },
+  updateCommissionRule: async (id: string, data: any) => {
+    const res = await api.put(`/commission-rules/${id}`, data);
+    return res.data;
+  },
+  deleteCommissionRule: async (id: string) => {
+    const res = await api.delete(`/commission-rules/${id}`);
+    return res.data;
+  },
+
+  // Category mutations
+  createCategory: async (data: any) => {
+    const res = await api.post('/catalog/categories', data);
+    return res.data;
+  },
+  updateCategory: async (id: string, data: any) => {
+    const res = await api.put(`/catalog/categories/${id}`, data);
+    return res.data;
+  },
+  deleteCategory: async (id: string) => {
+    const res = await api.delete(`/catalog/categories/${id}`);
+    return res.data;
+  },
+  
+  // Market Catalog (Issued Products)
+  getIssuedProducts: async (params: { category_id?: string; search?: string; page?: number; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== '' && val !== 'all') {
+        query.append(key, String(val));
+      }
+    });
+    const res = await api.get(`/catalog/issued-products?${query.toString()}`);
+    return res.data;
+  },
 };

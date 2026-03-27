@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,36 +24,24 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { ProductsLayout } from "@/components/products";
-import { CategoryFormData } from "@/types/product";
+import { CategoryFormData, Category } from "@/types/product";
+import { productApi } from "@/lib/productApi";
+import { useToast } from "@/components/ui/use-toast";
 
-// Mock categories for parent selection
-const mockCategories = [
-  { id: "cat-1", name: "Electronics" },
-  { id: "cat-1-1", name: "Mobile Phones", parentName: "Electronics" },
-  { id: "cat-1-2", name: "Laptops", parentName: "Electronics" },
-  { id: "cat-2", name: "Digital Products" },
-  { id: "cat-3", name: "Services" },
-  { id: "cat-4", name: "Fashion" },
-];
-
-// Mock commission rules
-const mockCommissionRules = [
-  { id: "rule-1", name: "Standard Commission", percentage: 15 },
-  { id: "rule-2", name: "Digital Products Commission", percentage: 30 },
-  { id: "rule-3", name: "Service Commission", percentage: 20 },
-  { id: "rule-4", name: "Premium Products Commission", percentage: 10 },
-];
+// Removed mockCommissionRules - now fetching from API
 
 export default function ManageCategory() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const categoryId = searchParams.get("id");
   const isEditing = !!categoryId;
+  const { toast } = useToast();
   
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [commissionRules, setCommissionRules] = useState<any[]>([]);
 
   // Form state
   const [formData, setFormData] = useState<CategoryFormData>({
@@ -61,24 +49,84 @@ export default function ManageCategory() {
     parentId: "none",
     description: "",
     commissionRuleId: "none",
+    iconUrl: "",
+    sortOrder: 0,
     status: "active",
   });
 
-  const selectedParent = mockCategories.find(c => c.id === formData.parentId);
-  const selectedRule = mockCommissionRules.find(r => r.id === formData.commissionRuleId);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [catData, rulesData] = await Promise.all([
+          productApi.getCategories(),
+          productApi.getCommissionRules()
+        ]);
+        setCategories(catData.categories || []);
+        setCommissionRules(rulesData.rules || []);
+        
+        if (isEditing) {
+          const cat = catData.categories.find((c: any) => c.id.toString() === categoryId);
+          if (cat) {
+            setFormData({
+              name: cat.name,
+              parentId: cat.parent_id ? cat.parent_id.toString() : "none",
+              description: cat.description || "",
+              commissionRuleId: cat.commission_rule_id || "none",
+              iconUrl: cat.icon_url || "",
+              sortOrder: cat.sort_order || 0,
+              status: cat.is_active ? "active" : "inactive",
+            });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        toast({ title: "Error", description: "Failed to load data", variant: "destructive" });
+      }
+    };
+    fetchData();
+  }, [categoryId, isEditing, toast]);
+
+  const selectedParent = categories.find(c => c.id.toString() === formData.parentId);
+  const selectedRule = commissionRules.find(r => r.id === formData.commissionRuleId);
 
   const handleInputChange = (field: keyof CategoryFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        icon_url: formData.iconUrl,
+        sort_order: Number(formData.sortOrder) || 0,
+        parent_id: formData.parentId === "none" ? null : formData.parentId,
+        commission_rule_id: formData.commissionRuleId === "none" ? null : formData.commissionRuleId,
+        is_active: formData.status === "active",
+      };
+      
+      if (isEditing && categoryId) {
+        await productApi.updateCategory(categoryId, payload);
+        toast({ title: "Success", description: "Category updated successfully" });
+      } else {
+        await productApi.createCategory(payload);
+        toast({ title: "Success", description: "Category created successfully" });
+      }
+      
       setHasChanges(false);
       navigate("/admin/categories");
-    }, 1500);
+    } catch (err: any) {
+      console.error(err);
+      toast({ 
+        title: "Error", 
+        description: err.response?.data?.error || "Failed to save category", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -158,10 +206,13 @@ export default function ManageCategory() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No Parent (Top Level)</SelectItem>
-                    {mockCategories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.parentName ? `${cat.parentName} → ` : ""}{cat.name}
-                      </SelectItem>
+                    {categories.map((cat: any) => (
+                      // Prevent a category from being its own parent
+                      cat.id.toString() !== categoryId && (
+                        <SelectItem key={cat.id} value={cat.id.toString()}>
+                          {cat.name}
+                        </SelectItem>
+                      )
                     ))}
                   </SelectContent>
                 </Select>
@@ -180,6 +231,38 @@ export default function ManageCategory() {
                   onChange={(e) => handleInputChange("description", e.target.value)}
                   rows={3}
                 />
+              </div>
+
+              {/* Details grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Icon URL */}
+                <div className="space-y-2">
+                  <Label htmlFor="iconUrl">Icon URL (Optional)</Label>
+                  <Input
+                    id="iconUrl"
+                    placeholder="https://example.com/icon.png"
+                    value={formData.iconUrl}
+                    onChange={(e) => handleInputChange("iconUrl", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL for the category icon image
+                  </p>
+                </div>
+
+                {/* Sort Order */}
+                <div className="space-y-2">
+                  <Label htmlFor="sortOrder">Sort Order</Label>
+                  <Input
+                    id="sortOrder"
+                    type="number"
+                    placeholder="0"
+                    value={formData.sortOrder}
+                    onChange={(e) => handleInputChange("sortOrder", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Lower numbers appear first (e.g., 0, 1, 2)
+                  </p>
+                </div>
               </div>
 
               {/* Status */}
@@ -226,7 +309,7 @@ export default function ManageCategory() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Rule Selected</SelectItem>
-                  {mockCommissionRules.map((rule) => (
+                  {commissionRules.map((rule) => (
                     <SelectItem key={rule.id} value={rule.id}>
                       <div className="flex items-center justify-between w-full">
                         <span>{rule.name}</span>

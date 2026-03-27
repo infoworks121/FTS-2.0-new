@@ -1,94 +1,75 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FinanceLayout from "@/components/finance/FinanceLayout";
 import BalanceCard from "@/components/finance/BalanceCard";
 import LedgerTable, { LedgerTransaction } from "@/components/finance/LedgerTable";
 import { Button } from "@/components/ui/button";
-import { Calendar, Download, Filter, RefreshCw, Lock, Building2, AlertTriangle, Eye, Shield } from "lucide-react";
+import { RefreshCw, Lock, Building2, AlertTriangle, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
-// Mock data
-const mockTransactions: LedgerTransaction[] = [
-  {
-    id: "RSV001",
-    date: "2026-02-01",
-    time: "00:00:00",
-    description: "Profit Allocation - January",
-    reference: "RSV/PROFIT/2026/01",
-    type: "credit",
-    amount: 500000.00,
-    balance: 15000000.00,
-    status: "completed",
-    remarks: "Monthly profit allocation to reserve",
-  },
-  {
-    id: "RSV002",
-    date: "2026-01-25",
-    time: "10:00:00",
-    description: "Emergency Fund Utilization",
-    reference: "RSV/EMERGENCY/008",
-    type: "debit",
-    amount: 200000.00,
-    balance: 14500000.00,
-    status: "completed",
-    remarks: "Platform infrastructure upgrade",
-  },
-  {
-    id: "RSV003",
-    date: "2026-01-15",
-    time: "14:30:00",
-    description: "Legal Expense Coverage",
-    reference: "RSV/LEGAL/023",
-    type: "debit",
-    amount: 150000.00,
-    balance: 14700000.00,
-    status: "completed",
-    remarks: "Legal proceedings settlement",
-  },
-  {
-    id: "RSV004",
-    date: "2026-01-01",
-    time: "00:00:00",
-    description: "Profit Allocation - December",
-    reference: "RSV/PROFIT/2025/12",
-    type: "credit",
-    amount: 450000.00,
-    balance: 14850000.00,
-    status: "completed",
-    remarks: "Monthly profit allocation to reserve",
-  },
-  {
-    id: "RSV005",
-    date: "2025-12-20",
-    time: "09:00:00",
-    description: "Reserve Fund Audit",
-    reference: "AUDIT/RSV/2025/12",
-    type: "debit",
-    amount: 0.00,
-    balance: 14400000.00,
-    status: "completed",
-    remarks: "Quarterly audit verification",
-  },
-];
+import api from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function ReserveFundWallet() {
-  const [dateRange, setDateRange] = useState<string>("last30days");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [overview, setOverview] = useState<any>(null);
+  const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
+  const { toast } = useToast();
 
-  const stats = [
-    { label: "Reserve Balance", value: "₹1,50,00,000.00", type: "positive" as const, icon: "up" as const },
-    { label: "Profit Allocation", value: "₹5,00,000.00", type: "neutral" as const, icon: "neutral" as const },
-    { label: "YTD Utilization", value: "₹3,50,000.00", type: "negative" as const, icon: "down" as const },
-    { label: "Utilization Rate", value: "2.3%", type: "neutral" as const, icon: "neutral" as const },
-  ];
-
-  const handleExport = () => {
-    console.log("Exporting reserve fund ledger...");
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [overviewRes, ledgerRes] = await Promise.all([
+        api.get("/wallet/admin/overview"),
+        api.get("/wallet/admin/reserve-fund")
+      ]);
+      
+      setOverview(overviewRes.data);
+      
+      // Transform reserve_fund_log to LedgerTransaction
+      const transformed: LedgerTransaction[] = ledgerRes.data.transactions.map((tx: any) => ({
+        id: tx.id.toString(),
+        date: new Date(tx.created_at).toLocaleDateString(),
+        time: new Date(tx.created_at).toLocaleTimeString(),
+        description: tx.source_type === 'profit_allocation' ? 'Monthly Profit Allocation' : tx.note || 'Reserve movement',
+        reference: tx.source_ref_id ? `REF-${tx.source_ref_id.split('-')[0].toUpperCase()}` : 'SYSTEM',
+        type: parseFloat(tx.credit_amount) > 0 ? "credit" : "debit",
+        amount: parseFloat(tx.credit_amount) > 0 ? parseFloat(tx.credit_amount) : parseFloat(tx.debit_amount),
+        balance: parseFloat(tx.balance_after),
+        status: "completed",
+        remarks: tx.note
+      }));
+      
+      setTransactions(transformed);
+    } catch (error) {
+      console.error("Error fetching reserve fund data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load reserve fund data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+    fetchData();
   };
+
+  const stats = [
+    { 
+      label: "Reserve Balance", 
+      value: overview ? `₹${parseFloat(overview.reserve_fund).toLocaleString()}` : "₹0.00", 
+      type: "positive" as const, 
+      icon: "up" as const 
+    },
+    { label: "Trust Fund Share (MTD)", value: "₹0.00", type: "neutral" as const, icon: "neutral" as const },
+    { label: "Reserve Cap", value: "Unlimited", type: "neutral" as const, icon: "neutral" as const },
+    { label: "Utilization Rate", value: "0%", type: "neutral" as const, icon: "neutral" as const },
+  ];
 
   return (
     <FinanceLayout
@@ -112,21 +93,9 @@ export default function ReserveFundWallet() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
-            </Button>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              Date Range
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
             </Button>
           </div>
         </div>
@@ -137,54 +106,28 @@ export default function ReserveFundWallet() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <BalanceCard
             title="Reserve Balance"
-            amount={15000000.00}
+            amount={overview ? parseFloat(overview.reserve_fund) : 0}
             type="available"
-            trend={{ value: 3.5, direction: "up" }}
             subtext="Total company reserve"
           />
           <BalanceCard
-            title="Profit Allocation"
-            amount={500000.00}
+            title="Yearly Credit"
+            amount={transactions.filter(t => t.type === 'credit').reduce((acc, t) => acc + t.amount, 0)}
             type="credit"
-            trend={{ value: 11.1, direction: "up" }}
-            subtext="This month's allocation"
+            subtext="Total added this year"
           />
           <BalanceCard
-            title="YTD Utilization"
-            amount={350000.00}
+            title="Yearly Debit"
+            amount={transactions.filter(t => t.type === 'debit').reduce((acc, t) => acc + t.amount, 0)}
             type="debit"
-            subtext="Operational expenses"
+            subtext="Total utilized"
           />
           <BalanceCard
-            title="Utilization Rate"
-            amount={2.3}
+            title="Utilization %"
+            amount={0}
             type="available"
             subtext="Within healthy range"
           />
-        </div>
-
-        {/* Source Breakdown */}
-        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            Reserve Fund Source Breakdown
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Profit Allocation</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">₹1,00,00,000</p>
-              <p className="text-xs text-green-600 dark:text-green-400">66.7%</p>
-            </div>
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Revenue Surplus</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">₹40,00,000</p>
-              <p className="text-xs text-blue-600 dark:text-blue-400">26.7%</p>
-            </div>
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Asset Sales</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">₹10,00,000</p>
-              <p className="text-xs text-purple-600 dark:text-purple-400">6.6%</p>
-            </div>
-          </div>
         </div>
 
         {/* Executive Warning Banner */}
@@ -223,11 +166,11 @@ export default function ReserveFundWallet() {
 
         {/* Transaction Ledger */}
         <LedgerTable
-          transactions={mockTransactions}
+          transactions={transactions}
           title="Reserve Fund Ledger (Read-Only)"
+          isLoading={isLoading}
           showExport={true}
-          showFilters={true}
-          onExport={handleExport}
+          showFilters={false}
         />
       </div>
 
@@ -236,10 +179,10 @@ export default function ReserveFundWallet() {
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-4">
             <span>
-              <strong>Last Updated:</strong> 2026-02-19 10:30:45 IST
+              <strong>Network:</strong> Internal Ledger
             </span>
             <span>
-              <strong>Audit Reference:</strong> RSV-AUD-2026-02-001
+              <strong>Audit Status:</strong> {overview ? "Verified" : "Syncing..."}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -251,3 +194,4 @@ export default function ReserveFundWallet() {
     </FinanceLayout>
   );
 }
+

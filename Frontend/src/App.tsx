@@ -49,6 +49,7 @@ import AllProducts from "./pages/products/AllProducts";
 import AddNewProduct from "./pages/products/AddNewProduct";
 import ProductPricing from "./pages/products/ProductPricing";
 import ProductStatus from "./pages/products/ProductStatus";
+import IssuedProducts from "./pages/products/IssuedProducts";
 import CategoryList from "./pages/categories/CategoryList";
 import ManageCategory from "./pages/categories/ManageCategory";
 import CategoryCommissionRules from "./pages/categories/CategoryCommissionRules";
@@ -85,6 +86,7 @@ import WalletSummary from "./pages/corebody/wallet/WalletSummary";
 import EarningsLedger from "./pages/corebody/wallet/EarningsLedger";
 import CapStatus from "./pages/corebody/wallet/CapStatus";
 import CoreBodyWithdrawalHistory from "./pages/corebody/wallet/WithdrawalHistory";
+import CoreBodyWithdrawalRequest from "./pages/corebody/wallet/WithdrawalRequest";
 
 // Users Layout
 import { UsersLayout } from "./components/users/UsersLayoutWrapper";
@@ -180,6 +182,7 @@ const App = () => {
             <Route path="/admin/products/new" element={<ProductsPageLayout><AddNewProduct /></ProductsPageLayout>} />
             <Route path="/admin/products/pricing" element={<ProductsPageLayout><ProductPricing /></ProductsPageLayout>} />
             <Route path="/admin/products/status" element={<ProductsPageLayout><ProductStatus /></ProductsPageLayout>} />
+            <Route path="/products-issued" element={<IssuedProducts />} />
             
             {/* Service Catalog Routes */}
             <Route path="/admin/services" element={<ProductsPageLayout><AllServices /></ProductsPageLayout>} />
@@ -274,6 +277,7 @@ const App = () => {
             <Route path="/corebody/wallet/ledger" element={<EarningsLedger />} />
             <Route path="/corebody/wallet/cap" element={<CapStatus />} />
             <Route path="/corebody/wallet/withdrawals" element={<CoreBodyWithdrawalHistory />} />
+            <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyWithdrawalRequest />} />
 
             {/* Other Routes */}
             <Route path="/businessman/*" element={<BusinessmanDashboard />} />
