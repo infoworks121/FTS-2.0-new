@@ -5,3 +5,5 @@ export { default as ReserveFundWallet } from "./ReserveFundWallet";
 export { default as WithdrawalRequests } from "./WithdrawalRequests";
 export { default as PendingApprovals } from "./PendingApprovals";
 export { default as WithdrawalHistory } from "./WithdrawalHistory";
+export { default as ManageDeposits } from "./ManageDeposits";
+export { default as AllUserWallets } from "./AllUserWallets";

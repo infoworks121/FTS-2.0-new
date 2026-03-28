@@ -13,6 +13,7 @@ export interface B2BOrderPayload {
   district_id?: number;
   pincode_id?: number;
   delivery_address?: any;
+  transaction_pin?: string;
 }
 
 export const orderApi = {

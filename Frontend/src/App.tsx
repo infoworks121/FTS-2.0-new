@@ -17,6 +17,7 @@ import VerifyEmail from "./pages/VerifyEmail";
 import AuthCallback from "./pages/AuthCallback";
 import SelectRole from "./pages/SelectRole";
 import GoogleRedirect from "./pages/GoogleRedirect";
+import { CartProvider } from "./context/CartContext";
 
 // Settings Layout
 import { SettingsLayout } from "./components/settings/SettingsLayout";
@@ -101,7 +102,7 @@ import { KYCReview } from "./pages/kyc";
 import { DashboardLayout } from "./components/DashboardLayout";
 
 // Finance & Wallet Pages
-import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, PendingApprovals, WithdrawalHistory } from "./pages/wallet";
+import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
 import { TDSConfiguration, ProcessingFeeRules } from "./pages/finance";
 import { AllOrders, B2BOrders, B2COrders, BulkOrders, ReturnsRefunds, TransactionLogs, LedgerView } from "./pages/orders";
 import { AdminActivityLogs, FinancialAuditLogs, RuleChangeHistory, LoginAccessLogs } from "./pages/audit";
@@ -136,8 +137,9 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
+          <CartProvider>
+            <Toaster />
+            <Sonner />
           {(loading && showSplash) ? (
             <SplashScreen onComplete={() => setLoading(false)} />
           ) : (
@@ -218,6 +220,8 @@ const App = () => {
             <Route path="/admin/wallet/trust" element={<WalletPageLayout><TrustWallet /></WalletPageLayout>} />
             <Route path="/admin/wallet/reserve" element={<WalletPageLayout><ReserveFundWallet /></WalletPageLayout>} />
             <Route path="/admin/wallet/withdrawals" element={<WalletPageLayout><WithdrawalRequests /></WalletPageLayout>} />
+            <Route path="/admin/wallet/user-wallets" element={<WalletPageLayout><AllUserWallets /></WalletPageLayout>} />
+            <Route path="/admin/wallet/deposits" element={<WalletPageLayout><ManageDeposits /></WalletPageLayout>} />
             <Route path="/admin/wallet/approvals" element={<WalletPageLayout><PendingApprovals /></WalletPageLayout>} />
             <Route path="/admin/wallet/history" element={<WalletPageLayout><WithdrawalHistory /></WalletPageLayout>} />
             <Route path="/admin/finance/tds" element={<WalletPageLayout><TDSConfiguration /></WalletPageLayout>} />
@@ -285,6 +289,7 @@ const App = () => {
             </Routes>
             </BrowserRouter>
           )}
+          </CartProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

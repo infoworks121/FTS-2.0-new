@@ -890,11 +890,27 @@ CREATE TABLE wallets (
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     wallet_type_id  INT NOT NULL REFERENCES wallet_types(id) ON DELETE RESTRICT,
     balance         NUMERIC(14,2) DEFAULT 0 CHECK (balance >= 0), -- negative strictly prohibited
+    transaction_pin VARCHAR(255), -- hashed 6-digit PIN
     is_frozen       BOOLEAN DEFAULT FALSE,
     freeze_reason   TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, wallet_type_id)
+);
+
+CREATE TABLE wallet_deposit_requests (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    wallet_id           UUID NOT NULL REFERENCES wallets(id) ON DELETE RESTRICT,
+    amount              NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    payment_method      VARCHAR(50) NOT NULL, -- bKash, Bank, Cash, etc.
+    transaction_ref     VARCHAR(100),
+    slip_url            TEXT, -- Image of the bank slip
+    status              VARCHAR(20) DEFAULT 'pending', -- pending, approved, rejected
+    admin_note          TEXT,
+    processed_by        UUID REFERENCES users(id),
+    processed_at        TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE wallet_transactions (

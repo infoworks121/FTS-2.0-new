@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CartSheet } from "./cart/CartSheet";
 
 export type UserRole = "admin" | "corebody" | "businessman";
 
@@ -426,6 +427,9 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
               <Wallet className="h-3.5 w-3.5" />
               ₹12,450.00
             </Button>
+
+            {/* Cart Sheet */}
+            <CartSheet />
 
             {/* Theme Toggle */}
             <Button

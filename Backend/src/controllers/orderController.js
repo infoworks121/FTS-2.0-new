@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 // Generate unique order number
 const generateOrderNumber = async (client) => {
@@ -12,7 +13,7 @@ exports.createB2BOrder = async (req, res) => {
   const client = await db.pool.connect();
   
   try {
-    const { items, payment_method, notes, district_id, pincode_id, delivery_address } = req.body;
+    const { items, payment_method, notes, district_id, pincode_id, delivery_address, transaction_pin } = req.body;
     const user = req.user;
 
     // 1. Verify Authorization (Role Check)
@@ -106,6 +107,51 @@ exports.createB2BOrder = async (req, res) => {
     const order_number = await generateOrderNumber(client);
     const total_amount = subtotal; // Assuming no tax/delivery for this basic flow
 
+    // 2.5 Verify Wallet Balance
+    let wallet = null;
+    if (payment_method === 'wallet' || !payment_method) {
+      const walletResult = await client.query(
+        `SELECT w.id, w.balance, w.is_frozen, w.transaction_pin 
+         FROM wallets w
+         JOIN wallet_types wt ON w.wallet_type_id = wt.id
+         WHERE w.user_id = $1 AND wt.type_code = 'main' FOR UPDATE`,
+        [user.id]
+      );
+
+      if (walletResult.rows.length === 0) {
+        throw new Error('Main wallet not found for the user.');
+      }
+
+      wallet = walletResult.rows[0];
+
+      if (wallet.is_frozen) {
+        throw new Error('Your wallet is frozen. Cannot place order.');
+      }
+
+      // PIN Verification
+      if (!wallet.transaction_pin) {
+        throw new Error('Please set your transaction PIN before making wallet payments.');
+      }
+      if (!transaction_pin) {
+        throw new Error('Transaction PIN is required for wallet payments.');
+      }
+      const isPinValid = await bcrypt.compare(transaction_pin, wallet.transaction_pin);
+      if (!isPinValid) {
+        throw new Error('Invalid transaction PIN.');
+      }
+
+      const balance = parseFloat(wallet.balance);
+      if (balance < total_amount) {
+        throw new Error(`Insufficient wallet balance. Required: ₹${total_amount}, Available: ₹${balance}`);
+      }
+
+      // Deduct from wallet
+      await client.query(
+        `UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2`,
+        [total_amount, wallet.id]
+      );
+    }
+
     // 3. Create Order
     const orderResult = await client.query(
       `INSERT INTO orders 
@@ -154,6 +200,24 @@ exports.createB2BOrder = async (req, res) => {
        VALUES ($1, 'pending', 'Order placed by B2B user', $2)`,
       [newOrder.id, user.id]
     );
+
+    // 6. Record Wallet Transaction
+    if (wallet) {
+      await client.query(
+        `INSERT INTO wallet_transactions 
+         (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, source_type, source_ref_id, description)
+         VALUES ($1, $2, 'debit', $3, $4, $5, 'order_payment', $6, $7)`,
+        [
+          wallet.id, 
+          user.id, 
+          total_amount, 
+          wallet.balance, 
+          parseFloat(wallet.balance) - total_amount, 
+          newOrder.id, 
+          `Payment for B2B Order ${newOrder.order_number}`
+        ]
+      );
+    }
 
     await client.query('COMMIT');
     

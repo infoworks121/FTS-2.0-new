@@ -11,7 +11,9 @@ import {
   ChevronRight,
   User,
   ExternalLink,
-  Tag
+  Tag,
+  ShoppingCart,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,8 @@ import {
 import { productApi } from "@/lib/productApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
+import { useCart } from "@/context/CartContext";
+import { CartSheet } from "@/components/cart/CartSheet";
 
 interface IssuedProduct {
   id: string;
@@ -51,6 +55,7 @@ export default function IssuedProducts() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<IssuedProduct | null>(null);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const { addToCart, setIsCartOpen } = useCart();
 
   const { data: categoriesData } = useQuery({
     queryKey: ["categories"],
@@ -82,6 +87,23 @@ export default function IssuedProducts() {
     }).format(Number(amount));
   };
 
+  const handleAddToCart = (product: IssuedProduct) => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      category: product.category_name,
+      image: product.thumbnail_url,
+      basePrice: Number(product.selling_price || product.mrp || 0),
+      quantity: 1,
+      stock: product.available_stock,
+    });
+  };
+
+  const handleBuyNow = (product: IssuedProduct) => {
+    handleAddToCart(product);
+    setIsCartOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header / Search Area */}
@@ -98,7 +120,8 @@ export default function IssuedProducts() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-3">
+              <CartSheet />
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6">
                 Search
               </Button>
@@ -252,15 +275,26 @@ export default function IssuedProducts() {
                             </div>
                           </div>
 
-                          <div className="pt-6 flex flex-wrap gap-3">
+                          <div className="pt-6 flex flex-wrap gap-2">
                             <Button 
-                              onClick={() => handleGetQuote(product)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-8 h-12 font-bold shadow-lg shadow-emerald-500/20"
+                              onClick={() => handleBuyNow(product)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 h-11 font-bold shadow-lg shadow-emerald-500/20"
                             >
-                              Get Best Quote
+                              <Zap className="mr-2 h-4 w-4" /> Buy Now
                             </Button>
-                            <Button variant="outline" className="rounded-full px-8 h-12 border-slate-200 hover:border-emerald-500 hover:text-emerald-600">
-                              View Details
+                            <Button 
+                              variant="outline" 
+                              onClick={() => handleAddToCart(product)}
+                              className="rounded-full px-6 h-11 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
+                            >
+                              <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => handleGetQuote(product)}
+                              className="rounded-full px-4 h-11 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                            >
+                              Get Quote
                             </Button>
                           </div>
                         </div>

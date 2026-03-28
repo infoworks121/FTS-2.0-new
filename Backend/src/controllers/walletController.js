@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 // ─────────────────────────────────────────────
 // ADMIN VIEWS
@@ -10,31 +11,26 @@ const db = require('../config/db');
  */
 exports.getAdminWalletOverview = async (req, res) => {
   try {
-    const [trust, reserve, companyPool] = await Promise.all([
-      db.query(
-        `SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance
-         FROM trust_fund_log`
-      ),
-      db.query(
-        `SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance
-         FROM reserve_fund_log`
-      ),
-      db.query(
-        `SELECT COALESCE(SUM(core_body_share), 0) AS core_body_total,
-                COALESCE(SUM(reserve_share), 0) AS reserve_total,
-                COALESCE(SUM(total_pool_amount), 0) AS total_pool
-         FROM company_pool_log`
-      ),
+    const [trust, reserve, pool, distributed, withdrawals] = await Promise.all([
+      db.query(`SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance FROM trust_fund_log`),
+      db.query(`SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance FROM reserve_fund_log`),
+      db.query(`SELECT COALESCE(SUM(total_pool_amount), 0) AS total FROM company_pool_log`),
+      db.query(`SELECT COALESCE(SUM(amount), 0) AS total FROM wallet_transactions WHERE transaction_type = 'credit' AND source_type IN ('profit_distribution', 'referral_commission')`),
+      db.query(`
+        SELECT 
+          COALESCE(SUM(requested_amount) FILTER (WHERE status = 'approved'), 0) as paid,
+          COALESCE(SUM(requested_amount) FILTER (WHERE status = 'pending'), 0) as pending
+        FROM withdrawal_requests
+      `)
     ]);
 
     res.json({
       trust_fund: parseFloat(trust.rows[0].balance || 0),
       reserve_fund: parseFloat(reserve.rows[0].balance || 0),
-      company_pool: {
-        total: parseFloat(companyPool.rows[0].total_pool || 0),
-        core_body_allocated: parseFloat(companyPool.rows[0].core_body_total || 0),
-        reserve_allocated: parseFloat(companyPool.rows[0].reserve_total || 0),
-      },
+      company_pool: parseFloat(pool.rows[0].total || 0),
+      total_distributed: parseFloat(distributed.rows[0].total || 0),
+      total_withdrawals_paid: parseFloat(withdrawals.rows[0].paid || 0),
+      pending_withdrawals: parseFloat(withdrawals.rows[0].pending || 0),
     });
   } catch (err) {
     console.error('Admin wallet overview error:', err);
@@ -159,13 +155,33 @@ exports.getMyWallet = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const walletResult = await db.query(
+    let walletResult = await db.query(
       `SELECT wt.type_code, w.balance, w.id as wallet_id, w.is_frozen
        FROM wallets w
        JOIN wallet_types wt ON w.wallet_type_id = wt.id
        WHERE w.user_id = $1`,
       [userId]
     );
+
+    // Auto-create 'main' wallet if missing
+    const hasMain = walletResult.rows.some(r => r.type_code === 'main');
+    if (!hasMain) {
+        const typeRes = await db.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
+        if (typeRes.rows.length > 0) {
+            const newWallet = await db.query(
+                `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, 0) RETURNING id`,
+                [userId, typeRes.rows[0].id]
+            );
+            // Refresh walletResult
+            walletResult = await db.query(
+                `SELECT wt.type_code, w.balance, w.id as wallet_id, w.is_frozen
+                 FROM wallets w
+                 JOIN wallet_types wt ON w.wallet_type_id = wt.id
+                 WHERE w.user_id = $1`,
+                [userId]
+            );
+        }
+    }
 
     const walletData = {
       main_balance: 0,
@@ -648,5 +664,279 @@ exports.getMyWithdrawals = async (req, res) => {
   } catch (err) {
     console.error('Get my withdrawals error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/wallet/admin/add-funds
+ * Admin: Add funds to a user's wallet.
+ */
+exports.addFunds = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { user_id, amount, bank_ref, notes } = req.body;
+    const adminId = req.user.id;
+
+    if (!user_id || !amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: 'Valid user_id and positive amount are required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Get or create 'main' wallet for user
+    let walletResult = await client.query(
+      `SELECT w.id, w.balance 
+       FROM wallets w
+       JOIN wallet_types wt ON w.wallet_type_id = wt.id
+       WHERE w.user_id = $1 AND wt.type_code = 'main' FOR UPDATE`,
+      [user_id]
+    );
+
+    let walletId;
+    let oldBalance = 0;
+
+    if (walletResult.rows.length === 0) {
+      // Create main wallet
+      const typeRes = await client.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
+      if (typeRes.rows.length === 0) throw new Error('Main wallet type not configured in DB.');
+      
+      const newWallet = await client.query(
+        `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, $3) RETURNING id`,
+        [user_id, typeRes.rows[0].id, amount]
+      );
+      walletId = newWallet.rows[0].id;
+    } else {
+      walletId = walletResult.rows[0].id;
+      oldBalance = parseFloat(walletResult.rows[0].balance);
+      
+      // Update balance
+      await client.query(
+        `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2`,
+        [amount, walletId]
+      );
+    }
+
+    const newBalance = oldBalance + parseFloat(amount);
+
+    // Record Transaction
+    await client.query(
+      `INSERT INTO wallet_transactions
+       (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, source_type, description)
+       VALUES ($1, $2, 'credit', $3, $4, $5, 'admin_deposit', $6)`,
+      [
+        walletId, 
+        user_id, 
+        amount, 
+        oldBalance, 
+        newBalance, 
+        `Funds added by Admin. Ref: ${bank_ref || 'N/A'}. Notes: ${notes || ''}`
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Funds successfully added to user wallet.', new_balance: newBalance });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Add funds error:', err);
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * POST /api/wallet/me/set-pin
+ * User: Set or update 6-digit transaction PIN.
+ */
+exports.setPin = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { pin } = req.body;
+
+    if (!pin || pin.length !== 6 || isNaN(pin)) {
+      return res.status(400).json({ error: 'PIN must be a 6-digit number.' });
+    }
+
+    const hashedPin = await bcrypt.hash(pin, 10);
+
+    await db.query(
+      `UPDATE wallets SET transaction_pin = $1, updated_at = NOW() WHERE user_id = $2`,
+      [hashedPin, userId]
+    );
+
+    res.json({ message: 'Transaction PIN set successfully.' });
+  } catch (err) {
+    console.error('Set pin error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/wallet/me/deposit-request
+ * Businessman: Submit a manual deposit request with bank/cash slip.
+ */
+exports.createDepositRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, payment_method, transaction_ref, slip_url } = req.body;
+
+    if (!amount || parseFloat(amount) <= 0 || !payment_method) {
+      return res.status(400).json({ error: 'Amount and payment method are required.' });
+    }
+
+    // Get primary wallet
+    let walletRes = await db.query(
+      `SELECT id FROM wallets WHERE user_id = $1`, [userId]
+    );
+    
+    // Auto-create if not found
+    if (walletRes.rows.length === 0) {
+      const typeRes = await db.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
+      if (typeRes.rows.length > 0) {
+          const newWallet = await db.query(
+              `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, 0) RETURNING id`,
+              [userId, typeRes.rows[0].id]
+          );
+          walletRes = { rows: [newWallet.rows[0]] };
+      } else {
+          return res.status(404).json({ error: 'Wallet system not initialized. Contact admin.' });
+      }
+    }
+    const walletId = walletRes.rows[0].id;
+
+    const result = await db.query(
+      `INSERT INTO wallet_deposit_requests 
+       (user_id, wallet_id, amount, payment_method, transaction_ref, slip_url, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       RETURNING *`,
+      [userId, walletId, amount, payment_method, transaction_ref || null, slip_url || null]
+    );
+
+    res.status(201).json({ 
+      message: 'Deposit request submitted successfully. Waiting for admin approval.',
+      request: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Create deposit request error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * GET /api/wallet/me/deposit-requests
+ * User: View own deposit requests.
+ */
+exports.getMyDepositRequests = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await db.query(
+      `SELECT * FROM wallet_deposit_requests WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    res.json({ requests: result.rows });
+  } catch (err) {
+    console.error('Get my deposit requests error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * GET /api/wallet/admin/deposit-requests
+ * Admin: List all pending deposit requests.
+ */
+exports.getAllDepositRequests = async (req, res) => {
+  try {
+    const { status = 'pending' } = req.query;
+    const result = await db.query(
+      `SELECT r.*, u.full_name, u.email, u.phone 
+       FROM wallet_deposit_requests r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.status = $1
+       ORDER BY r.created_at DESC`,
+      [status]
+    );
+    res.json({ requests: result.rows });
+  } catch (err) {
+    console.error('Get admin deposit requests error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * PUT /api/wallet/admin/deposit-requests/:id/status
+ * Admin: Approve or Reject a deposit request.
+ */
+exports.updateDepositStatus = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    const { status, admin_note } = req.body; // approved or rejected
+    const adminId = req.user.id;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Use approved or rejected.' });
+    }
+
+    await client.query('BEGIN');
+
+    const reqResult = await client.query(
+      `SELECT * FROM wallet_deposit_requests WHERE id = $1 AND status = 'pending' FOR UPDATE`,
+      [id]
+    );
+
+    if (reqResult.rows.length === 0) {
+      throw new Error('Deposit request not found or already processed.');
+    }
+
+    const depositReq = reqResult.rows[0];
+
+    // Update request status
+    await client.query(
+      `UPDATE wallet_deposit_requests 
+       SET status = $1, admin_note = $2, processed_by = $3, processed_at = NOW() 
+       WHERE id = $4`,
+      [status, admin_note || null, adminId, id]
+    );
+
+    if (status === 'approved') {
+      // 1. Get current balance
+      const walletRes = await client.query(
+        `SELECT balance FROM wallets WHERE id = $1 FOR UPDATE`, [depositReq.wallet_id]
+      );
+      const oldBalance = parseFloat(walletRes.rows[0].balance);
+      const amount = parseFloat(depositReq.amount);
+      const newBalance = oldBalance + amount;
+
+      // 2. Update balance
+      await client.query(
+        `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2`,
+        [amount, depositReq.wallet_id]
+      );
+
+      // 3. Log transaction
+      await client.query(
+        `INSERT INTO wallet_transactions 
+         (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, source_type, source_ref_id, description)
+         VALUES ($1, $2, 'credit', $3, $4, $5, 'deposit_request', $6, $7)`,
+        [
+          depositReq.wallet_id, 
+          depositReq.user_id, 
+          amount, 
+          oldBalance, 
+          newBalance, 
+          id, 
+          `Approved deposit from ${depositReq.payment_method}. ${admin_note || ''}`
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: `Deposit request ${status} successfully.` });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Update deposit status error:', err);
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };

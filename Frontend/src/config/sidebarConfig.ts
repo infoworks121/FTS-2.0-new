@@ -142,11 +142,13 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
     badge: { count: sidebarBadgeState.withdrawalRequests, variant: "warning" },
     submenu: [
+      { title: "All User Wallets", url: "/admin/wallet/user-wallets" },
       { title: "Main Wallet", url: "/admin/wallet/main" },
       { title: "Referral Wallet", url: "/admin/wallet/referral" },
       { title: "Trust Wallet", url: "/admin/wallet/trust" },
       { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve" },
       { title: "Withdrawal Requests", url: "/admin/wallet/withdrawals" },
+      { title: "Deposit Requests", url: "/admin/wallet/deposits" },
       { title: "Pending Approvals", url: "/admin/wallet/approvals" },
       { title: "Approved / Rejected History", url: "/admin/wallet/history" },
       { title: "TDS Configuration", url: "/admin/finance/tds" },

@@ -28,7 +28,7 @@ const commissionRuleRoutes = require('./routes/commissionRuleRoutes');
 const fulfillmentRoutes = require('./routes/fulfillmentRoutes');
 const returnComplaintRoutes = require('./routes/returnComplaintRoutes');
 const walletRoutes = require('./routes/walletRoutes');
-
+const cartRoutes = require('./routes/cartRoutes');
 
 const app = express();
 
@@ -68,7 +68,7 @@ app.use('/api/commission-rules', commissionRuleRoutes);
 app.use('/api/fulfillments', fulfillmentRoutes);
 app.use('/api/customer-service', returnComplaintRoutes);
 app.use('/api/wallet', walletRoutes);
-
+app.use('/api/cart', cartRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

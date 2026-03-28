@@ -1,10 +1,34 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRightLeft, CircleAlert, Wallet, RefreshCw } from "lucide-react";
+import { RefreshCw, Lock, ShieldCheck, PlusCircle, CreditCard, Banknote, History, AlertTriangle, ArrowRightLeft, CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import api from "@/lib/api";
+import walletApi, { DepositRequest } from "@/lib/walletApi";
 import { useToast } from "@/components/ui/use-toast";
 
 const formatCurrency = (value: number) =>
@@ -16,16 +40,35 @@ const formatCurrency = (value: number) =>
 
 export default function WalletOverviewPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [data, setData] = useState<any>(null);
+  const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
+  
+  // Dialog States
+  const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
+  const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
+  
+  // PIN State
+  const [pinValue, setPinValue] = useState("");
+  
+  // Deposit State
+  const [depositAmount, setDepositAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("bkash");
+  const [txnRef, setTxnRef] = useState("");
+  
   const { toast } = useToast();
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get("/wallet/me");
-      setData(response.data);
+      const [walletRes, depositsRes] = await Promise.all([
+        api.get("/wallet/me"),
+        walletApi.getMyDepositRequests()
+      ]);
+      setData(walletRes.data);
+      setDepositRequests(depositsRes.requests);
     } catch (error) {
-      console.error("Error fetching businessman wallet:", error);
+      console.error("Error fetching wallet data:", error);
       toast({
         title: "Error",
         description: "Failed to load wallet data",
@@ -33,6 +76,48 @@ export default function WalletOverviewPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSetPin = async () => {
+    if (pinValue.length !== 6) {
+      toast({ title: "Invalid PIN", description: "PIN must be 6 digits", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await walletApi.setTransactionPin(pinValue);
+      toast({ title: "Success", description: "Transaction PIN set successfully" });
+      setIsPinDialogOpen(false);
+      setPinValue("");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.response?.data?.error || "Failed to set PIN", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitDeposit = async () => {
+    if (!depositAmount || parseFloat(depositAmount) <= 0) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid amount", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await walletApi.submitDepositRequest({
+        amount: parseFloat(depositAmount),
+        payment_method: paymentMethod,
+        transaction_ref: txnRef,
+      });
+      toast({ title: "Success", description: "Deposit request submitted successfully" });
+      setIsDepositDialogOpen(false);
+      setDepositAmount("");
+      setTxnRef("");
+      fetchData(); // Refresh history
+    } catch (error: any) {
+      toast({ title: "Error", description: error.response?.data?.error || "Failed to submit deposit", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -62,12 +147,106 @@ export default function WalletOverviewPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/businessman/wallet/transaction-ledger">View Ledger</Link>
-          </Button>
+          
+          {/* Add Funds Dialog */}
+          <Dialog open={isDepositDialogOpen} onOpenChange={setIsDepositDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-500 text-white">
+                <PlusCircle className="h-4 w-4" /> Add Funds
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Deposit Request</DialogTitle>
+                <DialogDescription>
+                  Submit a request after sending funds to our official accounts.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="amount">Amount (₹)</Label>
+                  <Input 
+                    id="amount" 
+                    type="number" 
+                    placeholder="Enter amount" 
+                    value={depositAmount} 
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="method">Payment Method</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger id="method">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bkash">bKash</SelectItem>
+                      <SelectItem value="nagad">Nagad</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                      <SelectItem value="cash">Cash Deposit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="ref">Transaction Reference / ID</Label>
+                  <Input 
+                    id="ref" 
+                    placeholder="e.g. TRX12345678" 
+                    value={txnRef} 
+                    onChange={(e) => setTxnRef(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDepositDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmitDeposit} disabled={isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Submit Request"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Set PIN Dialog */}
+          <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Lock className="h-4 w-4" /> PIN Settings
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Transaction PIN</DialogTitle>
+                <DialogDescription>
+                  Set a 6-digit PIN to secure your wallet payments.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center justify-center gap-4 py-4">
+                <div className="space-y-2 text-center">
+                  <Label>Enter 6-Digit PIN</Label>
+                  <InputOTP maxLength={6} value={pinValue} onChange={setPinValue}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsPinDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSetPin} disabled={isSubmitting || pinValue.length !== 6}>
+                  {isSubmitting ? "Saving..." : "Save PIN"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Button asChild size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white">
             <Link to="/businessman/wallet/withdrawal-request">
-              <Wallet className="h-4 w-4" /> Request Withdrawal
+              <Banknote className="h-4 w-4" /> Withdraw
             </Link>
           </Button>
         </div>
@@ -123,15 +302,20 @@ export default function WalletOverviewPage() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Last Transaction Summary</CardTitle>
+          <Button asChild variant="ghost" size="sm" className="h-7 text-xs font-normal">
+             <Link to="/businessman/wallet/transaction-ledger" className="flex items-center gap-1">
+               Full Ledger <ArrowRightLeft className="h-3 w-3" />
+             </Link>
+          </Button>
         </CardHeader>
         <CardContent>
           {lastTxn ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-md border p-4 bg-muted/30">
                 <p className="text-xs text-muted-foreground">Transaction ID</p>
-                <p className="mt-1 font-mono text-sm">TXN-{lastTxn.id}</p>
+                <p className="mt-1 font-mono text-sm">TXN-{lastTxn.id.split('-')[0].toUpperCase()}</p>
               </div>
               <div className="rounded-md border p-4 bg-muted/30">
                 <p className="text-xs text-muted-foreground">Date & Time</p>
@@ -147,6 +331,63 @@ export default function WalletOverviewPage() {
           ) : (
             <div className="text-center py-6 text-sm text-muted-foreground">No recent transactions found.</div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Deposit Requests Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="h-4 w-4" /> Recent Deposit Requests
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="relative overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase bg-muted/50">
+                <tr>
+                  <th className="px-4 py-2 border">Date</th>
+                  <th className="px-4 py-2 border">Method</th>
+                  <th className="px-4 py-2 border text-right">Amount</th>
+                  <th className="px-4 py-2 border">Reference</th>
+                  <th className="px-4 py-2 border">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {depositRequests.length > 0 ? (
+                  depositRequests.slice(0, 5).map((req) => (
+                    <tr key={req.id}>
+                      <td className="px-4 py-2 border whitespace-nowrap">
+                        {new Date(req.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-2 border capitalize">{req.payment_method}</td>
+                      <td className="px-4 py-2 border text-right font-mono text-blue-600">
+                        {formatCurrency(req.amount)}
+                      </td>
+                      <td className="px-4 py-2 border font-mono text-xs truncate max-w-[120px]">
+                        {req.transaction_ref || "N/A"}
+                      </td>
+                      <td className="px-4 py-2 border">
+                        <Badge variant="outline" className={
+                          req.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' :
+                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-yellow-50 text-yellow-700 border-yellow-200'
+                        }>
+                          {req.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-4 text-center text-muted-foreground">
+                      No deposit requests found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

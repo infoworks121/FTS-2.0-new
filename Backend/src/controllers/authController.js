@@ -98,6 +98,15 @@ const register = async (req, res) => {
             }
         }
 
+        // Initialize 'main' wallet for every new user
+        const typeRes = await db.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
+        if (typeRes.rows.length > 0) {
+            await db.query(
+                `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, 0)`,
+                [user.id, typeRes.rows[0].id]
+            );
+        }
+
         const token = generateToken({ id: user.id, role_code });
 
         res.status(201).json({
