@@ -29,20 +29,6 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-<<<<<<< HEAD
-const App = () => {
-  const [showSplash, setShowSplash] = useState(true);
-
-  if (showSplash) return <SplashScreen onComplete={() => setShowSplash(false)} />;
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <CartProvider>
-          <Sonner />
-          <ChatBot />
-          <BrowserRouter>
-=======
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -51,16 +37,11 @@ const App = () => (
           <CartProvider>
             <Sonner />
             <ChatBot />
->>>>>>> 4d1cdb2e60a0103838b2143300cf1d4f08432f33
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/" element={<Navigate to="/marketplace" replace />} />
-<<<<<<< HEAD
-              <Route element={<AppLayout />}>
-=======
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
->>>>>>> 4d1cdb2e60a0103838b2143300cf1d4f08432f33
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/marketplace/browse" element={<BrowseProducts />} />
                 <Route path="/marketplace/product/:id" element={<ProductDetail />} />
@@ -78,20 +59,11 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
-<<<<<<< HEAD
-          </BrowserRouter>
-        </CartProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
-=======
           </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
->>>>>>> 4d1cdb2e60a0103838b2143300cf1d4f08432f33
 
 export default App;
