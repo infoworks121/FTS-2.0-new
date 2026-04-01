@@ -1,53 +1,57 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+
+interface AuthUser {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   loading: boolean;
+  signIn: (userData: AuthUser) => void;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true,
-  signOut: async () => {},
+  signIn: () => { },
+  signOut: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    // Check localStorage for existing session (one-time check, no polling)
+    try {
+      const stored = localStorage.getItem("fts_auth_user");
+      if (stored) {
+        setUser(JSON.parse(stored));
       }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    } catch {
+      localStorage.removeItem("fts_auth_user");
+    }
+    setLoading(false);
   }, []);
 
+  const signIn = (userData: AuthUser) => {
+    setUser(userData);
+    localStorage.setItem("fts_auth_user", JSON.stringify(userData));
+  };
+
   const signOut = async () => {
-    await supabase.auth.signOut();
+    setUser(null);
+    localStorage.removeItem("fts_auth_user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

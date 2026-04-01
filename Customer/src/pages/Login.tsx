@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [method, setMethod] = useState<"phone" | "email">("email");
@@ -20,6 +20,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const validateEmail = () => {
     const errs: Record<string, string> = {};
@@ -42,33 +43,37 @@ export default function Login() {
   const handleEmailLogin = async () => {
     if (!validateEmail()) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      // TODO: Replace with actual backend API call
+      // For now, simulate login and store user
+      signIn({ id: "user-1", email, name: email.split("@")[0] });
+      toast.success("Login successful!");
+      navigate("/marketplace");
+    } catch (error: any) {
+      toast.error(error?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-    toast.success("Login successful!");
-    navigate("/marketplace");
   };
 
   const sendOTP = async () => {
     if (!validatePhone()) return;
     setLoading(true);
-    const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\s/g, "")}`;
-    const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\s/g, "")}`;
+      // TODO: Replace with actual backend OTP API call
+      setOtpSent(true);
+      setCountdown(60);
+      const interval = setInterval(() => setCountdown(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      }), 1000);
+      toast.success("OTP sent to " + formattedPhone);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
     }
-    setOtpSent(true);
-    setCountdown(60);
-    const interval = setInterval(() => setCountdown(prev => {
-      if (prev <= 1) { clearInterval(interval); return 0; }
-      return prev - 1;
-    }), 1000);
-    toast.success("OTP sent to " + formattedPhone);
   };
 
   const verifyOTP = async () => {
@@ -78,15 +83,17 @@ export default function Login() {
       return;
     }
     setLoading(true);
-    const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\s/g, "")}`;
-    const { error } = await supabase.auth.verifyOtp({ phone: formattedPhone, token: otpCode, type: "sms" });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\s/g, "")}`;
+      // TODO: Replace with actual backend OTP verification API call
+      signIn({ id: "user-1", phone: formattedPhone, name: "User" });
+      toast.success("Login successful!");
+      navigate("/marketplace");
+    } catch (error: any) {
+      toast.error(error?.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
     }
-    toast.success("Login successful!");
-    navigate("/marketplace");
   };
 
   const handleOtpChange = (index: number, value: string) => {

@@ -6,7 +6,8 @@ import ReactMarkdown from "react-markdown";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+// TODO: Configure actual chat API endpoint
+const CHAT_URL = import.meta.env.VITE_CHAT_API_URL || "/api/chat";
 
 async function streamChat({
   messages,
@@ -23,7 +24,7 @@ async function streamChat({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      ...(import.meta.env.VITE_CHAT_API_KEY ? { Authorization: `Bearer ${import.meta.env.VITE_CHAT_API_KEY}` } : {}),
     },
     body: JSON.stringify({ messages }),
   });

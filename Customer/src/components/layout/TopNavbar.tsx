@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/contexts/CartContext";
 import { currentUser, notifications } from "@/lib/mockData";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function TopNavbar() {
   const { itemCount } = useCart();
@@ -15,6 +15,7 @@ export function TopNavbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const unreadCount = notifications.filter(n => !n.read).length;
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
@@ -97,7 +98,7 @@ export function TopNavbar() {
                 <div className="border-t mt-1">
                   <button
                     className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-muted w-full transition-default"
-                    onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }}
+                    onClick={async () => { await signOut(); navigate("/login"); }}
                   >
                     <LogOut className="h-4 w-4" />
                     Logout

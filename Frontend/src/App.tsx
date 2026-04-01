@@ -11,7 +11,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import CoreBodyDashboard from "./pages/CoreBodyDashboard";
 import BusinessmanDashboard from "./pages/BusinessmanDashboard";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
+import Login from "./pages/LoginNew";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import AuthCallback from "./pages/AuthCallback";

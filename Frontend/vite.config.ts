@@ -8,8 +8,10 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    hmr: {
-      overlay: false,
+    hmr: false, // Completely disable HMR
+    watch: {
+      usePolling: false,
+      ignored: ['**/node_modules/**', '**/.git/**'],
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

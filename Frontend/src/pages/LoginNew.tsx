@@ -1,48 +1,19 @@
-import { useState, FormEvent, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
 import { LogIn, Mail, Lock } from "lucide-react";
 
-export default function Login() {
+export default function LoginNew() {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     identifier: "",
     password: "",
     panel: "businessman",
   });
-
-  // Prevent auto-refresh by checking if user is already logged in
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      // If already logged in, redirect to appropriate dashboard
-      const user = JSON.parse(localStorage.getItem("user") || '{}');
-      if (user.role_code) {
-        switch (user.role_code) {
-          case "admin":
-            navigate("/admin", { replace: true });
-            break;
-          case "core_body":
-          case "core_body_a":
-          case "core_body_b":
-          case "dealer":
-            navigate("/corebody", { replace: true });
-            break;
-          case "businessman":
-            navigate("/businessman", { replace: true });
-            break;
-          default:
-            navigate("/", { replace: true });
-        }
-      }
-    }
-  }, [navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,8 +24,12 @@ export default function Login() {
     setFormData((prev) => ({ ...prev, panel: value }));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    if (isLoading) return;
+    
     setIsLoading(true);
 
     try {
@@ -77,36 +52,31 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      toast({
-        title: "Login Successful",
-        description: `Welcome ${data.user.full_name}`,
-      });
+      // Simple alert instead of toast
+      alert(`Welcome ${data.user.full_name}`);
 
+      // Navigate based on role
       switch (data.user.role_code) {
         case "admin":
-          navigate("/admin");
+          navigate("/admin", { replace: true });
           break;
         case "core_body":
         case "core_body_a":
         case "core_body_b":
         case "dealer":
-          navigate("/corebody");
+          navigate("/corebody", { replace: true });
           break;
         case "businessman":
-          navigate("/businessman");
+          navigate("/businessman", { replace: true });
           break;
         case "customer":
-          navigate("/");
+          navigate("/", { replace: true });
           break;
         default:
-          navigate("/");
+          navigate("/", { replace: true });
       }
     } catch (error: any) {
-      toast({
-        title: "Login Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      alert(`Login Failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -191,9 +161,9 @@ export default function Login() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <a href="#" className="text-sm font-medium text-primary hover:text-primary-700">
+                  <button type="button" className="text-sm font-medium text-primary hover:text-primary-700">
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -235,9 +205,13 @@ export default function Login() {
           <div className="text-center space-y-4">
             <p className="text-sm text-slate-500">
               Don't have an account?{" "}
-              <a href="/register" className="font-semibold text-primary hover:text-primary-700 cursor-pointer">
+              <button 
+                type="button"
+                onClick={() => navigate("/register")}
+                className="font-semibold text-primary hover:text-primary-700 cursor-pointer"
+              >
                 Create New Account
-              </a>
+              </button>
             </p>
             <p className="text-xs text-slate-400">
               Protected by enterprise-grade security. By logging in, you agree to our Terms of Service.

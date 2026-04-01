@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Register() {
   const [step, setStep] = useState(1);
@@ -14,6 +14,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const totalSteps = 3;
 
   const [form, setForm] = useState({
@@ -48,24 +49,16 @@ export default function Register() {
 
   const handleRegister = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          full_name: form.fullName,
-          phone: form.phone,
-        },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      // TODO: Replace with actual backend API call
+      signIn({ id: "user-" + Date.now(), email: form.email, name: form.fullName, phone: form.phone });
+      toast.success("Account created successfully!");
+      navigate("/marketplace");
+    } catch (error: any) {
+      toast.error(error?.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
-    toast.success("Account created! Please check your email to verify your account.");
-    navigate("/login");
   };
 
   const stepIcons = [

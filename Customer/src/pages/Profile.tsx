@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { currentUser, addresses, formatINR, orders, notifications } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const accountSections = [
   {
@@ -44,6 +44,7 @@ const accountSections = [
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const activeOrders = orders.filter(o => !["delivered", "cancelled", "returned"].includes(o.status)).length;
   const unreadNotifs = notifications.filter(n => !n.read).length;
@@ -147,7 +148,7 @@ export default function Profile() {
           {/* Logout */}
           <button
             className="card-base w-full p-4 flex items-center gap-3 text-destructive hover:bg-destructive/5 transition-all duration-200 group"
-            onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }}
+            onClick={async () => { await signOut(); navigate("/login"); }}
           >
             <LogOut className="h-5 w-5" />
             <span className="font-semibold text-sm">Logout</span>
