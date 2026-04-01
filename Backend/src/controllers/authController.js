@@ -5,7 +5,7 @@ const { generateToken } = require('../utils/token');
 const { sendVerificationEmail } = require('../utils/email');
 
 const register = async (req, res) => {
-    const { phone, email, full_name, password, role_code, district, businessman_type, investment_amount, installment_count, installment_amounts } = req.body;
+    const { phone, email, full_name, password, role_code, district, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used } = req.body;
 
     try {
         // Check if user exists
@@ -105,6 +105,38 @@ const register = async (req, res) => {
                 `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, 0)`,
                 [user.id, typeRes.rows[0].id]
             );
+        }
+
+        // --- REFERRAL SYSTEM LOGIC ---
+        // 1. Initialize referral_links for the new user
+        await db.query(
+            `INSERT INTO referral_links (user_id, referral_code) VALUES ($1, $2)`,
+            [user.id, final_referral_code]
+        );
+
+        // 2. Handle referral_code_used (Optional)
+        if (referral_code_used) {
+            const referrerResult = await db.query(
+                `SELECT id FROM users WHERE referral_code = $1`,
+                [referral_code_used]
+            );
+
+            if (referrerResult.rows.length > 0) {
+                const referrerId = referrerResult.rows[0].id;
+
+                // Insert into referral_registrations
+                await db.query(
+                    `INSERT INTO referral_registrations (referrer_id, referred_id, referral_code_used)
+                     VALUES ($1, $2, $3)`,
+                    [referrerId, user.id, referral_code_used]
+                );
+
+                // Increment total_referrals count
+                await db.query(
+                    `UPDATE referral_links SET total_referrals = total_referrals + 1 WHERE user_id = $1`,
+                    [referrerId]
+                );
+            }
         }
 
         const token = generateToken({ id: user.id, role_code });

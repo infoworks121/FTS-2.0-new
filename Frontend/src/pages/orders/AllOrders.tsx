@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Download, Eye, PackageCheck, Search, ShoppingCart, Wallet } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Download, Eye, PackageCheck, Search, ShoppingCart, Wallet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UnifiedOrder, unifiedOrders } from "./orderData";
+import { UnifiedOrder } from "./orderData";
+import { orderApi } from "@/lib/orderApi";
+import { toast } from "sonner";
 
 const orderTypeClass: Record<string, string> = {
   B2B: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -40,9 +42,60 @@ export default function AllOrders() {
   const [orderStatus, setOrderStatus] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<UnifiedOrder | null>(null);
+  const [orders, setOrders] = useState<UnifiedOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true);
+      const data = await orderApi.getMyOrders();
+      
+      // Map backend data to UnifiedOrder interface
+      const mappedOrders: UnifiedOrder[] = data.orders.map((ord: any) => ({
+        id: ord.order_number,
+        dbId: ord.id, // Store real ID for details fetching
+        orderType: ord.order_type as any,
+        customer: ord.customer_name || `User #${ord.customer_id}`,
+        district: ord.district_name || "N/A",
+        orderValue: parseFloat(ord.total_amount),
+        paymentStatus: ord.payment_method === 'wallet' ? 'Paid' : 'Pending',
+        orderStatus: ord.status.charAt(0).toUpperCase() + ord.status.slice(1) as any,
+        createdDate: new Date(ord.created_at).toISOString().split('T')[0],
+        paymentMode: ord.payment_method === 'wallet' ? 'Wallet' : 'UPI',
+        referralImpact: ord.referral_user_id ? "Referral linked" : "No referral",
+        notes: ord.notes || ""
+      }));
+      
+      setOrders(mappedOrders);
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+      toast.error("Failed to load orders");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleViewOrder = async (order: any) => {
+    setSelectedOrder(order);
+    setSelectedOrderDetails(null);
+    try {
+      if (order.dbId) {
+        const details = await orderApi.getOrderDetails(order.dbId);
+        setSelectedOrderDetails(details);
+      }
+    } catch (err) {
+      console.error("Error fetching details", err);
+      toast.error("Failed to load order details");
+    }
+  };
 
   const filteredOrders = useMemo(() => {
-    return unifiedOrders.filter((order) => {
+    return orders.filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(search.toLowerCase()) ||
         order.customer.toLowerCase().includes(search.toLowerCase());
@@ -51,7 +104,7 @@ export default function AllOrders() {
       const matchesDate = dateFilter === "all" || order.createdDate === dateFilter;
       return matchesSearch && matchesType && matchesStatus && matchesDate;
     });
-  }, [dateFilter, orderStatus, orderType, search]);
+  }, [dateFilter, orderStatus, orderType, search, orders]);
 
   const totalValue = filteredOrders.reduce((sum, order) => sum + order.orderValue, 0);
   const paidOrders = filteredOrders.filter((o) => o.paymentStatus === "Paid").length;
@@ -117,7 +170,7 @@ export default function AllOrders() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Dates</SelectItem>
-              {Array.from(new Set(unifiedOrders.map((o) => o.createdDate))).map((date) => (
+              {Array.from(new Set(orders.map((o) => o.createdDate))).map((date: any) => (
                 <SelectItem key={date} value={date}>
                   {date}
                 </SelectItem>
@@ -127,45 +180,59 @@ export default function AllOrders() {
         </div>
 
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Order Type</TableHead>
-                <TableHead>Customer / Businessman</TableHead>
-                <TableHead>District</TableHead>
-                <TableHead className="text-right">Order Value</TableHead>
-                <TableHead>Payment Status</TableHead>
-                <TableHead>Order Status</TableHead>
-                <TableHead>Created Date</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id} className="cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>
-                    <Badge className={orderTypeClass[order.orderType]}>{order.orderType}</Badge>
-                  </TableCell>
-                  <TableCell>{order.customer}</TableCell>
-                  <TableCell>{order.district}</TableCell>
-                  <TableCell className="text-right font-mono">₹{order.orderValue.toLocaleString("en-IN")}</TableCell>
-                  <TableCell>
-                    <Badge className={paymentStatusClass[order.paymentStatus]}>{order.paymentStatus}</Badge>
-                  </TableCell>
-                  <TableCell>{order.orderStatus}</TableCell>
-                  <TableCell>{order.createdDate}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="mr-1 h-4 w-4" />
-                      View
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Number</TableHead>
+                  <TableHead>Order Type</TableHead>
+                  <TableHead>Customer / Businessman</TableHead>
+                  <TableHead>District</TableHead>
+                  <TableHead className="text-right">Order Value</TableHead>
+                  <TableHead>Payment Status</TableHead>
+                  <TableHead>Order Status</TableHead>
+                  <TableHead>Created Date</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                      No orders found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredOrders.map((order) => (
+                    <TableRow key={order.id} className="cursor-pointer" onClick={() => handleViewOrder(order)}>
+                      <TableCell className="font-medium">{order.id}</TableCell>
+                      <TableCell>
+                        <Badge className={orderTypeClass[order.orderType]}>{order.orderType}</Badge>
+                      </TableCell>
+                      <TableCell>{order.customer}</TableCell>
+                      <TableCell>{order.district}</TableCell>
+                      <TableCell className="text-right font-mono">₹{order.orderValue.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>
+                        <Badge className={paymentStatusClass[order.paymentStatus]}>{order.paymentStatus}</Badge>
+                      </TableCell>
+                      <TableCell>{order.orderStatus}</TableCell>
+                      <TableCell>{order.createdDate}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm">
+                          <Eye className="mr-1 h-4 w-4" />
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </div>
 
@@ -189,6 +256,42 @@ export default function AllOrders() {
                   <p><span className="font-semibold">Payment Status:</span> {selectedOrder.paymentStatus}</p>
                   <p><span className="font-semibold">Referral Impact:</span> {selectedOrder.referralImpact}</p>
                 </div>
+
+                {selectedOrderDetails && (
+                  <div className="mt-4 space-y-4">
+                    <h3 className="font-semibold text-base">Order Items</h3>
+                    <div className="space-y-2">
+                       {selectedOrderDetails.items.map((item: any, idx: number) => (
+                         <div key={idx} className="flex justify-between items-center p-2 rounded-md bg-muted/50 border">
+                           <div>
+                             <p className="font-medium">{item.product_name}</p>
+                             <p className="text-xs text-muted-foreground">{item.variant_name || 'Standard Variant'} x {item.quantity}</p>
+                           </div>
+                           <p className="font-mono">₹{parseFloat(item.total_price).toLocaleString("en-IN")}</p>
+                         </div>
+                       ))}
+                    </div>
+
+                    <h3 className="font-semibold text-base">Status Timeline</h3>
+                    <div className="space-y-3 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                       {selectedOrderDetails.status_log.map((log: any, idx: number) => (
+                         <div key={idx} className="pl-6 relative">
+                           <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-primary bg-background" />
+                           <p className="font-medium capitalize">{log.new_status}</p>
+                           <p className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleString()}</p>
+                           {log.note && <p className="text-sm mt-1">{log.note}</p>}
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {!selectedOrderDetails && (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+
                 <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
                   <p className="font-semibold text-amber-700 dark:text-amber-300">Finance Safety Guardrail</p>
                   <p className="text-muted-foreground">Ledger entries are immutable and cannot be edited from this view.</p>

@@ -1,6 +1,9 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Wallet, Clock3, CheckCircle2, Info } from "lucide-react";
 import { KPICard } from "@/components/KPICard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import referralApi, { ReferralEarningHistory } from "@/lib/api/referral";
 import {
   Table,
   TableBody,
@@ -35,53 +38,28 @@ type EarningRow = {
   status: ReferralEarningStatus;
 };
 
-const EARNING_ROWS: EarningRow[] = [
-  {
-    id: "RE-001",
-    orderId: "ORD-884201",
-    referralName: "Subhajit Das",
-    orderType: "B2C",
-    grossOrderValue: 32400,
-    referralPercentage: 2,
-    earnedAmount: 648,
-    status: "Pending",
-  },
-  {
-    id: "RE-002",
-    orderId: "ORD-884118",
-    referralName: "Priya Koley",
-    orderType: "B2B",
-    grossOrderValue: 210000,
-    referralPercentage: 1.5,
-    earnedAmount: 3150,
-    status: "Credited",
-  },
-  {
-    id: "RE-003",
-    orderId: "ORD-883990",
-    referralName: "Nirmal Sen",
-    orderType: "B2B",
-    grossOrderValue: 124000,
-    referralPercentage: 1.5,
-    earnedAmount: 1860,
-    status: "Credited",
-  },
-  {
-    id: "RE-004",
-    orderId: "ORD-883744",
-    referralName: "Mina Pal",
-    orderType: "B2C",
-    grossOrderValue: 18200,
-    referralPercentage: 2,
-    earnedAmount: 364,
-    status: "Reversed",
-  },
-];
-
 export default function ReferralEarningsPage() {
-  const total = EARNING_ROWS.reduce((sum, row) => sum + row.earnedAmount, 0);
-  const pending = EARNING_ROWS.filter((row) => row.status === "Pending").reduce((sum, row) => sum + row.earnedAmount, 0);
-  const paid = EARNING_ROWS.filter((row) => row.status === "Credited").reduce((sum, row) => sum + row.earnedAmount, 0);
+  const { data: rawEarnings = [], isLoading } = useQuery({
+    queryKey: ["referral-earnings"],
+    queryFn: referralApi.getEarnings,
+  });
+
+  const earnings: EarningRow[] = useMemo(() => {
+    return rawEarnings.map((row: ReferralEarningHistory) => ({
+      id: row.id,
+      orderId: row.order_id,
+      referralName: row.referred_user_name,
+      orderType: "B2C" as OrderType, // Defaulting, would need backend support to differentiate
+      grossOrderValue: 0, // Not provided by current backend query
+      referralPercentage: 0, // Not provided by current backend query
+      earnedAmount: parseFloat(row.gross_amount as string) || 0,
+      status: row.status as ReferralEarningStatus || "Pending",
+    }));
+  }, [rawEarnings]);
+
+  const total = earnings.reduce((sum, row) => sum + row.earnedAmount, 0);
+  const pending = earnings.filter((row) => row.status === "Pending").reduce((sum, row) => sum + row.earnedAmount, 0);
+  const paid = earnings.filter((row) => row.status === "Credited").reduce((sum, row) => sum + row.earnedAmount, 0);
 
   return (
     <div className="space-y-6">
@@ -111,9 +89,15 @@ export default function ReferralEarningsPage() {
           <CardTitle className="text-sm">Earnings List (Read-only)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 md:hidden">
-            <TooltipProvider>
-              {EARNING_ROWS.map((row) => (
+          {isLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                <TooltipProvider>
+                  {earnings.map((row) => (
                 <div key={row.id} className="rounded-md border bg-card p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -162,7 +146,7 @@ export default function ReferralEarningsPage() {
               </TableHeader>
               <TableBody>
                 <TooltipProvider>
-                  {EARNING_ROWS.map((row) => (
+                  {earnings.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-mono text-xs">{row.orderId}</TableCell>
                       <TableCell>{row.referralName}</TableCell>
@@ -190,9 +174,18 @@ export default function ReferralEarningsPage() {
                     </TableRow>
                   ))}
                 </TooltipProvider>
+                {earnings.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                      No referral earnings found.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
+        </>
+        )}
         </CardContent>
       </Card>
     </div>

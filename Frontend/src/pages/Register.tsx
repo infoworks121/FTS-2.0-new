@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import api from "@/lib/api";
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +31,7 @@ export default function Register() {
     core_body_type: "",
     businessman_type: "",
     district: "",
+    referral_code_used: searchParams.get("ref") || "",
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,6 +149,7 @@ export default function Register() {
         role_code: formData.role_code === "core_body" ? formData.core_body_type : formData.role_code,
         businessman_type: formData.businessman_type || null,
         district: formData.district || null,
+        referral_code_used: formData.referral_code_used || null,
         ...(needsInstallmentModal && {
           investment_amount: totalInvestment,
           installment_count: parseInt(installmentData.installment_count),
@@ -377,6 +380,14 @@ export default function Register() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input id="email" name="email" type="email" required className="pl-9 h-11" placeholder="Email address" value={formData.email} onChange={handleInputChange} />
+                </div>
+              </div>
+
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="referral_code_used">Referral Code (Optional)</Label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input id="referral_code_used" name="referral_code_used" type="text" className="pl-9 h-11 uppercase" placeholder="e.g. FTS123ABC" value={formData.referral_code_used} onChange={handleInputChange} />
                 </div>
               </div>
             </div>

@@ -10,8 +10,14 @@ import { Progress } from "@/components/ui/progress";
 import { 
   User, Settings, DollarSign, TrendingUp, AlertTriangle, 
   Calendar, CheckCircle, Clock, Building2, CreditCard, Target,
-  MapPin, Users, BarChart3, Package
+  MapPin, Users, BarChart3, Package, Lock, ShieldCheck, ChevronRight
 } from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import walletApi from "@/lib/walletApi";
 
 export default function UnifiedProfile() {
   const [profile, setProfile] = useState(null);
@@ -19,6 +25,8 @@ export default function UnifiedProfile() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [pinValue, setPinValue] = useState("");
+  const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -154,6 +162,23 @@ export default function UnifiedProfile() {
       console.error('Error fetching dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSetPin = async () => {
+    if (pinValue.length !== 6) {
+      toast({ title: "Invalid PIN", description: "PIN must be 6 digits", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingPin(true);
+    try {
+      await walletApi.setTransactionPin(pinValue);
+      toast({ title: "Success", description: "Transaction PIN set successfully" });
+      setPinValue("");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.response?.data?.error || "Failed to set PIN", variant: "destructive" });
+    } finally {
+      setIsSubmittingPin(false);
     }
   };
 
@@ -781,7 +806,7 @@ export default function UnifiedProfile() {
   };
 
   if (loading) {
-    return <div className="p-6">Loading...</div>;
+    return <div className="p-6 text-center py-20">Loading profile...</div>;
   }
 
   return (
@@ -799,81 +824,142 @@ export default function UnifiedProfile() {
       {/* Dashboard Stats */}
       {renderDashboardStats()}
 
-      {/* Profile Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Profile Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderProfileFields()}
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-slate-400" />
+                Profile Information
+              </CardTitle>
+              <Button 
+                variant={editing ? "default" : "outline"} 
+                size="sm"
+                onClick={() => editing ? handleSave() : setEditing(true)}
+              >
+                {editing ? "Save Changes" : "Edit Profile"}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                {renderProfileFields()}
+              </div>
 
-          <div className="flex gap-2 pt-4">
-            {editing ? (
-              <>
-                <Button onClick={handleSave}>Save Changes</Button>
-                <Button variant="outline" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button onClick={() => setEditing(true)}>Edit Profile</Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Installments for Core Body/Dealer */}
-      {profile?.installments && profile.installments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Investment Installments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {profile.installments.map((installment) => (
-                <div key={installment.installment_no} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    {installment.status === 'paid' ? (
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <Clock className="w-5 h-5 text-orange-600" />
-                    )}
-                    <div>
-                      <p className="font-medium">Installment {installment.installment_no}</p>
-                      <p className="text-sm text-gray-600">₹{installment.amount?.toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {installment.status === 'paid' ? (
-                      <div>
-                        <Badge variant="outline" className="bg-green-50 text-green-700">Paid</Badge>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(installment.paid_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        onClick={() => handlePayInstallment(installment.installment_no)}
-                      >
-                        Pay Now
-                      </Button>
-                    )}
-                  </div>
+              {editing && (
+                <div className="flex gap-2 pt-6 mt-6 border-t">
+                  <Button onClick={handleSave}>Save Profile</Button>
+                  <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Installments for Core Body/Dealer */}
+          {profile?.installments && profile.installments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-slate-400" />
+                  Investment Installments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {profile.installments.map((installment) => (
+                    <div key={installment.installment_no} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {installment.status === 'paid' ? (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <Clock className="w-5 h-5 text-orange-600" />
+                        )}
+                        <div>
+                          <p className="font-medium">Installment {installment.installment_no}</p>
+                          <p className="text-sm text-gray-600">₹{installment.amount?.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {installment.status === 'paid' ? (
+                          <div className="flex flex-col items-end">
+                            <Badge variant="outline" className="bg-green-50 text-green-700 h-5">Paid</Badge>
+                            <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-tighter">
+                              {new Date(installment.paid_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            onClick={() => handlePayInstallment(installment.installment_no)}
+                          >
+                            Pay Now
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="border-slate-200 overflow-hidden">
+            <CardHeader className="bg-slate-50/50">
+              <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
+                <Lock className="w-4 h-4 text-emerald-600" />
+                Security & PIN
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Transaction PIN</Label>
+                <p className="text-xs text-muted-foreground leading-relaxed">Required for secure withdrawals and payouts. Use a unique 6-digit number.</p>
+                <div className="flex justify-center py-6 bg-slate-50 border border-slate-100 rounded-2xl group focus-within:ring-2 ring-emerald-500/20 transition-all">
+                  <InputOTP maxLength={6} value={pinValue} onChange={setPinValue}>
+                    <InputOTPGroup className="gap-2">
+                      <InputOTPSlot index={0} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                      <InputOTPSlot index={1} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                      <InputOTPSlot index={2} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                      <InputOTPSlot index={3} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                      <InputOTPSlot index={4} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                      <InputOTPSlot index={5} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </div>
+              <Button 
+                className="w-full gap-2 h-12 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-all shadow-lg shadow-slate-900/10" 
+                onClick={handleSetPin} 
+                disabled={isSubmittingPin || pinValue.length !== 6}
+              >
+                {isSubmittingPin ? <ShieldCheck className="w-4 h-4 animate-pulse" /> : <ShieldCheck className="w-4 h-4" />}
+                {isSubmittingPin ? "Securing Account..." : "Update PIN Securely"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {profile?.role_code !== 'admin' && (
+            <Card className="border-emerald-100 bg-emerald-50/20 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+              <CardHeader>
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-emerald-800 flex items-center gap-2">
+                   <Users className="w-4 h-4 text-emerald-600" />
+                   Official Support
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-emerald-800/80 leading-relaxed font-medium">
+                  Facing issues? Your dedicated Support Officer is ready to assist you with account verification and inquiries.
+                </p>
+                <Button variant="link" className="px-0 h-auto text-emerald-600 font-black uppercase tracking-widest text-[10px] hover:text-emerald-700 hover:no-underline flex items-center gap-1 group">
+                  Contact Now <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

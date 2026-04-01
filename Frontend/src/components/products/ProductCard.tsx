@@ -64,8 +64,12 @@ export function ProductCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Thumbnail */}
-            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center border">
-              <Package className="h-6 w-6 text-muted-foreground" />
+            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center border overflow-hidden">
+              {product.thumbnail_url ? (
+                <img src={product.thumbnail_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <Package className="h-6 w-6 text-muted-foreground" />
+              )}
             </div>
             
             {/* Title & SKU */}

@@ -870,7 +870,8 @@ exports.getAdminProducts = async (req, res) => {
     
     // Select aliases to match frontend expect: base_price -> selling_price (or mrp), cost_price -> pp.base_price, status -> is_active, stock_quantity -> ib.quantity_on_hand
     const query = `
-      SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, p.created_at, p.updated_at,
+      SELECT p.id, p.name, p.sku, p.category_id, c.name as category_name, p.type as product_type, 
+             p.description, p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
@@ -905,7 +906,8 @@ exports.getAdminProductById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, p.created_at, p.updated_at,
+      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, 
+              p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
@@ -935,7 +937,7 @@ exports.createAdminProduct = async (req, res) => {
     const {
       name, sku, category_id, product_type, base_price, cost_price,
       min_margin_percent, stock_required, stock_quantity, is_digital,
-      is_service, description, status = 'draft'
+      is_service, description, thumbnail_url, image_urls = [], status = 'draft'
     } = req.body;
 
     if (!name || !sku || !category_id || !product_type || !base_price) {
@@ -950,10 +952,10 @@ exports.createAdminProduct = async (req, res) => {
     // Step 1: Insert Product
     const productResult = await client.query(
       `INSERT INTO products 
-       (category_id, name, sku, description, type, is_active, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
        RETURNING *`,
-      [category_id, name, sku, description || null, type, is_active, req.user.id]
+      [category_id, name, sku, description || null, type, thumbnail_url || null, JSON.stringify(image_urls), is_active, req.user.id]
     );
     const product = productResult.rows[0];
 
@@ -999,7 +1001,7 @@ exports.updateAdminProduct = async (req, res) => {
     const {
       name, sku, category_id, product_type, base_price, cost_price,
       min_margin_percent, stock_quantity, is_digital,
-      is_service, description, status
+      is_service, description, thumbnail_url, image_urls, status
     } = req.body;
 
     await client.query('BEGIN');
@@ -1028,10 +1030,12 @@ exports.updateAdminProduct = async (req, res) => {
         category_id = COALESCE($3, category_id),
         type = COALESCE($4, type),
         description = COALESCE($5, description),
-        is_active = COALESCE($6, is_active),
+        thumbnail_url = COALESCE($6, thumbnail_url),
+        image_urls = COALESCE($7, image_urls),
+        is_active = COALESCE($8, is_active),
         updated_at = NOW()
-       WHERE id = $7`,
-      [name, sku, category_id, type, description, is_active, id]
+       WHERE id = $9`,
+      [name, sku, category_id, type, description, thumbnail_url, image_urls ? JSON.stringify(image_urls) : null, is_active, id]
     );
 
     if (base_price !== undefined || cost_price !== undefined || min_margin_percent !== undefined) {

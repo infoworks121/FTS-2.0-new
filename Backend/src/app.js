@@ -29,6 +29,9 @@ const fulfillmentRoutes = require('./routes/fulfillmentRoutes');
 const returnComplaintRoutes = require('./routes/returnComplaintRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const referralRoutes = require('./routes/referralRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const path = require('path');
 
 const app = express();
 
@@ -44,6 +47,9 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Static files (for uploads)
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -69,6 +75,8 @@ app.use('/api/fulfillments', fulfillmentRoutes);
 app.use('/api/customer-service', returnComplaintRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/referral', referralRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

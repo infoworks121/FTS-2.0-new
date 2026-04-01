@@ -136,6 +136,17 @@ export const sidebarNavItems: SidebarNavItem[] = [
     ],
   },
   {
+    title: "Referral Management",
+    icon: Users,
+    requiredRole: "admin",
+    submenu: [
+      { title: "Referral Network", url: "/admin/referral/network" },
+      { title: "Referral Earnings Log", url: "/admin/referral/earnings" },
+      { title: "Referral Rules", url: "/admin/commission/referral" },
+      { title: "Abuse Detection", url: "/admin/compliance/referral" },
+    ],
+  },
+  {
     title: "Wallets & Finance",
     icon: Wallet,
     warning: true,

@@ -143,10 +143,10 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
           [referrerId, orderId, order.customer_id, refAmount]
         );
         
-        // CREDIT REFERRAL WALLET
+        // CREDIT MAIN WALLET (AS PER USER REQUEST)
         await walletService.creditWallet(
           referrerId, 
-          'referral', 
+          'main', 
           refAmount, 
           'B2B_Referral_Profit', 
           orderId, 
@@ -295,10 +295,10 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
           [referrerId, orderId, order.customer_id, refAmount]
         );
 
-        // ACTUAL WALLET CREDIT
+        // ACTUAL WALLET CREDIT (MAIN WALLET AS PER USER REQUEST)
         await walletService.creditWallet(
           referrerId, 
-          'referral', 
+          'main', 
           refAmount, 
           'B2C_Referral_Profit', 
           orderId, 

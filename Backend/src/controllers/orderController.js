@@ -387,3 +387,84 @@ exports.createB2COrder = async (req, res) => {
   }
 };
 
+exports.getMyOrders = async (req, res) => {
+  try {
+    const user = req.user;
+    let query = `
+      SELECT o.*, d.name as district_name, u.full_name as customer_name
+      FROM orders o 
+      LEFT JOIN districts d ON o.district_id = d.id
+      LEFT JOIN users u ON o.customer_id = u.id
+    `;
+    const params = [];
+
+    // For admins and core bodies (district-level), allow broader access
+    if (user.role_code !== 'admin' && !user.role_code.startsWith('core_body')) {
+      query += ` WHERE o.customer_id = $1`;
+      params.push(user.id);
+    }
+
+    query += ` ORDER BY o.created_at DESC`;
+
+    const result = await db.query(query, params);
+    res.json({ orders: result.rows });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+exports.getOrderDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const orderResult = await db.query(
+      `SELECT o.*, d.name as district_name, u.full_name as customer_name
+       FROM orders o 
+       LEFT JOIN districts d ON o.district_id = d.id
+       LEFT JOIN users u ON o.customer_id = u.id
+       WHERE o.id = $1`,
+      [id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Authorization check
+    if (user.role_code !== 'admin' && !user.role_code.startsWith('core_body') && order.customer_id !== user.id) {
+       return res.status(403).json({ error: 'Unauthorized to view this order' });
+    }
+
+    const itemsResult = await db.query(
+      `SELECT oi.*, p.name as product_name, pv.variant_name
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       LEFT JOIN product_variants pv ON oi.variant_id = pv.id
+       WHERE oi.order_id = $1`,
+      [id]
+    );
+
+    const logsResult = await db.query(
+      `SELECT osl.*, u.full_name as performed_by_name
+       FROM order_status_log osl
+       LEFT JOIN users u ON osl.performed_by = u.id
+       WHERE osl.order_id = $1
+       ORDER BY osl.created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      order,
+      items: itemsResult.rows,
+      status_log: logsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching order details:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+

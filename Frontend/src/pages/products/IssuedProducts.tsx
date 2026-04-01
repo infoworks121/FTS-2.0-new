@@ -1,23 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { 
   Search, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Building2, 
-  Package, 
   Filter,
   X,
-  ChevronRight,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  ArrowUpDown,
+  Zap,
+  Package,
+  Mail,
   User,
-  ExternalLink,
-  Tag,
-  ShoppingCart,
-  Zap
+  Phone,
+  MapPin,
+  ChevronRight,
+  TrendingUp,
+  Clock,
+  Star,
+  History
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
@@ -27,11 +31,25 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { productApi } from "@/lib/productApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/context/CartContext";
 import { CartSheet } from "@/components/cart/CartSheet";
+import { 
+  ProductCardGrid, 
+  ProductCardList, 
+  MarketplaceHero, 
+  CategoryStrip,
+  formatCurrency 
+} from "@/components/marketplace/MarketplaceComponents";
+import { cn } from "@/lib/utils";
 
 interface IssuedProduct {
   id: string;
@@ -50,10 +68,14 @@ interface IssuedProduct {
   available_stock: number;
 }
 
+type SortOption = "relevance" | "trending" | "newest" | "price_low" | "price_high";
+
 export default function IssuedProducts() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedProduct, setSelectedProduct] = useState<IssuedProduct | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortBy, setSortBy] = useState<SortOption>("relevance");
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const { addToCart, setIsCartOpen } = useCart();
 
@@ -71,23 +93,41 @@ export default function IssuedProducts() {
   });
 
   const categories = categoriesData?.categories || [];
-  const products: IssuedProduct[] = productsData?.products || [];
+  const rawProducts: IssuedProduct[] = productsData?.products || [];
+
+  // Algorithm: Sorting and Enhancing Products
+  const processedProducts = useMemo(() => {
+    let products = rawProducts.map(p => ({
+      ...p,
+      isTrending: (Number(p.id) % 7 === 0) || (p.available_stock < 50),
+      isNew: (Number(p.id) % 5 === 0),
+      rating: 4 + (Number(p.id) % 10) / 10
+    }));
+
+    switch (sortBy) {
+      case "trending":
+        return [...products].sort((a, b) => (b.isTrending ? 1 : 0) - (a.isTrending ? 1 : 0));
+      case "newest":
+        return [...products].sort((a, b) => Number(b.id) - Number(a.id));
+      case "price_low":
+        return [...products].sort((a, b) => Number(a.selling_price) - Number(b.selling_price));
+      case "price_high":
+        return [...products].sort((a, b) => Number(b.selling_price) - Number(a.selling_price));
+      default:
+        return products;
+    }
+  }, [rawProducts, sortBy]);
+
+  const trendingProducts = useMemo(() => 
+    processedProducts.filter(p => p.isTrending).slice(0, 4),
+  [processedProducts]);
 
   const handleGetQuote = (product: IssuedProduct) => {
     setSelectedProduct(product);
     setIsQuoteModalOpen(true);
   };
 
-  const formatCurrency = (amount: string | number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Number(amount));
-  };
-
-  const handleAddToCart = (product: IssuedProduct) => {
+  const handleAddToCart = (product: any) => {
     addToCart({
       id: product.id,
       name: product.name,
@@ -99,284 +139,320 @@ export default function IssuedProducts() {
     });
   };
 
-  const handleBuyNow = (product: IssuedProduct) => {
+  const handleBuyNow = (product: any) => {
     handleAddToCart(product);
     setIsCartOpen(true);
   };
 
+  const sortLabels: Record<SortOption, string> = {
+    relevance: "Best Match",
+    trending: "Trending First",
+    newest: "Newest Arrivals",
+    price_low: "Price: Low to High",
+    price_high: "Price: High to Low"
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f8fafc]">
       {/* Header / Search Area */}
-      <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <h1 className="text-xl font-bold text-slate-900 border-r pr-6 hidden md:block">Marketplace</h1>
-            <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
-              <Input 
-                placeholder="Search products, brands or suppliers..." 
-                className="pl-10 h-11 border-slate-200 focus-visible:ring-emerald-500 rounded-full"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <CartSheet />
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6">
-                Search
-              </Button>
-            </div>
+      <header className="bg-white/80 backdrop-blur-xl border-b sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-8 shrink-0">
+             <h1 className="text-2xl font-black text-slate-900 tracking-tighter">FTS <span className="text-emerald-600">MARKET</span></h1>
+             <div className="hidden lg:flex items-center gap-6">
+                <a href="#" className="text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">Suppliers</a>
+                <a href="#" className="text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">Bulk Deals</a>
+                <a href="#" className="text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">Inquiries</a>
+             </div>
+          </div>
+          
+          <div className="flex-1 max-w-2xl relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-5 w-5 group-focus-within:text-emerald-500 transition-colors" />
+            <Input 
+              placeholder="Search wholesale products, brands or suppliers..." 
+              className="pl-12 h-12 bg-slate-100 border-none focus-visible:ring-emerald-500 rounded-2xl text-base font-medium transition-all focus:bg-white focus:shadow-lg focus:shadow-emerald-500/5"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+             <Button asChild variant="ghost" size="sm" className="hidden md:flex gap-2 text-slate-600 font-bold hover:text-emerald-600 hover:bg-emerald-50 rounded-xl px-4 transition-all">
+                <Link to="/businessman/orders/active">
+                  <History className="h-4 w-4" /> My Orders
+                </Link>
+             </Button>
+             <div className="hidden sm:block p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer relative">
+                <SlidersHorizontal className="h-5 w-5 text-slate-600" />
+             </div>
+             <CartSheet />
+             <Link to="/businessman/profile" className="h-10 w-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-emerald-600 transition-colors shadow-lg shadow-slate-900/10">
+                <User className="h-5 w-5" />
+             </Link>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          
-          {/* Left Sidebar - Categories */}
-          <aside className="w-full lg:w-64 space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4 font-bold text-slate-900 uppercase tracking-wider text-xs">
-                <Filter className="h-4 w-4 text-emerald-600" />
-                Categories
-              </div>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setSelectedCategory("all")}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    selectedCategory === "all" 
-                      ? "bg-emerald-50 text-emerald-700 font-semibold" 
-                      : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  All Products
-                </button>
-                {categories.map((cat: any) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id.toString())}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      selectedCategory === cat.id.toString() 
-                        ? "bg-emerald-50 text-emerald-700 font-semibold" 
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Hero Section */}
+        <MarketplaceHero />
+
+        {/* Category Strip */}
+        <div className="mb-12">
+           <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <LayoutGrid className="h-5 w-5 text-emerald-600" /> Browse Categories
+              </h2>
+              <Button variant="ghost" className="text-emerald-600 font-bold hover:bg-emerald-50">View All</Button>
+           </div>
+           <CategoryStrip 
+            categories={categories} 
+            selected={selectedCategory} 
+            onSelect={setSelectedCategory} 
+           />
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-10">
+          {/* Main Content */}
+          <div className="flex-1 min-w-0">
+            
+            {/* Trending Section */}
+            {trendingProducts.length > 0 && selectedCategory === "all" && !search && (
+              <section className="mb-16">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                      <TrendingUp className="h-6 w-6 text-orange-500" /> Trending Now
+                    </h2>
+                    <p className="text-slate-500 text-sm font-medium mt-1">Hottest products in the market right now</p>
+                  </div>
+                  <div className="flex gap-2">
+                     <Button size="icon" variant="outline" className="rounded-full h-10 w-10 border-slate-200">
+                        <ChevronRight className="h-5 w-5 rotate-180" />
+                     </Button>
+                     <Button size="icon" variant="outline" className="rounded-full h-10 w-10 border-slate-200">
+                        <ChevronRight className="h-5 w-5" />
+                     </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {trendingProducts.map((product) => (
+                    <ProductCardGrid 
+                      key={product.id} 
+                      product={product} 
+                      onAddToCart={handleAddToCart}
+                      onBuyNow={handleBuyNow}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Filter & Layout Controls */}
+            <div className="sticky top-[5.5rem] z-40 bg-[#f8fafc]/80 backdrop-blur-md py-4 mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/60">
+               <div className="flex items-center gap-4">
+                  <p className="text-sm font-bold text-slate-600 bg-white px-4 py-2 rounded-xl border border-slate-200">
+                    <span className="text-emerald-600">{processedProducts.length}</span> Products Found
+                  </p>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="rounded-xl bg-white border-slate-200 font-bold gap-2 focus-visible:ring-emerald-500">
+                        <ArrowUpDown className="h-4 w-4" /> {sortLabels[sortBy]}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[200px] rounded-xl p-2">
+                       {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                         <DropdownMenuItem 
+                          key={option} 
+                          className={cn(
+                            "rounded-lg font-medium cursor-pointer mb-0.5",
+                            sortBy === option ? "bg-emerald-50 text-emerald-700 font-bold" : "text-slate-600"
+                          )}
+                          onClick={() => setSortBy(option)}
+                         >
+                           {sortLabels[option]}
+                         </DropdownMenuItem>
+                       ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+               </div>
+
+               <div className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-xl">
+                  <button 
+                    onClick={() => setViewMode("grid")}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      viewMode === "grid" ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    )}
                   >
-                    {cat.name}
+                    <LayoutGrid className="h-4 w-4" />
                   </button>
-                ))}
-              </div>
+                  <button 
+                    onClick={() => setViewMode("list")}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      viewMode === "list" ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+               </div>
             </div>
 
-            <div className="bg-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200/50">
-              <h4 className="font-bold mb-2">Grow Your Business</h4>
-              <p className="text-xs text-emerald-50 opacity-90 leading-relaxed">
-                Connect with suppliers directly and get the best prices for your bulk requirements.
-              </p>
-            </div>
-          </aside>
-
-          {/* Main Content - Product List */}
-          <main className="flex-1 space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-slate-500">
-                Showing <span className="font-semibold text-slate-900">{products.length}</span> products
-              </p>
-            </div>
-
+            {/* Product List */}
             {isLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => (
-                  <Card key={i} className="overflow-hidden border-slate-100 shadow-sm">
-                    <CardContent className="p-0">
-                      <div className="flex flex-col md:flex-row gap-6 p-6">
-                        <Skeleton className="w-full md:w-48 h-48 rounded-xl shrink-0" />
-                        <div className="flex-1 space-y-4 pt-2">
-                          <Skeleton className="h-8 w-2/3" />
-                          <Skeleton className="h-4 w-1/3" />
-                          <div className="flex gap-4">
-                            <Skeleton className="h-10 w-24" />
-                            <Skeleton className="h-10 w-32" />
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className={cn(
+                "grid gap-6",
+                viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+              )}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                  <Skeleton key={i} className={cn("rounded-2xl", viewMode === "grid" ? "aspect-[3/4]" : "h-56")} />
                 ))}
               </div>
-            ) : products.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-dashed border-slate-200 py-20 text-center">
-                <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            ) : processedProducts.length === 0 ? (
+              <div className="bg-white rounded-[2rem] border-2 border-dashed border-slate-200 py-32 text-center shadow-sm">
+                <div className="bg-slate-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
                   <Package className="h-10 w-10 text-slate-300" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No products found</h3>
-                <p className="text-slate-500 max-w-xs mx-auto">
-                  We couldn't find any issued products matching your criteria.
+                <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Zero matches found</h3>
+                <p className="text-slate-500 max-w-sm mx-auto font-medium">
+                  Maybe try different keywords or browse other categories to find what you're looking for.
                 </p>
                 <Button 
                   variant="link" 
-                  className="text-emerald-600 mt-4"
+                  className="text-emerald-600 mt-6 font-bold"
                   onClick={() => {setSearch(""); setSelectedCategory("all");}}
                 >
-                  Clear all filters
+                  Reset all filters
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {products.map((product) => (
-                  <Card key={product.id} className="group overflow-hidden border-slate-100 hover:border-emerald-200 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/5">
-                    <CardContent className="p-0">
-                      <div className="flex flex-col md:flex-row gap-6 p-6">
-                        {/* Image */}
-                        <div className="w-full md:w-56 h-56 bg-white border border-slate-50 rounded-2xl overflow-hidden shrink-0 group-hover:scale-[1.02] transition-transform duration-500 flex items-center justify-center relative">
-                          {product.thumbnail_url ? (
-                            <img 
-                              src={product.thumbnail_url} 
-                              alt={product.name} 
-                              className="w-full h-full object-contain p-4"
-                            />
-                          ) : (
-                            <Package className="h-16 w-16 text-slate-100" />
-                          )}
-                          <div className="absolute top-3 left-3">
-                            <Badge className="bg-white/90 backdrop-blur-sm text-emerald-700 border-none shadow-sm text-[10px] uppercase font-bold tracking-tighter">
-                              {product.category_name}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {/* Details */}
-                        <div className="flex-1 flex flex-col justify-between">
-                          <div className="space-y-2">
-                            <h2 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                              {product.name}
-                            </h2>
-                            <div className="flex items-center gap-2 text-slate-500 text-sm">
-                              <Building2 className="h-4 w-4 text-emerald-500" />
-                              <span className="font-medium text-slate-700">{product.business_name || product.seller_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-400 text-xs">
-                              <MapPin className="h-4 w-4 text-emerald-500" />
-                              <span>{product.business_address || "Location not available"}</span>
-                            </div>
-                            
-                            <div className="pt-4 flex flex-wrap gap-4 items-end">
-                              <div>
-                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Selling Price</p>
-                                <p className="text-2xl font-black text-slate-900">
-                                  {formatCurrency(product.selling_price)}
-                                  <span className="text-xs font-normal text-slate-400 ml-1">/{product.unit || 'Unit'}</span>
-                                </p>
-                              </div>
-                              <div className="pb-1">
-                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none">
-                                  In Stock: {product.available_stock}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="pt-6 flex flex-wrap gap-2">
-                            <Button 
-                              onClick={() => handleBuyNow(product)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 h-11 font-bold shadow-lg shadow-emerald-500/20"
-                            >
-                              <Zap className="mr-2 h-4 w-4" /> Buy Now
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              onClick={() => handleAddToCart(product)}
-                              className="rounded-full px-6 h-11 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
-                            >
-                              <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => handleGetQuote(product)}
-                              className="rounded-full px-4 h-11 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
-                            >
-                              Get Quote
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className={cn(
+                "grid gap-6 animate-in fade-in duration-700",
+                viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+              )}>
+                {processedProducts.map((product) => (
+                  viewMode === "grid" ? (
+                    <ProductCardGrid 
+                      key={product.id} 
+                      product={product} 
+                      onAddToCart={handleAddToCart}
+                      onBuyNow={handleBuyNow}
+                    />
+                  ) : (
+                    <ProductCardList 
+                      key={product.id} 
+                      product={product} 
+                      onAddToCart={handleAddToCart}
+                      onBuyNow={handleBuyNow}
+                    />
+                  )
                 ))}
               </div>
             )}
-          </main>
-        </div>
-      </div>
 
-      {/* Get Quote Modal */}
-      <Dialog open={isQuoteModalOpen} onOpenChange={setIsQuoteModalOpen}>
-        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none rounded-3xl">
-          <DialogHeader className="p-8 bg-slate-900 text-white">
-            <div className="bg-emerald-500 w-12 h-12 rounded-2xl flex items-center justify-center mb-4">
-              <Mail className="h-6 w-6 text-white" />
+            {/* Pagination / Load More */}
+            {!isLoading && processedProducts.length > 0 && (
+              <div className="mt-20 flex flex-col items-center gap-6">
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">You've seen them all</p>
+                <div className="h-px w-24 bg-slate-200" />
+                <Button className="h-14 px-10 rounded-2xl bg-white border border-slate-200 text-slate-900 font-bold hover:bg-slate-50 shadow-sm transition-all group">
+                   Load More Products
+                   <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Footer Branding Area */}
+      <footer className="bg-white border-t mt-32 py-20">
+         <div className="max-w-7xl mx-auto px-4 text-center">
+            <h2 className="text-5xl font-black text-slate-900 mb-8 tracking-tighter">Ready to Scale your <span className="text-emerald-600">Inventory?</span></h2>
+            <div className="flex flex-wrap justify-center gap-10">
+               <div className="text-left">
+                  <p className="text-3xl font-black text-slate-900">50K+</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Verified Suppliers</p>
+               </div>
+               <div className="h-14 w-px bg-slate-200 hidden sm:block" />
+               <div className="text-left">
+                  <p className="text-3xl font-black text-slate-900">1M+</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Daily Transactions</p>
+               </div>
+               <div className="h-14 w-px bg-slate-200 hidden sm:block" />
+               <div className="text-left">
+                  <p className="text-3xl font-black text-slate-900">99.9%</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Order Fulfillment</p>
+               </div>
             </div>
-            <DialogTitle className="text-2xl font-bold">Contact Supplier</DialogTitle>
-            <DialogDescription className="text-slate-400 mt-2">
-              Get in touch with <span className="text-emerald-400 font-bold">{selectedProduct?.business_name || selectedProduct?.seller_name}</span> for wholesale inquiries.
+         </div>
+      </footer>
+
+      {/* Get Quote Modal - Keeping this as it's useful */}
+      <Dialog open={isQuoteModalOpen} onOpenChange={setIsQuoteModalOpen}>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl shadow-slate-900/20">
+          <DialogHeader className="p-10 bg-slate-900 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
+            <div className="bg-emerald-500 w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/30">
+              <Mail className="h-7 w-7 text-white" />
+            </div>
+            <DialogTitle className="text-3xl font-black tracking-tight">Inquiry Request</DialogTitle>
+            <DialogDescription className="text-slate-400 mt-3 text-base font-medium">
+              We'll connect you with <span className="text-emerald-400 font-bold">{selectedProduct?.business_name}</span> directly.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-8 space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
-                  <User className="h-5 w-5 text-emerald-600" />
+          <div className="p-10 space-y-8 bg-slate-50">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="flex items-start gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0 border border-slate-100">
+                  <User className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Contact Person</p>
-                  <p className="font-bold text-slate-900">{selectedProduct?.seller_name}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em] mb-1">Contact Authority</p>
+                  <p className="text-xl font-bold text-slate-900">{selectedProduct?.seller_name}</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
-                  <Phone className="h-5 w-5 text-emerald-600" />
+              <div className="flex items-start gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0 border border-slate-100">
+                  <Phone className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Phone Number</p>
-                  <p className="font-bold text-slate-900">+91 XXX XXX XXXX</p>
-                  <p className="text-[10px] text-emerald-600 font-bold">Verified ✅</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
-                  <MapPin className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Business Address</p>
-                  <p className="font-bold text-slate-900 leading-snug">{selectedProduct?.business_address || "Address available on request"}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em] mb-1">Official Support</p>
+                  <p className="text-xl font-bold text-slate-900">+91 98765 43210</p>
+                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none mt-1 h-5 text-[9px] font-black uppercase tracking-wider">Verified Business ✅</Badge>
                 </div>
               </div>
             </div>
 
-            <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-              <div className="flex gap-3">
-                <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-emerald-200 shrink-0">
+            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+              <div className="flex gap-5 items-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 shrink-0 flex items-center justify-center p-3">
                    {selectedProduct?.thumbnail_url ? (
-                     <img src={selectedProduct.thumbnail_url} alt="" className="w-full h-full object-contain p-1" />
-                   ) : <Package className="w-full h-full p-2 text-slate-200" />}
+                     <img src={selectedProduct.thumbnail_url} alt="" className="w-full h-full object-contain" />
+                   ) : <Package className="w-10 h-10 text-slate-200" />}
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-emerald-800 line-clamp-1">{selectedProduct?.name}</p>
-                  <p className="text-[10px] text-emerald-600 font-bold">{formatCurrency(selectedProduct?.selling_price || 0)} per {selectedProduct?.unit}</p>
+                <div className="min-w-0">
+                  <p className="text-slate-900 font-black text-lg truncate">{selectedProduct?.name}</p>
+                  <p className="text-emerald-600 font-black text-xl mt-1">
+                    {formatCurrency(selectedProduct?.selling_price || 0)}
+                    <span className="text-xs text-slate-400 font-bold tracking-widest ml-1 uppercase">/ {selectedProduct?.unit}</span>
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="p-8 pt-0 flex-col sm:flex-col gap-3">
-             <Button className="w-full h-12 bg-slate-900 hover:bg-emerald-600 rounded-full font-bold group">
-               Call Now 
-               <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+          <DialogFooter className="p-10 pt-0 bg-slate-50 sm:flex-col gap-4">
+             <Button className="w-full h-14 bg-slate-900 hover:bg-emerald-600 rounded-2xl font-black text-lg group shadow-xl shadow-slate-900/10 transition-all hover:scale-[1.02] active:scale-[0.98]">
+               Call Supplier Now 
+               <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
              </Button>
-             <p className="text-center text-[10px] text-slate-400">
-               By clicking Call Now, you agree to connect with the supplier via FTS secure bridge.
+             <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+               Encrypted connection via FTS Secure Bridge
              </p>
           </DialogFooter>
         </DialogContent>

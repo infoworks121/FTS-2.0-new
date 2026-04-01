@@ -133,10 +133,14 @@ export function ProductTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center border">
-                      <span className="text-xs text-muted-foreground font-medium">
-                        {product.name.substring(0, 2).toUpperCase()}
-                      </span>
+                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center border overflow-hidden">
+                      {product.thumbnail_url ? (
+                        <img src={product.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {product.name.substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-col">
                       <span className="font-medium text-foreground">{product.name}</span>

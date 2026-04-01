@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { UserRound, UserCheck, UserX, Search } from "lucide-react";
 import { KPICard } from "@/components/KPICard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import referralApi, { ReferredUser } from "@/lib/api/referral";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -41,59 +43,6 @@ type ReferralMember = {
   lastTransactionDate: string;
 };
 
-const MEMBERS: ReferralMember[] = [
-  {
-    id: "R-001",
-    name: "Subhajit Das",
-    mobile: "9876543210",
-    userId: "CUS-220918",
-    roleType: "Customer",
-    joinedDate: "2026-01-05",
-    status: "Active",
-    lastTransactionDate: "2026-02-20",
-  },
-  {
-    id: "R-002",
-    name: "Mina Pal",
-    mobile: "9123456780",
-    userId: "BUS-219001",
-    roleType: "Businessman",
-    joinedDate: "2026-01-09",
-    status: "Inactive",
-    lastTransactionDate: "2026-01-19",
-  },
-  {
-    id: "R-003",
-    name: "Rakesh Modak",
-    mobile: "9033001122",
-    userId: "CUS-230112",
-    roleType: "Customer",
-    joinedDate: "2026-01-21",
-    status: "Suspended",
-    lastTransactionDate: "2026-01-28",
-  },
-  {
-    id: "R-004",
-    name: "Priya Koley",
-    mobile: "9000011122",
-    userId: "CUS-231554",
-    roleType: "Customer",
-    joinedDate: "2026-02-03",
-    status: "Active",
-    lastTransactionDate: "2026-02-22",
-  },
-  {
-    id: "R-005",
-    name: "Nirmal Sen",
-    mobile: "9887002233",
-    userId: "BUS-223087",
-    roleType: "Businessman",
-    joinedDate: "2026-02-10",
-    status: "Active",
-    lastTransactionDate: "2026-02-18",
-  },
-];
-
 export default function MyReferralsPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | ReferralMemberStatus>("all");
@@ -101,17 +50,35 @@ export default function MyReferralsPage() {
   const [toDate, setToDate] = useState("");
   const [selected, setSelected] = useState<ReferralMember | null>(null);
 
+  const { data: rawMembers = [], isLoading } = useQuery({
+    queryKey: ["referral-list"],
+    queryFn: referralApi.getList,
+  });
+
+  const members: ReferralMember[] = useMemo(() => {
+    return rawMembers.map((member: ReferredUser) => ({
+      id: member.id,
+      name: member.full_name,
+      mobile: member.phone || "N/A",
+      userId: member.id.split('-')[0].toUpperCase(), // Rough mock of short user id
+      roleType: member.role_label as RoleType,
+      joinedDate: new Date(member.created_at).toISOString().split('T')[0],
+      status: "Active", // For now we assume active unless backend tells otherwise
+      lastTransactionDate: "N/A", // We might not have this from backend directly yet
+    }));
+  }, [rawMembers]);
+
   const totals = useMemo(() => {
     return {
-      total: MEMBERS.length,
-      active: MEMBERS.filter((m) => m.status === "Active").length,
-      blocked: MEMBERS.filter((m) => m.status === "Inactive" || m.status === "Suspended").length,
+      total: members.length,
+      active: members.filter((m) => m.status === "Active").length,
+      blocked: members.filter((m) => m.status === "Inactive" || m.status === "Suspended").length,
     };
-  }, []);
+  }, [members]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return MEMBERS.filter((member) => {
+    return members.filter((member) => {
       const ts = new Date(member.joinedDate).getTime();
       const byFrom = !fromDate || ts >= new Date(fromDate).getTime();
       const byTo = !toDate || ts <= new Date(toDate).getTime() + 86400000 - 1;
@@ -123,7 +90,7 @@ export default function MyReferralsPage() {
         member.userId.toLowerCase().includes(q);
       return byFrom && byTo && byStatus && byQuery;
     });
-  }, [fromDate, query, status, toDate]);
+  }, [members, fromDate, query, status, toDate]);
 
   return (
     <div className="space-y-6">
@@ -182,7 +149,13 @@ export default function MyReferralsPage() {
           <CardTitle className="text-sm">Referral List (Read-only)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 md:hidden">
+          {isLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
             {filtered.map((row) => (
               <div key={row.id} className="rounded-md border bg-card p-3 space-y-2" onClick={() => setSelected(row)}>
                 <div className="flex items-start justify-between gap-2">
@@ -247,6 +220,8 @@ export default function MyReferralsPage() {
               </TableBody>
             </Table>
           </div>
+        </>
+        )}
         </CardContent>
       </Card>
 

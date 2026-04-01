@@ -58,6 +58,8 @@ import CategoryCommissionRules from "./pages/categories/CategoryCommissionRules"
 // Services Pages
 import AllServices from "./pages/services/AllServices";
 import AddNewService from "./pages/services/AddNewService";
+import ReferralNetwork from "./pages/admin/referral/ReferralNetwork";
+import GlobalReferralEarnings from "./pages/admin/referral/GlobalReferralEarnings";
 
 // Products Page Layout
 import { ProductsPageLayout } from "./components/products/ProductsPageLayout";
@@ -201,6 +203,10 @@ const App = () => {
             <Route path="/admin/corebody" element={<CoreBodyList />} />
             <Route path="/admin/corebody/a" element={<CoreBodyAManagement />} />
             <Route path="/admin/corebody/b" element={<CoreBodyBManagement />} />
+
+            {/* Referral Management */}
+            <Route path="/admin/referral/network" element={<UsersLayout><ReferralNetwork /></UsersLayout>} />
+            <Route path="/admin/referral/earnings" element={<UsersLayout><GlobalReferralEarnings /></UsersLayout>} />
 
             {/* Users & Roles Routes */}
             <Route path="/admin/approval" element={<UsersLayout><UserApproval /></UsersLayout>} />

@@ -11,4 +11,10 @@ router.post('/b2b', protect, orderController.createB2BOrder);
 // Place a B2C order
 router.post('/b2c', protect, orderController.createB2COrder);
 
+// Get my orders
+router.get('/', protect, orderController.getMyOrders);
+
+// Get order details
+router.get('/:id', protect, orderController.getOrderDetails);
+
 module.exports = router;

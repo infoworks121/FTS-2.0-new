@@ -26,5 +26,15 @@ export const orderApi = {
   createB2COrder: async (data: any) => {
     const res = await api.post('/orders/b2c', data);
     return res.data;
+  },
+
+  getMyOrders: async () => {
+    const res = await api.get('/orders');
+    return res.data;
+  },
+
+  getOrderDetails: async (orderId: string) => {
+    const res = await api.get(`/orders/${orderId}`);
+    return res.data;
   }
 };

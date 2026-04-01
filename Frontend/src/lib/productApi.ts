@@ -47,6 +47,8 @@ export const productApi = {
       is_digital: data.isDigital,
       is_service: data.isService,
       description: data.description,
+      thumbnail_url: data.thumbnailUrl,
+      image_urls: data.imageUrls,
       status: data.status ?? 'draft',
     };
     const res = await api.post('/catalog/admin/products', payload);
@@ -68,6 +70,8 @@ export const productApi = {
     if (data.isDigital !== undefined) payload.is_digital = data.isDigital;
     if (data.isService !== undefined) payload.is_service = data.isService;
     if (data.description !== undefined) payload.description = data.description;
+    if (data.thumbnailUrl !== undefined) payload.thumbnail_url = data.thumbnailUrl;
+    if (data.imageUrls !== undefined) payload.image_urls = data.imageUrls;
     if (data.status !== undefined) payload.status = data.status;
     const res = await api.put(`/catalog/admin/products/${id}`, payload);
     return res.data;

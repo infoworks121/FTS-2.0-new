@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Download, FileSpreadsheet } from "lucide-react";
+import referralApi, { ReferralEarningHistory } from "@/lib/api/referral";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,53 +40,39 @@ type HistoryRow = {
   finalStatus: FinalStatus;
 };
 
-const HISTORY_ROWS: HistoryRow[] = [
-  {
-    id: "RH-001",
-    dateTime: "2026-02-22 12:40",
-    referenceId: "REF-LDG-8821",
-    eventType: "Credit",
-    relatedOrderId: "ORD-884118",
-    amount: 3150,
-    finalStatus: "Confirmed",
-  },
-  {
-    id: "RH-002",
-    dateTime: "2026-02-22 10:11",
-    referenceId: "REF-LDG-8820",
-    eventType: "Credit",
-    relatedOrderId: "ORD-884201",
-    amount: 648,
-    finalStatus: "Confirmed",
-  },
-  {
-    id: "RH-003",
-    dateTime: "2026-02-21 18:09",
-    referenceId: "REF-LDG-8818",
-    eventType: "Reversal",
-    relatedOrderId: "ORD-883744",
-    amount: -364,
-    finalStatus: "Reversed",
-  },
-  {
-    id: "RH-004",
-    dateTime: "2026-02-20 14:55",
-    referenceId: "REF-LDG-8815",
-    eventType: "Credit",
-    relatedOrderId: "ORD-883990",
-    amount: 1860,
-    finalStatus: "Confirmed",
-  },
-];
-
 export default function ReferralHistoryPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [status, setStatus] = useState<"all" | FinalStatus>("all");
   const [eventType, setEventType] = useState<"all" | ReferralLedgerEvent>("all");
 
+  const { data: rawEarnings = [], isLoading } = useQuery({
+    queryKey: ["referral-earnings"],
+    queryFn: referralApi.getEarnings,
+  });
+
+  const historyRows: HistoryRow[] = useMemo(() => {
+    return rawEarnings.map((row: ReferralEarningHistory) => {
+      // Basic mapping. Since ReferralEarnings API captures profit engine credits and reversals,
+      // we assume negative amount = Reversal, else Credit. 
+      // Also map API 'status' which might be 'Pending'/'Credited'/'Reversed' to FinalStatus
+      const amount = parseFloat(row.gross_amount as string) || 0;
+      const finalStat = row.status === "Reversed" ? "Reversed" : "Confirmed";
+      
+      return {
+        id: row.id,
+        dateTime: new Date(row.created_at).toISOString().replace("T", " ").slice(0, 16),
+        referenceId: `REF-LDG-${row.id.split("-")[0] || Math.floor(Math.random() * 9000 + 1000)}`, // Rough mock of ref ID
+        eventType: amount < 0 ? "Reversal" : "Credit",
+        relatedOrderId: row.order_id,
+        amount: amount,
+        finalStatus: finalStat as FinalStatus,
+      };
+    });
+  }, [rawEarnings]);
+
   const filtered = useMemo(() => {
-    return HISTORY_ROWS.filter((row) => {
+    return historyRows.filter((row) => {
       const ts = new Date(row.dateTime.replace(" ", "T")).getTime();
       const byFrom = !fromDate || ts >= new Date(fromDate).getTime();
       const byTo = !toDate || ts <= new Date(toDate).getTime() + 86400000 - 1;
@@ -92,7 +80,7 @@ export default function ReferralHistoryPage() {
       const byEvent = eventType === "all" || row.eventType === eventType;
       return byFrom && byTo && byStatus && byEvent;
     });
-  }, [eventType, fromDate, status, toDate]);
+  }, [historyRows, eventType, fromDate, status, toDate]);
 
   return (
     <div className="space-y-6">
@@ -158,7 +146,13 @@ export default function ReferralHistoryPage() {
           <CardTitle className="text-sm">Ledger Events (Read-only)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 md:hidden">
+          {isLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
             {filtered.map((row) => (
               <div key={row.id} className={`rounded-md border bg-card p-3 space-y-2 ${row.eventType === "Reversal" ? "border-rose-500/30" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
@@ -231,6 +225,8 @@ export default function ReferralHistoryPage() {
               </TableBody>
             </Table>
           </div>
+        </>
+        )}
         </CardContent>
       </Card>
     </div>

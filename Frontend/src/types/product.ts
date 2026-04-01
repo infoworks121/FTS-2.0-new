@@ -20,6 +20,8 @@ export interface Product {
   is_digital: boolean;
   is_service: boolean;
   description: string | null;
+  thumbnail_url: string | null;
+  image_urls: string[] | null;
   status: ProductStatus;
   created_by: number | null;
   created_at: string;
@@ -40,6 +42,8 @@ export interface ProductFormData {
   isDigital: boolean;
   isService: boolean;
   description: string;
+  thumbnailUrl?: string;
+  imageUrls?: string[];
   status?: string;
 }
 

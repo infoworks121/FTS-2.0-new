@@ -10,6 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { 
   Select, 
   SelectContent, 
   SelectItem, 
@@ -25,16 +31,22 @@ import {
   Tag,
   AlertTriangle,
   Save,
+  Eye,
+  X,
+  Upload,
+  Loader2,
 } from "lucide-react";
+import { uploadApi } from "@/lib/uploadApi";
 import { ProductsLayout } from "@/components/products";
 import { ProductType, ProductFormData } from "@/types/product";
 
 // Steps configuration
 const steps = [
   { id: 1, title: "Basic Info", description: "Product name, SKU, category", icon: Package },
-  { id: 2, title: "Pricing", description: "Price, cost, margin settings", icon: DollarSign },
-  { id: 3, title: "Inventory", description: "Stock and availability", icon: Tag },
-  { id: 4, title: "Review", description: "Confirm and publish", icon: Check },
+  { id: 2, title: "Media", description: "Thumbnail and gallery images", icon: Eye },
+  { id: 3, title: "Pricing", description: "Price, cost, margin settings", icon: DollarSign },
+  { id: 4, title: "Inventory", description: "Stock and availability", icon: Tag },
+  { id: 5, title: "Review", description: "Confirm and publish", icon: Check },
 ];
 
 
@@ -76,6 +88,8 @@ export default function AddNewProduct() {
     isDigital: false,
     isService: false,
     description: "",
+    thumbnailUrl: "",
+    imageUrls: [],
   });
 
   // Derived calculations
@@ -90,7 +104,7 @@ export default function AddNewProduct() {
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (currentStep < 5) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -130,15 +144,42 @@ export default function AddNewProduct() {
     }
   };
 
+  const [isUploading, setIsUploading] = useState<string | null>(null);
+
+  const handleFileUpload = async (file: File, field: "thumbnailUrl" | "imageUrls", index?: number) => {
+    try {
+      const uploadId = index !== undefined ? `${field}-${index}` : field;
+      setIsUploading(uploadId);
+      const res = await uploadApi.uploadSingle(file);
+      
+      // The backend returns a relative URL like /uploads/filename.jpg
+      const fileUrl = res.url; 
+      
+      if (field === "thumbnailUrl") {
+        handleInputChange("thumbnailUrl", fileUrl);
+      } else if (field === "imageUrls" && index !== undefined) {
+        const newUrls = [...(formData.imageUrls || [])];
+        newUrls[index] = fileUrl;
+        handleInputChange("imageUrls", newUrls);
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+    } finally {
+      setIsUploading(null);
+    }
+  };
+
   const canProceed = () => {
     switch (currentStep) {
       case 1:
         return formData.name && formData.sku && formData.categoryId && formData.type;
       case 2:
-        return formData.basePrice > 0 && formData.costPrice >= 0;
+        return true; // Images are optional for now
       case 3:
-        return true;
+        return formData.basePrice > 0 && formData.costPrice >= 0;
       case 4:
+        return true;
+      case 5:
         return true;
       default:
         return false;
@@ -253,6 +294,224 @@ export default function AddNewProduct() {
         return (
           <Card>
             <CardHeader>
+              <CardTitle>Product Media</CardTitle>
+              <CardDescription>
+                Add a main thumbnail and gallery images for your product. You can either upload files or paste direct links.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-10">
+              {/* Thumbnail Section */}
+              <div className="space-y-4">
+                <Label className="text-base font-bold">Main Thumbnail</Label>
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                    <TabsTrigger value="upload" className="flex gap-2">
+                       <Upload className="h-4 w-4" /> Upload
+                    </TabsTrigger>
+                    <TabsTrigger value="link" className="flex gap-2">
+                       <Tag className="h-4 w-4" /> Paste Link
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="upload" className="space-y-4 pt-4">
+                    <div className="flex items-center gap-6">
+                      <div className="relative group h-32 w-32 rounded-xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden transition-all hover:border-blue-500/50">
+                        {formData.thumbnailUrl ? (
+                          <img src={formData.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="text-center p-4">
+                            <Upload className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Preview</p>
+                          </div>
+                        )}
+                        {isUploading === "thumbnailUrl" && (
+                          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-2">
+                           <Button 
+                             type="button" 
+                             variant="outline" 
+                             className="relative h-10 px-6 font-bold overflow-hidden"
+                           >
+                             <Upload className="h-4 w-4 mr-2" />
+                             Choose File
+                             <input 
+                               type="file" 
+                               className="absolute inset-0 opacity-0 cursor-pointer" 
+                               accept="image/*"
+                               onChange={(e) => {
+                                 const file = e.target.files?.[0];
+                                 if (file) handleFileUpload(file, "thumbnailUrl");
+                               }}
+                             />
+                           </Button>
+                           {formData.thumbnailUrl && (
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                               onClick={() => handleInputChange("thumbnailUrl", "")}
+                             >
+                               <X className="h-4 w-4" />
+                             </Button>
+                           )}
+                        </div>
+                        <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
+                          Recommended size: 800x800px. JPG, PNG or WebP allowed. Max size 5MB.
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="link" className="space-y-4 pt-4">
+                    <div className="flex gap-4 items-start">
+                      <div className="flex-1">
+                        <Input
+                          id="thumbnail"
+                          placeholder="https://example.com/image.jpg"
+                          value={formData.thumbnailUrl}
+                          onChange={(e) => handleInputChange("thumbnailUrl", e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Paste a direct link to an image. This image will be the face of your product.
+                        </p>
+                      </div>
+                      <div className="h-10 w-10 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden border">
+                        {formData.thumbnailUrl ? (
+                          <img src={formData.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.src = "")} />
+                        ) : (
+                          <Eye className="h-5 w-5 text-muted-foreground/50" />
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Gallery Section */}
+              <div className="space-y-4 pt-10 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-bold">Product Gallery</Label>
+                    <p className="text-xs text-muted-foreground">Add multiple images to showcase features and details.</p>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    className="font-bold border-blue-500/30 text-blue-600 hover:bg-blue-50"
+                    onClick={() => handleInputChange("imageUrls", [...(formData.imageUrls || []), ""])}
+                  >
+                    + Add New Image
+                  </Button>
+                </div>
+                
+                <div className="grid gap-6">
+                  {(formData.imageUrls || []).map((url, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border bg-muted/30 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Image #{idx + 1}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            const newUrls = (formData.imageUrls || []).filter((_, i) => i !== idx);
+                            handleInputChange("imageUrls", newUrls);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <Tabs defaultValue="upload" className="w-full">
+                        <TabsList className="bg-background/50 h-8 p-0.5">
+                          <TabsTrigger value="upload" className="text-[10px] px-3 py-1">Upload</TabsTrigger>
+                          <TabsTrigger value="link" className="text-[10px] px-3 py-1">Link</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="upload" className="pt-3">
+                          <div className="flex items-center gap-4">
+                            <div className="relative h-16 w-16 rounded border bg-background flex items-center justify-center overflow-hidden">
+                              {url ? (
+                                <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                              ) : (
+                                <Upload className="h-4 w-4 text-muted-foreground/30" />
+                              )}
+                              {isUploading === `imageUrls-${idx}` && (
+                                <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                </div>
+                              )}
+                            </div>
+                            <Button variant="outline" size="sm" className="relative font-bold">
+                               Select File
+                               <input 
+                                 type="file" 
+                                 className="absolute inset-0 opacity-0 cursor-pointer" 
+                                 accept="image/*"
+                                 onChange={(e) => {
+                                   const file = e.target.files?.[0];
+                                   if (file) handleFileUpload(file, "imageUrls", idx);
+                                 }}
+                               />
+                            </Button>
+                          </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="link" className="pt-3">
+                          <div className="flex gap-4">
+                            <Input
+                              placeholder="Paste gallery image URL"
+                              value={url}
+                              onChange={(e) => {
+                                const newUrls = [...(formData.imageUrls || [])];
+                                newUrls[idx] = e.target.value;
+                                handleInputChange("imageUrls", newUrls);
+                              }}
+                            />
+                            <div className="h-10 w-10 flex-shrink-0 rounded bg-background flex items-center justify-center overflow-hidden border">
+                              {url ? (
+                                <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  ))}
+                  
+                  {(formData.imageUrls || []).length === 0 && (
+                    <div className="text-center py-10 rounded-xl border-2 border-dashed border-muted flex flex-col items-center justify-center gap-3">
+                      <Package className="h-10 w-10 text-muted-foreground/20" />
+                      <p className="text-sm text-muted-foreground">Your gallery is currently empty.</p>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="font-bold"
+                        onClick={() => handleInputChange("imageUrls", [""])}
+                      >
+                         Add First Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+      case 3:
+        return (
+          <Card>
+            <CardHeader>
               <CardTitle>Pricing & Commission</CardTitle>
               <CardDescription>
                 Set your product pricing and margin settings
@@ -287,8 +546,8 @@ export default function AddNewProduct() {
               <div className={cn(
                 "p-4 rounded-lg border",
                 marginWarning 
-                  ? "border-amber-500/30 bg-amber-500/10" 
-                  : "border-green-500/30 bg-green-500/10"
+                ? "border-amber-500/30 bg-amber-500/10" 
+                : "border-green-500/30 bg-green-500/10"
               )}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -342,7 +601,7 @@ export default function AddNewProduct() {
           </Card>
         );
 
-      case 3:
+      case 4:
         return (
           <Card>
             <CardHeader>
@@ -409,7 +668,7 @@ export default function AddNewProduct() {
           </Card>
         );
 
-      case 4:
+      case 5:
         return (
           <Card>
             <CardHeader>
@@ -419,70 +678,36 @@ export default function AddNewProduct() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Summary */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Product Name</p>
-                  <p className="font-medium">{formData.name || "-"}</p>
+              {/* Media Summary */}
+              <div className="p-4 rounded-lg border bg-muted/20">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">Media Assets</h3>
+                <div className="flex flex-wrap gap-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Thumbnail</p>
+                    <div className="h-20 w-20 rounded bg-muted border overflow-hidden">
+                      {formData.thumbnailUrl ? (
+                         <img src={formData.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                      ) : <Package className="h-full w-full p-4 text-muted-foreground/30" />}
+                    </div>
+                  </div>
+                  {formData.imageUrls && formData.imageUrls.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Gallery ({formData.imageUrls.length})</p>
+                      <div className="flex gap-2">
+                         {formData.imageUrls.slice(0, 3).map((url, i) => (
+                           <div key={i} className="h-20 w-20 rounded bg-muted border overflow-hidden">
+                             {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+                           </div>
+                         ))}
+                         {formData.imageUrls.length > 3 && (
+                           <div className="h-20 w-20 rounded bg-slate-900 flex items-center justify-center text-white font-bold text-xs ring-2 ring-primary">
+                             +{formData.imageUrls.length - 3} More
+                           </div>
+                         )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">SKU</p>
-                  <p className="font-medium">{formData.sku || "-"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Category</p>
-                  <p className="font-medium">
-                    {categories.find(c => c.id === formData.categoryId)?.name || "-"}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Type</p>
-                  <Badge variant="secondary" className="capitalize">
-                    {formData.type}
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Base Price</p>
-                  <p className="font-medium">₹{formData.basePrice.toLocaleString()}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Cost Price</p>
-                  <p className="font-medium">₹{formData.costPrice.toLocaleString()}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Margin</p>
-                  <p className={cn(
-                    "font-medium",
-                    marginWarning ? "text-amber-600" : "text-green-600"
-                  )}>
-                    {marginPercent.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Stock</p>
-                  <p className="font-medium">
-                    {formData.stockRequired 
-                      ? `${formData.stockQuantity} units` 
-                      : "Not tracked"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Warnings */}
-              {marginWarning && (
-                <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  <p className="text-sm text-amber-600">
-                    Margin is below the minimum threshold of {formData.minMarginPercent}%
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 p-3 rounded-lg border bg-blue-500/10">
-                <Tag className="h-4 w-4 text-blue-500" />
-                <p className="text-sm text-blue-600">
-                  Product will be saved as "Draft" and can be activated later
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -562,7 +787,7 @@ export default function AddNewProduct() {
               <Save className="h-4 w-4 mr-2" />
               Save as Draft
             </Button>
-            {currentStep < 4 ? (
+            {currentStep < 5 ? (
               <Button 
                 onClick={handleNext}
                 disabled={!canProceed()}
