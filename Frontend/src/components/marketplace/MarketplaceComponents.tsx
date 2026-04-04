@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
 interface Product {
   id: string;
@@ -58,7 +59,7 @@ export const ProductCardGrid = ({
       <div className="relative aspect-square overflow-hidden bg-slate-50/50 p-6 flex items-center justify-center">
         {product.thumbnail_url ? (
           <img 
-            src={product.thumbnail_url} 
+            src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
             alt={product.name} 
             className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
           />
@@ -151,7 +152,7 @@ export const ProductCardList = ({
           <div className="w-full md:w-52 aspect-square bg-slate-50 rounded-2xl overflow-hidden shrink-0 relative group-hover:scale-[1.02] transition-transform duration-500 flex items-center justify-center p-6">
             {product.thumbnail_url ? (
               <img 
-                src={product.thumbnail_url} 
+                src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
                 alt={product.name} 
                 className="w-full h-full object-contain"
               />

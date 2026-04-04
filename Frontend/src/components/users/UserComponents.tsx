@@ -196,17 +196,19 @@ export function InventoryWarning({ level, threshold }: { level: number; threshol
 }
 
 // User Status Badge
-export function UserStatusBadge({ status }: { status: "active" | "inactive" | "suspended" }) {
+export function UserStatusBadge({ status }: { status: "active" | "inactive" | "suspended" | "pending" }) {
   const statusStyles: Record<string, string> = {
     active: "bg-profit/10 text-profit border-profit/20",
     inactive: "bg-muted text-muted-foreground border-border",
     suspended: "bg-destructive/10 text-destructive border-destructive/20",
+    pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   };
   
   const statusDots: Record<string, string> = {
     active: "bg-profit",
     inactive: "bg-muted-foreground",
     suspended: "bg-destructive",
+    pending: "bg-yellow-400",
   };
   
   return (

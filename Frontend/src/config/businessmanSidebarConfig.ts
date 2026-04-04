@@ -31,7 +31,8 @@ export type BusinessmanMenuKey =
   | "orderTracking"
   | "referrals"
   | "wallet"
-  | "performance";
+  | "performance"
+  | "b2cMarketplace";
 
 export interface BusinessmanSidebarBadge {
   count: number;
@@ -218,6 +219,17 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
       ],
     },
     {
+      key: "b2cMarketplace",
+      title: "B2C Market Manager",
+      url: "/businessman/b2c-manager",
+      icon: ShoppingCart,
+      submenu: [
+        { title: "My B2C Listings", url: "/businessman/b2c-manager/listings", icon: ListChecks },
+        { title: "Browse Bulk Catalog", url: "/businessman/b2c-manager/browse", icon: Package },
+        { title: "Add Custom Product", url: "/businessman/b2c-manager/add-custom", icon: UserPlus },
+      ],
+    },
+    {
       key: "dashboard",
       title: "Settings",
       url: "/businessman/settings",
@@ -244,6 +256,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
         referrals: "businessman.referrals.view",
         wallet: "businessman.wallet.view",
         performance: "businessman.performance.view",
+        b2cMarketplace: "businessman.stock.view", // Reusing stock permission for simplicity, or create new
       };
 
       return hasPermission(permissions, permissionMap[item.key]);

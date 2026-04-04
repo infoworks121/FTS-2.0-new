@@ -51,97 +51,136 @@ const mockProducts: Product[] = [
     id: "1",
     name: "Wireless Bluetooth Headphones",
     sku: "WBH-001",
-    categoryId: "cat-1",
-    categoryName: "Electronics",
-    type: "physical",
-    basePrice: 2499,
-    costPrice: 1500,
-    marginPercent: 39.96,
-    minMarginPercent: 15,
-    stockRequired: true,
-    stockQuantity: 150,
-    isDigital: false,
-    isService: false,
+    category_id: "cat-1",
+    category_name: "Electronics",
+    product_type: "physical",
+    mrp: 2999,
+    base_price: 1500,
+    selling_price: 2499,
+    bulk_price: 2000,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 39.96,
+    min_margin_percent: 15,
+    stock_required: true,
+    stock_quantity: 150,
+    is_digital: false,
+    is_service: false,
     status: "active",
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-20T14:45:00Z",
-    createdBy: "Admin",
+    created_at: "2024-01-15T10:30:00Z",
+    updated_at: "2024-01-20T14:45:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
   {
     id: "2",
     name: "E-Book: Complete React Guide",
     sku: "EBOOK-001",
-    categoryId: "cat-2",
-    categoryName: "Digital Products",
-    type: "digital",
-    basePrice: 499,
-    costPrice: 50,
-    marginPercent: 89.98,
-    minMarginPercent: 30,
-    stockRequired: false,
-    isDigital: true,
-    isService: false,
+    category_id: "cat-2",
+    category_name: "Digital Products",
+    product_type: "digital",
+    mrp: 699,
+    base_price: 50,
+    selling_price: 499,
+    bulk_price: null,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 89.98,
+    min_margin_percent: 30,
+    stock_required: false,
+    stock_quantity: 0,
+    is_digital: true,
+    is_service: false,
     status: "active",
-    createdAt: "2024-02-01T09:00:00Z",
-    updatedAt: "2024-02-01T09:00:00Z",
-    createdBy: "Admin",
+    created_at: "2024-02-01T09:00:00Z",
+    updated_at: "2024-02-01T09:00:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
   {
     id: "3",
     name: "Home Cleaning Service",
     sku: "HCS-001",
-    categoryId: "cat-3",
-    categoryName: "Services",
-    type: "service",
-    basePrice: 999,
-    costPrice: 400,
-    marginPercent: 59.96,
-    minMarginPercent: 20,
-    stockRequired: false,
-    isDigital: false,
-    isService: true,
+    category_id: "cat-3",
+    category_name: "Services",
+    product_type: "service",
+    mrp: 1499,
+    base_price: 400,
+    selling_price: 999,
+    bulk_price: null,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 59.96,
+    min_margin_percent: 20,
+    stock_required: false,
+    stock_quantity: 0,
+    is_digital: false,
+    is_service: true,
     status: "inactive",
-    createdAt: "2024-01-20T11:00:00Z",
-    updatedAt: "2024-01-25T16:30:00Z",
-    createdBy: "Admin",
+    created_at: "2024-01-20T11:00:00Z",
+    updated_at: "2024-01-25T16:30:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
   {
     id: "4",
     name: "Online Course: Python Basics",
     sku: "COURSE-001",
-    categoryId: "cat-2",
-    categoryName: "Digital Products",
-    type: "digital",
-    basePrice: 1999,
-    costPrice: 100,
-    marginPercent: 94.99,
-    minMarginPercent: 50,
-    stockRequired: false,
-    isDigital: true,
-    isService: false,
+    category_id: "cat-2",
+    category_name: "Digital Products",
+    product_type: "digital",
+    mrp: 2999,
+    base_price: 100,
+    selling_price: 1999,
+    bulk_price: null,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 94.99,
+    min_margin_percent: 50,
+    stock_required: false,
+    stock_quantity: 0,
+    is_digital: true,
+    is_service: false,
     status: "draft",
-    createdAt: "2024-02-05T10:00:00Z",
-    updatedAt: "2024-02-05T10:00:00Z",
-    createdBy: "Admin",
+    created_at: "2024-02-05T10:00:00Z",
+    updated_at: "2024-02-05T10:00:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
   {
     id: "5",
     name: "Plumbing Repair Service",
     sku: "PRS-001",
-    categoryId: "cat-3",
-    categoryName: "Services",
-    type: "service",
-    basePrice: 499,
-    costPrice: 200,
-    marginPercent: 59.92,
-    minMarginPercent: 20,
-    stockRequired: false,
-    isDigital: false,
-    isService: true,
+    category_id: "cat-3",
+    category_name: "Services",
+    product_type: "service",
+    mrp: 799,
+    base_price: 200,
+    selling_price: 499,
+    bulk_price: null,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 59.92,
+    min_margin_percent: 20,
+    stock_required: false,
+    stock_quantity: 0,
+    is_digital: false,
+    is_service: true,
     status: "archived",
-    createdAt: "2024-01-05T14:00:00Z",
-    updatedAt: "2024-01-10T09:00:00Z",
-    createdBy: "Admin",
+    created_at: "2024-01-05T14:00:00Z",
+    updated_at: "2024-01-10T09:00:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
 ];
 
@@ -306,19 +345,19 @@ export default function ProductStatus() {
                         <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
                       </div>
                     </TableCell>
-                    <TableCell>{product.categoryName}</TableCell>
-                    <TableCell className="capitalize">{product.type}</TableCell>
-                    <TableCell>₹{product.basePrice.toLocaleString()}</TableCell>
+                    <TableCell>{product.category_name}</TableCell>
+                    <TableCell className="capitalize">{product.product_type}</TableCell>
+                    <TableCell>₹{product.selling_price.toLocaleString()}</TableCell>
                     <TableCell>
                       <ProductStatusBadge status={product.status} />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {formatDate(product.updatedAt)}
+                      {formatDate(product.updated_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Select
                         value={product.status}
-                        onValueChange={(value) => handleStatusChange(product, value as ProductStatus)}
+                        onValueChange={(value) => handleStatusChange(product, value as ProductStatusType)}
                       >
                         <SelectTrigger className="w-[140px] ml-auto">
                           <SelectValue />
@@ -376,20 +415,20 @@ export default function ProductStatus() {
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Category</span>
-                    <span>{product.categoryName}</span>
+                    <span>{product.category_name}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Price</span>
-                    <span className="font-medium">₹{product.basePrice.toLocaleString()}</span>
+                    <span className="font-medium">₹{product.selling_price.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Type</span>
-                    <Badge variant="outline" className="capitalize">{product.type}</Badge>
+                    <Badge variant="outline" className="capitalize">{product.product_type}</Badge>
                   </div>
                   
                   <Select
                     value={product.status}
-                    onValueChange={(value) => handleStatusChange(product, value as ProductStatus)}
+                    onValueChange={(value) => handleStatusChange(product, value as ProductStatusType)}
                   >
                     <SelectTrigger className="w-full mt-2">
                       <SelectValue />

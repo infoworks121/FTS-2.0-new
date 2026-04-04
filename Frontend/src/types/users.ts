@@ -1,6 +1,6 @@
 // User Types
-export type UserMode = "entry" | "advance" | "bulk";
-export type UserStatus = "active" | "inactive" | "suspended";
+export type UserMode = "entry" | "advance" | "bulk" | "businessman" | "stock_point";
+export type UserStatus = "active" | "inactive" | "suspended" | "pending";
 export type UserRole = "admin" | "corebody_a" | "corebody_b" | "businessman" | "stock_point";
 
 export interface Businessman {
@@ -185,6 +185,8 @@ export const userModeConfig: Record<UserMode, { label: string; color: string; bg
   entry: { label: "Entry", color: "text-blue-400", bgColor: "bg-blue-500/10" },
   advance: { label: "Advance", color: "text-purple-400", bgColor: "bg-purple-500/10" },
   bulk: { label: "Bulk", color: "text-orange-400", bgColor: "bg-orange-500/10" },
+  businessman: { label: "Businessman", color: "text-green-400", bgColor: "bg-green-500/10" },
+  stock_point: { label: "Stock Point", color: "text-amber-400", bgColor: "bg-amber-500/10" },
 };
 
 export const roleConfig: Record<UserRole, { label: string; color: string; bgColor: string }> = {

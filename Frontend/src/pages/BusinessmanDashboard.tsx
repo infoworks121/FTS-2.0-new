@@ -38,26 +38,10 @@ import SlaStatusPage from "./businessman/performance/SlaStatusPage";
 import RiskWarningsPage from "./businessman/performance/RiskWarningsPage";
 import UpgradeEligibilityPage from "./businessman/performance/UpgradeEligibilityPage";
 
-const navItems = getBusinessmanSidebarNavItems({
-  isStockPoint: true,
-  bulkEnabled: true,
-  entryModeEnabled: true,
-  advanceModeEnabled: true,
-  permissions: [
-    "businessman.dashboard.view",
-    "businessman.purchase.view",
-    "businessman.bulk.view",
-    "businessman.stock.view",
-    "businessman.orders.view",
-    "businessman.referrals.view",
-    "businessman.wallet.view",
-    "businessman.performance.view",
-  ],
-  blockedMenus: {
-    // Example: disable instead of hide when temporarily blocked or under SLA action
-    // wallet: "Temporarily blocked due to compliance hold",
-  },
-});
+// Marketplace Pages
+import B2CManager from "./sph/B2CManager";
+import CatalogPicker from "./sph/CatalogPicker";
+import AddCustomProduct from "./sph/AddCustomProduct";
 
 const dailyEarnings = [
   { day: "Mon", amount: 2400 },
@@ -76,14 +60,7 @@ const orders = [
   { id: "ORD-888", product: "Pesticide Spray", qty: "100 L", total: "₹6,200", status: "active" as const, date: "3 days ago" },
 ];
 
-function DashboardHome() {
-  const [userName, setUserName] = useState('');
-
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    setUserName(user.full_name || 'Businessman');
-  }, []);
-
+function DashboardHome({ userName }: { userName: string }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -167,12 +144,30 @@ function DashboardHome() {
 
 export default function BusinessmanDashboard() {
   const location = useLocation();
-  const [userName, setUserName] = useState('');
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    setUserName(user.full_name || 'Businessman');
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
   }, []);
+
+  const navItems = getBusinessmanSidebarNavItems({
+    isStockPoint: user?.is_sph || false,
+    bulkEnabled: true,
+    entryModeEnabled: true,
+    advanceModeEnabled: true,
+    permissions: [
+      "businessman.dashboard.view",
+      "businessman.purchase.view",
+      "businessman.bulk.view",
+      "businessman.stock.view",
+      "businessman.orders.view",
+      "businessman.referrals.view",
+      "businessman.wallet.view",
+      "businessman.performance.view",
+    ],
+    blockedMenus: {},
+  });
 
   const renderBusinessmanPage = () => {
     switch (location.pathname) {
@@ -233,13 +228,23 @@ export default function BusinessmanDashboard() {
         return <RiskWarningsPage />;
       case "/businessman/performance/upgrade-eligibility":
         return <UpgradeEligibilityPage />;
+      
+      // Marketplace Routes
+      case "/businessman/b2c-manager":
+      case "/businessman/b2c-manager/listings":
+        return <B2CManager />;
+      case "/businessman/b2c-manager/browse":
+        return <CatalogPicker />;
+      case "/businessman/b2c-manager/add-custom":
+        return <AddCustomProduct />;
+
       default:
-        return <DashboardHome />;
+        return <DashboardHome userName={user?.full_name || 'Businessman'} />;
     }
   };
 
   return (
-    <DashboardLayout role="businessman" navItems={navItems as any} roleLabel={`Businessman — ${userName}`}>
+    <DashboardLayout role="businessman" navItems={navItems as any} roleLabel={`Businessman — ${user?.full_name || 'Businessman'}`}>
       {renderBusinessmanPage()}
     </DashboardLayout>
   );

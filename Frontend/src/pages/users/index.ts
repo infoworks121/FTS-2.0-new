@@ -1,3 +1,4 @@
+export { default as AllUsers } from "./AllUsers";
 export { default as AllBusinessmen } from "./AllBusinessmen";
 export { default as EntryModeUsers } from "./EntryModeUsers";
 export { default as AdvanceModeUsers } from "./AdvanceModeUsers";

@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
 import { KPICard } from "@/components/KPICard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { QuickFilterChip, CoreBodyTypeBadge, EarningsCapIndicator, StatCard } from "@/components/districts";
+import { QuickFilterChip, CoreBodyTypeBadge, StatCard } from "@/components/districts";
 import { useTheme } from "@/hooks/useTheme";
 import { Link } from "react-router-dom";
+import { coreBodyApi, CoreBodySummary } from "@/lib/coreBodyApi";
 import {
   LayoutDashboard,
   Package,
@@ -32,105 +33,10 @@ import {
   Warehouse,
   Receipt,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
 
-// Sample Core Body data
-const coreBodyData = [
-  {
-    id: "CB001",
-    name: "ABC Traders",
-    type: "A" as const,
-    district: "North Delhi",
-    investment: 100000,
-    earningsYTD: 1850000,
-    capUsage: 74,
-    status: "active" as const,
-  },
-  {
-    id: "CB002",
-    name: "XYZ Enterprises",
-    type: "A" as const,
-    district: "South Mumbai",
-    investment: 100000,
-    earningsYTD: 2120000,
-    capUsage: 85,
-    status: "warning" as const,
-  },
-  {
-    id: "CB003",
-    name: "City Store",
-    type: "B" as const,
-    district: "North Delhi",
-    investment: 50000,
-    earningsYTD: 420000,
-    capUsage: 42,
-    status: "active" as const,
-  },
-  {
-    id: "CB004",
-    name: "Metro Goods",
-    type: "B" as const,
-    district: "East Kolkata",
-    investment: 50000,
-    earningsYTD: 380000,
-    capUsage: 38,
-    status: "inactive" as const,
-  },
-  {
-    id: "CB005",
-    name: "Urban Supplies",
-    type: "A" as const,
-    district: "West Ahmedabad",
-    investment: 100000,
-    earningsYTD: 1650000,
-    capUsage: 66,
-    status: "active" as const,
-  },
-  {
-    id: "CB006",
-    name: "Prime Distributors",
-    type: "A" as const,
-    district: "Central Bangalore",
-    investment: 100000,
-    earningsYTD: 2450000,
-    capUsage: 98,
-    status: "cap-reached" as const,
-  },
-  {
-    id: "CB007",
-    name: "Smart Buy",
-    type: "B" as const,
-    district: "Chennai Central",
-    investment: 50000,
-    earningsYTD: 520000,
-    capUsage: 52,
-    status: "active" as const,
-  },
-  {
-    id: "CB008",
-    name: "Value Mart",
-    type: "B" as const,
-    district: "Hyderabad Metro",
-    investment: 50000,
-    earningsYTD: 280000,
-    capUsage: 28,
-    status: "inactive" as const,
-  },
-];
-
-// KPI Summary
-const kpiData = {
-  totalCoreBodies: 8,
-  typeA: 4,
-  typeB: 4,
-  active: 5,
-  inactive: 2,
-  capWarning: 1,
-  totalInvestment: 600000,
-  totalEarnings: 10295000,
-};
-
-// Navigation items
+// Navigation items (kept for layout consistency)
 const navItems: NavItem[] = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Products & Categories", icon: Package, submenu: [
@@ -155,17 +61,17 @@ const navItems: NavItem[] = [
   ]},
   { title: "District & Core Body", icon: MapPin, submenu: [
     { title: "All Districts", url: "/admin/districts", icon: MapPin },
-    { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
+    // { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
     { title: "District Performance", url: "/admin/districts/performance", icon: BarChart3 },
     { title: "Core Body List", url: "/admin/corebody", icon: Users },
-    { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
-    { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
+    // { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
+    // { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
   ]},
   { title: "Users & Roles", icon: Users, submenu: [
     { title: "All Businessmen", url: "/admin/users/businessmen", icon: Users },
-    { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
-    { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
-    { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
+    // { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
+    // { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
+    // { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
     { title: "Stock Point List", url: "/admin/users/stockpoints", icon: Warehouse },
     { title: "Role Permissions", url: "/admin/users/roles", icon: ShieldCheck },
     { title: "Feature Access Control", url: "/admin/users/features", icon: Settings },
@@ -217,27 +123,40 @@ const navItems: NavItem[] = [
 
 export default function CoreBodyList() {
   const { theme } = useTheme();
+  const [coreBodies, setCoreBodies] = useState<CoreBodySummary[]>([]);
+  const [kpis, setKpis] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
-  // Filter data
-  const filteredData = coreBodyData.filter(cb => {
-    if (typeFilter && cb.type !== typeFilter) return false;
-    if (statusFilter && cb.status !== statusFilter) return false;
-    return true;
-  });
+  const fetchList = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await coreBodyApi.getAllCoreBodies({
+        type: typeFilter,
+        status: statusFilter
+      });
+      setCoreBodies(data.coreBodies);
+      setKpis(data.kpis);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch core bodies:", err);
+      setError("Failed to load core bodies. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [typeFilter, statusFilter]);
 
-  // Count filters
-  const activeTypeA = coreBodyData.filter(cb => cb.type === "A" && cb.status === "active").length;
-  const activeTypeB = coreBodyData.filter(cb => cb.type === "B" && cb.status === "active").length;
-  const inactiveCount = coreBodyData.filter(cb => cb.status === "inactive").length;
-  const capWarningCount = coreBodyData.filter(cb => cb.capUsage >= 80).length;
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
 
   // Table columns
   const columns = [
     {
       header: "Core Body Name",
-      accessor: (row: any) => (
+      accessor: (row: CoreBodySummary) => (
         <div>
           <Link 
             to={`/admin/corebody/${row.type.toLowerCase()}?id=${row.id}`}
@@ -251,13 +170,13 @@ export default function CoreBodyList() {
     },
     {
       header: "Type",
-      accessor: (row: any) => <CoreBodyTypeBadge type={row.type} />,
+      accessor: (row: CoreBodySummary) => <CoreBodyTypeBadge type={row.type} />,
     },
     {
       header: "District",
-      accessor: (row: any) => (
+      accessor: (row: CoreBodySummary) => (
         <Link 
-          to={`/admin/districts/performance?id=${row.id}`}
+          to={`/admin/districts/performance?id=${row.district_id}`}
           className="text-sm hover:text-primary"
         >
           {row.district}
@@ -266,32 +185,32 @@ export default function CoreBodyList() {
     },
     {
       header: "Investment",
-      accessor: (row: any) => (
-        <span className="font-mono text-sm">₹{row.investment.toLocaleString()}</span>
+      accessor: (row: CoreBodySummary) => (
+        <span className="font-mono text-sm">₹{row.investment_amount.toLocaleString()}</span>
       ),
     },
     {
       header: "Earnings (YTD)",
-      accessor: (row: any) => (
+      accessor: (row: CoreBodySummary) => (
         <span className="font-mono text-sm font-semibold text-profit">
-          ₹{row.earningsYTD.toLocaleString()}
+          ₹{row.ytd_earnings.toLocaleString()}
         </span>
       ),
     },
     {
       header: "Cap Usage",
-      accessor: (row: any) => (
+      accessor: (row: CoreBodySummary) => (
         <div className="w-24">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-muted-foreground">{row.capUsage}%</span>
+            <span className="text-xs text-muted-foreground">{row.cap_usage}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full ${
-                row.capUsage >= 100 ? "bg-destructive" :
-                row.capUsage >= 80 ? "bg-warning" : "bg-cap"
+                row.cap_usage >= 100 ? "bg-destructive" :
+                row.cap_usage >= 80 ? "bg-warning" : "bg-cap"
               }`}
-              style={{ width: `${row.capUsage}%` }}
+              style={{ width: `${row.cap_usage}%` }}
             />
           </div>
         </div>
@@ -299,11 +218,11 @@ export default function CoreBodyList() {
     },
     {
       header: "Status",
-      accessor: (row: any) => <StatusBadge status={row.status} />,
+      accessor: (row: CoreBodySummary) => <StatusBadge status={row.status} />,
     },
     {
       header: "Action",
-      accessor: (row: any) => (
+      accessor: (row: CoreBodySummary) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" asChild>
             <Link to={`/admin/corebody/${row.type.toLowerCase()}?id=${row.id}`}>
@@ -314,6 +233,17 @@ export default function CoreBodyList() {
       ),
     },
   ];
+
+  if (loading && coreBodies.length === 0) {
+    return (
+      <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
+        <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Synchronizing Core Body Database...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
@@ -335,50 +265,47 @@ export default function CoreBodyList() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Total Core Bodies"
-            value={kpiData.totalCoreBodies.toString()}
-            icon={Users}
-            variant="default"
-            subtitle={`Type A: ${kpiData.typeA}, Type B: ${kpiData.typeB}`}
-          />
-          <KPICard
-            title="Active Core Bodies"
-            value={kpiData.active.toString()}
-            change="+2"
-            changeType="positive"
-            icon={TrendingUp}
-            variant="profit"
-            subtitle="Currently operational"
-          />
-          <KPICard
-            title="Total Investment"
-            value={`₹${(kpiData.totalInvestment / 100000).toFixed(1)}L`}
-            icon={DollarSign}
-            variant="default"
-            subtitle="Across all bodies"
-          />
-          <KPICard
-            title="Total Earnings (YTD)"
-            value={`₹${(kpiData.totalEarnings / 100000).toFixed(1)}L`}
-            change="+22.5%"
-            changeType="positive"
-            icon={TrendingUp}
-            variant="profit"
-            subtitle="YTD Performance"
-          />
-        </div>
+        {kpis && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              title="Total Core Bodies"
+              value={kpis.total_core_bodies.toString()}
+              icon={Users}
+              variant="default"
+              subtitle={`Type A: ${kpis.type_a}, Type B: ${kpis.type_b}`}
+            />
+            <KPICard
+              title="Active Hubs"
+              value={kpis.active.toString()}
+              icon={TrendingUp}
+              variant="profit"
+              subtitle="Currently operational"
+            />
+            <KPICard
+              title="Total Investment"
+              value={`₹${(kpis.total_investment / 100000).toFixed(1)}L`}
+              icon={DollarSign}
+              variant="default"
+              subtitle="System total"
+            />
+            <KPICard
+              title="Total Earnings (YTD)"
+              value={`₹${(kpis.total_earnings / 100000).toFixed(1)}L`}
+              icon={TrendingUp}
+              variant="profit"
+              subtitle="Hub total performance"
+            />
+          </div>
+        )}
 
         {/* Quick Filters */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Filter Core Bodies</CardTitle>
+              <CardTitle className="text-base">Operational Filters</CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
-                  <Filter className="h-3.5 w-3.5 mr-2" />
-                  More Filters
+                <Button variant="outline" size="sm" onClick={() => fetchList()}>
+                  Refresh Data
                 </Button>
               </div>
             </div>
@@ -386,41 +313,36 @@ export default function CoreBodyList() {
           <CardContent>
             <div className="flex flex-wrap gap-2">
               <QuickFilterChip 
-                label="All" 
+                label="All Hubs" 
                 active={typeFilter === null && statusFilter === null} 
-                count={coreBodyData.length}
+                count={coreBodies.length}
                 onClick={() => { setTypeFilter(null); setStatusFilter(null); }}
               />
               <div className="w-px h-8 bg-border mx-2" />
               <QuickFilterChip 
                 label="Type A" 
                 active={typeFilter === "A"}
-                count={activeTypeA}
                 onClick={() => setTypeFilter(typeFilter === "A" ? null : "A")}
               />
               <QuickFilterChip 
                 label="Type B" 
                 active={typeFilter === "B"}
-                count={activeTypeB}
                 onClick={() => setTypeFilter(typeFilter === "B" ? null : "B")}
               />
               <div className="w-px h-8 bg-border mx-2" />
               <QuickFilterChip 
                 label="Active" 
                 active={statusFilter === "active"}
-                count={kpiData.active}
                 onClick={() => setStatusFilter(statusFilter === "active" ? null : "active")}
               />
               <QuickFilterChip 
                 label="Inactive" 
                 active={statusFilter === "inactive"}
-                count={inactiveCount}
                 onClick={() => setStatusFilter(statusFilter === "inactive" ? null : "inactive")}
               />
               <QuickFilterChip 
                 label="Cap Warning" 
                 active={statusFilter === "warning"}
-                count={capWarningCount}
                 onClick={() => setStatusFilter(statusFilter === "warning" ? null : "warning")}
               />
             </div>
@@ -429,18 +351,20 @@ export default function CoreBodyList() {
 
         {/* Data Table */}
         <DataTable 
-          columns={columns} 
-          data={filteredData}
-          title={`Core Bodies (${filteredData.length})`}
+          columns={columns as any} 
+          data={coreBodies as any}
+          title={`Core Bodies (${coreBodies.length})`}
         />
 
-        {/* Bottom Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard title="Avg Investment (A)" value="₹1,00,000" />
-          <StatCard title="Avg Investment (B)" value="₹50,000" />
-          <StatCard title="Avg Earnings (A)" value="₹20.2L" trend="up" trendValue="+15%" />
-          <StatCard title="Avg Earnings (B)" value="₹4.0L" trend="up" trendValue="+8%" />
-        </div>
+        {/* Bottom Performance Grid */}
+        {kpis && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard title="Avg Invest (A)" value="₹1.0L" />
+            <StatCard title="Avg Invest (B)" value="₹0.5L" />
+            <StatCard title="Cap Alerts" value={kpis.cap_warning.toString()} trend={kpis.cap_warning > 0 ? "down" : "up"} trendValue="Action Req" />
+            <StatCard title="System Integrity" value="100%" subtitle="Verified" />
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

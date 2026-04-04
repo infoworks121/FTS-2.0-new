@@ -29,12 +29,14 @@ import { Product, ProductStatus } from "@/types/product";
 import { ProductStatusBadge } from "./ProductStatusBadge";
 import { ProductTypeCell } from "./ProductTypeBadge";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
 interface ProductTableProps {
   products: Product[];
   onSelectionChange?: (selectedIds: string[]) => void;
   onBulkAction?: (action: string, ids: string[]) => void;
+  onStatusToggle?: (product: Product) => void;
   isLoading?: boolean;
 }
 
@@ -42,6 +44,7 @@ export function ProductTable({
   products, 
   onSelectionChange,
   onBulkAction,
+  onStatusToggle,
   isLoading 
 }: ProductTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -132,10 +135,17 @@ export function ProductTable({
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center border overflow-hidden">
+                  <Link 
+                    to={`/admin/products/${product.id}`}
+                    className="flex items-center gap-3 group"
+                  >
+                    <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center border overflow-hidden shrink-0 group-hover:border-primary/50 transition-colors">
                       {product.thumbnail_url ? (
-                        <img src={product.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                        <img 
+                          src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
+                          alt="" 
+                          className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300" 
+                        />
                       ) : (
                         <span className="text-xs text-muted-foreground font-medium">
                           {product.name.substring(0, 2).toUpperCase()}
@@ -143,10 +153,12 @@ export function ProductTable({
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="font-medium text-foreground">{product.name}</span>
+                      <span className="font-medium text-foreground group-hover:text-primary transition-colors">
+                        {product.name}
+                      </span>
                       <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>
                     </div>
-                  </div>
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm">{product.category_name}</span>
@@ -168,7 +180,13 @@ export function ProductTable({
                   </span>
                 </TableCell>
                 <TableCell>
-                  <ProductStatusBadge status={product.status} size="sm" />
+                  <button 
+                    onClick={() => onStatusToggle?.(product)}
+                    className="hover:opacity-80 transition-opacity active:scale-95 duration-100"
+                    title="Click to toggle status"
+                  >
+                    <ProductStatusBadge status={product.status as ProductStatus} size="sm" />
+                  </button>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {formatDate(product.created_at)}
@@ -189,7 +207,7 @@ export function ProductTable({
                         View Details
                       </DropdownMenuItem>
                       <DropdownMenuItem 
-                        onClick={() => navigate(`/admin/products/${product.id}/edit`)}
+                        onClick={() => navigate(`/admin/products/new`, { state: { product } })}
                         className="cursor-pointer"
                       >
                         <Edit className="h-4 w-4 mr-2" />

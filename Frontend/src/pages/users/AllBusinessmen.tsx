@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users, Wallet, TrendingUp, Activity, Download, Pause, Play, Eye, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ interface KPIs {
 }
 
 export default function AllBusinessmen() {
+  const navigate = useNavigate();
   const [businessmen, setBusinessmen] = useState<BusinessmanRow[]>([]);
   const [kpis, setKpis] = useState<KPIs>({ total: "0", active: "0", total_earnings: "0" });
   const [loading, setLoading] = useState(true);
@@ -262,7 +264,9 @@ export default function AllBusinessmen() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/admin/users/businessmen/${b.id}/settings`)}>
+                        <Settings className="h-4 w-4" />
+                      </Button>
                       {b.status === "active" ? (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleSuspend(b)}>
                           <Pause className="h-4 w-4" />

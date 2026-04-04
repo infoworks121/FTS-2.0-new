@@ -31,12 +31,15 @@ const walletRoutes = require('./routes/walletRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const referralRoutes = require('./routes/referralRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const sphRoutes = require('./routes/sphRoutes');
 const path = require('path');
 
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: false,
+}));
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:8080','http://localhost:8081'], credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json());
@@ -77,6 +80,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/referral', referralRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/sph', sphRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

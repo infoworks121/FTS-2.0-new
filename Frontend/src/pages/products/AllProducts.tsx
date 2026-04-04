@@ -27,6 +27,14 @@ import {
   ProductCardGrid,
   ProductFilterState,
 } from "@/components/products";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
 import { Product } from "@/types/product";
 import { productApi } from "@/lib/productApi";
 
@@ -40,6 +48,8 @@ export default function AllProducts() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [productToToggle, setProductToToggle] = useState<Product | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [filters, setFilters] = useState<ProductFilterState>({
     search: "",
@@ -117,6 +127,36 @@ export default function AllProducts() {
     await Promise.all(selectedIds.map((id) => productApi.update(id, { status: "inactive" })));
     setSelectedIds([]);
     fetchProducts(filters, page);
+  };
+
+  const handleStatusToggle = (product: Product) => {
+    setProductToToggle(product);
+  };
+
+  const confirmStatusToggle = async () => {
+    if (!productToToggle) return;
+    
+    const product = productToToggle;
+    setProductToToggle(null);
+    setIsToggling(true);
+
+    // Optimistic update
+    const newStatus = product.status === "active" ? "draft" : "active";
+    setProducts(prev => prev.map(p => 
+      p.id === product.id ? { ...p, status: newStatus } : p
+    ));
+
+    try {
+      await productApi.toggleStatus(product.id);
+    } catch (error) {
+      // Revert on error
+      setProducts(prev => prev.map(p => 
+        p.id === product.id ? { ...p, status: product.status } : p
+      ));
+      console.error("Failed to toggle status:", error);
+    } finally {
+      setIsToggling(false);
+    }
   };
 
   return (
@@ -244,10 +284,15 @@ export default function AllProducts() {
         <ProductTable
           products={products}
           onSelectionChange={setSelectedIds}
+          onStatusToggle={handleStatusToggle}
           isLoading={isLoading}
         />
       ) : (
-        <ProductCardGrid products={products} />
+        <ProductCardGrid 
+          products={products} 
+          onView={(p) => navigate(`/admin/products/${p.id}`)}
+          onEdit={(p) => navigate(`/admin/products/new`, { state: { product: p } })}
+        />
       )}
 
       {/* Pagination */}
@@ -280,6 +325,36 @@ export default function AllProducts() {
           </PaginationContent>
         </Pagination>
       )}
+
+      {/* Confirmation Dialog */}
+      <Dialog open={!!productToToggle} onOpenChange={(open) => !open && setProductToToggle(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Status Change</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to {productToToggle?.status === 'active' ? 'deactivate' : 'activate'} <strong>{productToToggle?.name}</strong>?
+              {productToToggle?.status === 'active' && (
+                <p className="mt-2 text-amber-600 text-xs flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  This will hide the product from the marketplace.
+                </p>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setProductToToggle(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant={productToToggle?.status === 'active' ? 'destructive' : 'default'}
+              onClick={confirmStatusToggle}
+              disabled={isToggling}
+            >
+              {isToggling ? "Updating..." : "Confirm Change"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

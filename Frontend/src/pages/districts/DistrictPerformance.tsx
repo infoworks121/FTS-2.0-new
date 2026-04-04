@@ -105,17 +105,17 @@ const navItems: NavItem[] = [
   ]},
   { title: "District & Core Body", icon: MapPin, submenu: [
     { title: "All Districts", url: "/admin/districts", icon: MapPin },
-    { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
+    // { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
     { title: "District Performance", url: "/admin/districts/performance", icon: BarChart3 },
     { title: "Core Body List", url: "/admin/corebody", icon: Users },
-    { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
-    { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
+    // { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
+    // { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
   ]},
   { title: "Users & Roles", icon: Users, submenu: [
     { title: "All Businessmen", url: "/admin/users/businessmen", icon: Users },
-    { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
-    { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
-    { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
+    // { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
+    // { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
+    // { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
     { title: "Stock Point List", url: "/admin/users/stockpoints", icon: Warehouse },
     { title: "Role Permissions", url: "/admin/users/roles", icon: ShieldCheck },
     { title: "Feature Access Control", url: "/admin/users/features", icon: Settings },
@@ -206,13 +206,13 @@ export default function DistrictPerformance() {
     {
       header: "Investment",
       accessor: (row: CoreBodyRow) => (
-        <span className="font-mono text-sm">₹{row.investment.toLocaleString()}</span>
+        <span className="font-mono text-sm">₹{(row.investment ?? 0).toLocaleString()}</span>
       ),
     },
     {
       header: "Earnings (YTD)",
       accessor: (row: CoreBodyRow) => (
-        <span className="font-mono text-sm font-semibold text-profit">₹{row.earnings.toLocaleString()}</span>
+        <span className="font-mono text-sm font-semibold text-profit">₹{(row.earnings ?? 0).toLocaleString()}</span>
       ),
     },
     {
@@ -289,7 +289,7 @@ export default function DistrictPerformance() {
           />
           <KPICard
             title="Total Orders"
-            value={districtInfo.totalOrders.toLocaleString()}
+            value={(districtInfo.totalOrders ?? 0).toLocaleString()}
             change="+12.3%"
             changeType="positive"
             icon={ShoppingCart}
@@ -341,7 +341,7 @@ export default function DistrictPerformance() {
                       <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                       <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${(v/1000)}K`} />
                       <Tooltip 
-                        formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
+                        formatter={(value: number) => [`₹${(value ?? 0).toLocaleString()}`, ""]}
                         contentStyle={{ 
                           backgroundColor: "hsl(var(--card))", 
                           border: "1px solid hsl(var(--border))",
@@ -379,7 +379,7 @@ export default function DistrictPerformance() {
                         <Cell key="cell-0" fill="#8b5cf6" />
                         <Cell key="cell-1" fill="#3b82f6" />
                       </Pie>
-                      <Tooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+                      <Tooltip formatter={(value: number) => `₹${(value ?? 0).toLocaleString()}`} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="flex justify-center gap-4 mt-2">
@@ -458,7 +458,7 @@ export default function DistrictPerformance() {
                   <CardDescription>List of all registered Core Bodies</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <DataTable columns={columns} data={coreBodyList} />
+                  <DataTable columns={columns as any} data={coreBodyList as any} />
                 </CardContent>
               </Card>
             </div>
@@ -484,8 +484,8 @@ export default function DistrictPerformance() {
                     { label: "Core Bodies", data: [15, 16, 17, 18, 19, 20], max: 20 },
                     { label: "Avg Order Value", data: [6250, 6315, 6619, 6798, 6933, 7165], max: 8000 },
                   ].map((row, ri) => (
-                    <>
-                      <div key={`label-${ri}`} className="font-medium text-sm py-2">{row.label}</div>
+                    <div key={`row-group-${ri}`} className="contents">
+                      <div className="font-medium text-sm py-2">{row.label}</div>
                       {row.data.map((val, ci) => {
                         const intensity = val / row.max;
                         return (
@@ -497,11 +497,11 @@ export default function DistrictPerformance() {
                               color: intensity > 0.5 ? 'white' : 'inherit'
                             }}
                           >
-                            {row.label.includes("Value") ? `₹${(val/1000).toFixed(1)}K` : val.toLocaleString()}
+                            {row.label.includes("Value") ? `₹${((val ?? 0)/1000).toFixed(1)}K` : (val ?? 0).toLocaleString()}
                           </div>
                         );
                       })}
-                    </>
+                    </div>
                   ))}
                 </div>
               </CardContent>

@@ -86,10 +86,10 @@ export const sidebarNavItems: SidebarNavItem[] = [
     submenu: [
       { title: "All Products", url: "/admin/products" },
       { title: "Product Pricing & Margin", url: "/admin/products/pricing" },
-      { title: "Product Status", url: "/admin/products/status" },
+      // { title: "Product Status", url: "/admin/products/status" },
       { title: "Category List", url: "/admin/categories" },
       { title: "Category Commission Rules", url: "/admin/categories/commission" },
-      { title: "Services & Digital Products", url: "/admin/services" },
+      // { title: "Services & Digital Products", url: "/admin/services" },
     ],
   },
   {
@@ -114,11 +114,11 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
     submenu: [
       { title: "All Districts", url: "/admin/districts" },
-      { title: "Add / Edit District", url: "/admin/districts/manage" },
+      // { title: "Add / Edit District", url: "/admin/districts/manage" },
       { title: "District Performance", url: "/admin/districts/performance" },
       { title: "Core Body List", url: "/admin/corebody" },
-      { title: "Core Body A Management", url: "/admin/corebody/a" },
-      { title: "Core Body B Management", url: "/admin/corebody/b" },
+      // { title: "Core Body A Management", url: "/admin/corebody/a" },
+      // { title: "Core Body B Management", url: "/admin/corebody/b" },
     ],
   },
   {
@@ -126,10 +126,11 @@ export const sidebarNavItems: SidebarNavItem[] = [
     icon: Users,
     requiredRole: "admin",
     submenu: [
+      { title: "All Users", url: "/admin/users" },
       { title: "All Businessmen", url: "/admin/users/businessmen" },
-      { title: "Entry Mode Users", url: "/admin/users/entry" },
-      { title: "Advance Mode Users", url: "/admin/users/advance" },
-      { title: "Bulk Users", url: "/admin/users/bulk" },
+      // { title: "Entry Mode Users", url: "/admin/users/entry" },
+      // { title: "Advance Mode Users", url: "/admin/users/advance" },
+      // { title: "Bulk Users", url: "/admin/users/bulk" },
       { title: "Stock Point List", url: "/admin/users/stockpoints" },
       { title: "Role Permissions", url: "/admin/users/roles" },
       { title: "Feature Access Control", url: "/admin/users/features" },

@@ -194,3 +194,54 @@ exports.updateDistrictQuota = async (req, res) => {
         res.status(500).json({ error: 'Failed to update district quota' });
     }
 };
+
+// ==========================================
+// DISTRICT SUMMARY FOR DASHBOARD
+// ==========================================
+exports.getDistrictsSummary = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                d.id, 
+                d.name, 
+                s.name as state_name,
+                COALESCE(dq.max_core_body, 20) as max_limit,
+                COALESCE(dq.current_count, 0) as current_count,
+                (SELECT COUNT(*) FROM core_body_profiles cbp WHERE cbp.district_id = d.id AND cbp.type = 'A' AND cbp.is_active = true) as core_body_count_a,
+                (SELECT COUNT(*) FROM core_body_profiles cbp WHERE cbp.district_id = d.id AND cbp.type = 'B' AND cbp.is_active = true) as core_body_count_b,
+                (SELECT COUNT(*) FROM orders o WHERE o.district_id = d.id) as total_orders,
+                (SELECT COALESCE(SUM(total_amount), 0) FROM orders o WHERE o.district_id = d.id) as total_revenue,
+                d.is_active
+            FROM districts d
+            JOIN states s ON d.state_id = s.id
+            LEFT JOIN district_quota dq ON d.id = dq.district_id
+            WHERE d.is_active = true
+            ORDER BY d.name ASC
+        `;
+        
+        const { rows } = await db.query(query);
+        
+        // Calculate totals for KPI cards
+        const kpiData = {
+            totalDistricts: rows.length,
+            activeDistricts: rows.filter(d => d.is_active).length,
+            totalCoreBodies: rows.reduce((sum, d) => sum + parseInt(d.core_body_count_a) + parseInt(d.core_body_count_b), 0),
+            totalRevenue: rows.reduce((sum, d) => sum + parseFloat(d.total_revenue), 0),
+            avgOrdersPerDistrict: rows.length > 0 ? (rows.reduce((sum, d) => sum + parseInt(d.total_orders), 0) / rows.length).toFixed(0) : 0
+        };
+
+        res.json({
+            districts: rows.map(r => ({
+                ...r,
+                core_body_count_a: parseInt(r.core_body_count_a),
+                core_body_count_b: parseInt(r.core_body_count_b),
+                total_orders: parseInt(r.total_orders),
+                total_revenue: parseFloat(r.total_revenue)
+            })),
+            kpiData
+        });
+    } catch (err) {
+        console.error('Error fetching district summary:', err);
+        res.status(500).json({ error: 'Failed to fetch district summary' });
+    }
+};

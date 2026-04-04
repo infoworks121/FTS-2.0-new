@@ -37,7 +37,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    fetchCart();
+    const token = localStorage.getItem("token");
+    if (token) {
+      fetchCart();
+    } else {
+      setIsLoading(false);
+    }
   }, []);
 
   const addToCart = async (newItem: CartItem) => {

@@ -79,7 +79,7 @@ exports.updateCategory = async (req, res) => {
 
     const result = await db.query(
       `UPDATE categories 
-       SET name = $1, description = $2, slug = $3, icon_url = $4, sort_order = $5, parent_id = $6, commission_rule_id = $7, is_active = $8, updated_at = NOW()
+       SET name = $1, description = $2, slug = $3, icon_url = $4, sort_order = $5, parent_id = $6, commission_rule_id = $7, is_active = $8
        WHERE id = $9 RETURNING *`,
       [updatedName, updatedDescription, updatedSlug, updatedIcon, updatedSort, updatedParent, updatedRule, updatedActive, id]
     );
@@ -437,7 +437,7 @@ exports.updateProductPricing = async (req, res) => {
       await client.query(
         `UPDATE product_pricing SET 
          mrp = $1, base_price = $2, selling_price = $3, 
-         admin_margin_pct = $4, bulk_price = $5, updated_at = NOW() 
+         admin_margin_pct = $4, bulk_price = $5
          WHERE id = $6`,
         [mrp, base_price, selling_price, admin_margin_pct || 0, bulk_price || null, current.id]
       );
@@ -875,9 +875,13 @@ exports.getAdminProducts = async (req, res) => {
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
-             pp.selling_price as base_price,
-             pp.base_price as cost_price,
+             pp.mrp,
+             pp.base_price,
+             pp.selling_price,
+             pp.bulk_price,
+             pp.admin_margin_pct,
              pp.admin_margin_pct as min_margin_percent,
+             pp.base_price as cost_price,
              CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
              COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
              true as stock_required
@@ -911,9 +915,13 @@ exports.getAdminProductById = async (req, res) => {
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
-             pp.selling_price as base_price,
-             pp.base_price as cost_price,
+             pp.mrp,
+             pp.base_price,
+             pp.selling_price,
+             pp.bulk_price,
+             pp.admin_margin_pct,
              pp.admin_margin_pct as min_margin_percent,
+             pp.base_price as cost_price,
              CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
              COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
              true as stock_required
@@ -935,13 +943,13 @@ exports.createAdminProduct = async (req, res) => {
   const client = await db.pool.connect();
   try {
     const {
-      name, sku, category_id, product_type, base_price, cost_price,
-      min_margin_percent, stock_required, stock_quantity, is_digital,
+      name, sku, category_id, product_type, base_price, mrp, selling_price, bulk_price,
+      admin_margin_pct, stock_required, stock_quantity, is_digital,
       is_service, description, thumbnail_url, image_urls = [], status = 'draft'
     } = req.body;
 
-    if (!name || !sku || !category_id || !product_type || !base_price) {
-      return res.status(400).json({ error: 'name, sku, category_id, product_type, base_price are required' });
+    if (!name || !sku || !category_id || !product_type) {
+      return res.status(400).json({ error: 'name, sku, category_id, product_type are required' });
     }
 
     const type = is_digital ? 'digital' : (is_service ? 'service' : product_type);
@@ -959,12 +967,20 @@ exports.createAdminProduct = async (req, res) => {
     );
     const product = productResult.rows[0];
 
-    // Step 2: Insert Pricing (frontend base_price -> expect mrp/selling, cost_price -> backend base_price)
+    // Step 2: Insert Pricing (align with frontend field names)
     await client.query(
       `INSERT INTO product_pricing 
-       (product_id, mrp, base_price, selling_price, admin_margin_pct, is_current, created_by) 
-       VALUES ($1, $2, $3, $4, $5, true, $6)`,
-      [product.id, base_price, cost_price || 0, base_price, min_margin_percent || 15, req.user.id]
+       (product_id, mrp, base_price, selling_price, bulk_price, admin_margin_pct, is_current, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
+      [
+        product.id, 
+        mrp || 0, 
+        base_price || 0, 
+        selling_price || 0, 
+        bulk_price || 0, 
+        admin_margin_pct || 0, 
+        req.user.id
+      ]
     );
 
     // Step 3: Insert Initial Stock if any
@@ -999,8 +1015,8 @@ exports.updateAdminProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      name, sku, category_id, product_type, base_price, cost_price,
-      min_margin_percent, stock_quantity, is_digital,
+      name, sku, category_id, product_type, base_price, mrp, selling_price, bulk_price,
+      admin_margin_pct, stock_quantity, is_digital,
       is_service, description, thumbnail_url, image_urls, status
     } = req.body;
 
@@ -1038,24 +1054,26 @@ exports.updateAdminProduct = async (req, res) => {
       [name, sku, category_id, type, description, thumbnail_url, image_urls ? JSON.stringify(image_urls) : null, is_active, id]
     );
 
-    if (base_price !== undefined || cost_price !== undefined || min_margin_percent !== undefined) {
+    // Pricing update logic
+    if (base_price !== undefined || mrp !== undefined || selling_price !== undefined || bulk_price !== undefined || admin_margin_pct !== undefined) {
       const existingPricing = await client.query('SELECT id FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL', [id]);
+      
       if (existingPricing.rows.length > 0) {
         await client.query(
           `UPDATE product_pricing SET
             mrp = COALESCE($1, mrp),
-            selling_price = COALESCE($1, selling_price),
             base_price = COALESCE($2, base_price),
-            admin_margin_pct = COALESCE($3, admin_margin_pct),
-            updated_at = NOW()
-           WHERE product_id = $4 AND is_current = true AND variant_id IS NULL`,
-          [base_price, cost_price, min_margin_percent, id]
+            selling_price = COALESCE($3, selling_price),
+            bulk_price = COALESCE($4, bulk_price),
+            admin_margin_pct = COALESCE($5, admin_margin_pct)
+           WHERE product_id = $6 AND is_current = true AND variant_id IS NULL`,
+          [mrp, base_price, selling_price, bulk_price, admin_margin_pct, id]
         );
-      } else if (base_price !== undefined) {
+      } else {
         await client.query(
-          `INSERT INTO product_pricing (product_id, mrp, base_price, selling_price, admin_margin_pct, is_current, created_by)
-           VALUES ($1, $2, $3, $4, $5, true, $6)`,
-          [id, base_price, cost_price || 0, base_price, min_margin_percent || 15, req.user.id]
+          `INSERT INTO product_pricing (product_id, mrp, base_price, selling_price, bulk_price, admin_margin_pct, is_current, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
+          [id, mrp || 0, base_price || 0, selling_price || 0, bulk_price || 0, admin_margin_pct || 0, req.user.id]
         );
       }
     }
@@ -1094,6 +1112,37 @@ exports.deleteAdminProduct = async (req, res) => {
   }
 };
 
+exports.toggleAdminProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // First, get current status
+    const currentStatusRes = await db.query('SELECT is_active FROM products WHERE id = $1', [id]);
+    if (currentStatusRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    const newStatus = !currentStatusRes.rows[0].is_active;
+    
+    const result = await db.query(
+      `UPDATE products 
+       SET is_active = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING id, is_active`,
+      [newStatus, id]
+    );
+    
+    res.json({ 
+      message: `Product ${newStatus ? 'activated' : 'deactivated'} successfully`,
+      product_id: result.rows[0].id,
+      is_active: result.rows[0].is_active,
+      status: newStatus ? 'active' : 'draft'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Product Pricing
 exports.updatePricing = async (req, res) => {
   try {
@@ -1116,7 +1165,7 @@ exports.updatePricing = async (req, res) => {
       
       // Update existing pricing
       await db.query(
-        'UPDATE product_pricing SET price = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        'UPDATE product_pricing SET price = $1 WHERE id = $2',
         [price, currentPricing.id]
       );
     } else {

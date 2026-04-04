@@ -27,6 +27,7 @@ router.get('/cities/:cityId/pincodes', geogController.getPincodesByCity);
 router.post('/pincodes', geogController.createPincode);
 
 // District Quota
+router.get('/districts/summary', geogController.getDistrictsSummary);
 router.get('/quotas', geogController.getAllDistrictQuotas);
 router.get('/districts/:districtId/quota', geogController.getDistrictQuota);
 router.put('/districts/:districtId/quota', geogController.updateDistrictQuota);

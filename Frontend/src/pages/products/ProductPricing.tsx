@@ -41,43 +41,55 @@ const mockProducts: Product[] = [
     id: "1",
     name: "Wireless Bluetooth Headphones",
     sku: "WBH-001",
-    categoryId: "cat-1",
-    categoryName: "Electronics",
-    type: "physical",
-    basePrice: 2499,
-    costPrice: 1500,
-    marginPercent: 39.96,
-    minMarginPercent: 15,
-    stockRequired: true,
-    stockQuantity: 150,
-    isDigital: false,
-    isService: false,
+    category_id: "cat-1",
+    category_name: "Electronics",
+    product_type: "physical",
+    mrp: 2999,
+    base_price: 1500,
+    selling_price: 2499,
+    bulk_price: 2000,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 39.96,
+    min_margin_percent: 15,
+    stock_required: true,
+    stock_quantity: 150,
+    is_digital: false,
+    is_service: false,
     status: "active",
-    commissionRuleId: "rule-1",
-    commissionRuleName: "Standard Commission",
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-20T14:45:00Z",
-    createdBy: "Admin",
+    created_at: "2024-01-15T10:30:00Z",
+    updated_at: "2024-01-20T14:45:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
   {
     id: "2",
     name: "Premium Watch",
     sku: "PW-001",
-    categoryId: "cat-1",
-    categoryName: "Electronics",
-    type: "physical",
-    basePrice: 15999,
-    costPrice: 12000,
-    marginPercent: 24.99,
-    minMarginPercent: 15,
-    stockRequired: true,
-    stockQuantity: 25,
-    isDigital: false,
-    isService: false,
+    category_id: "cat-1",
+    category_name: "Electronics",
+    product_type: "physical",
+    mrp: 19999,
+    base_price: 12000,
+    selling_price: 15999,
+    bulk_price: 14000,
+    admin_margin_pct: 5,
+    profit_channel: "B2C",
+    margin_percent: 24.99,
+    min_margin_percent: 15,
+    stock_required: true,
+    stock_quantity: 25,
+    is_digital: false,
+    is_service: false,
     status: "active",
-    createdAt: "2024-01-10T08:00:00Z",
-    updatedAt: "2024-01-18T12:00:00Z",
-    createdBy: "Admin",
+    created_at: "2024-01-10T08:00:00Z",
+    updated_at: "2024-01-18T12:00:00Z",
+    created_by: 1,
+    description: null,
+    thumbnail_url: null,
+    image_urls: null,
   },
 ];
 
@@ -85,8 +97,9 @@ const mockProducts: Product[] = [
 const mockPriceHistory = [
   {
     id: "1",
-    basePrice: 2499,
-    costPrice: 1500,
+    mrp: 2999,
+    basePrice: 1500,
+    sellingPrice: 2499,
     marginPercent: 39.96,
     changedBy: "Admin",
     changedAt: "2024-01-20T14:45:00Z",
@@ -94,8 +107,9 @@ const mockPriceHistory = [
   },
   {
     id: "2",
-    basePrice: 2299,
-    costPrice: 1500,
+    mrp: 2999,
+    basePrice: 1500,
+    sellingPrice: 2299,
     marginPercent: 34.75,
     changedBy: "Admin",
     changedAt: "2024-01-18T10:30:00Z",
@@ -103,8 +117,9 @@ const mockPriceHistory = [
   },
   {
     id: "3",
-    basePrice: 2499,
-    costPrice: 1400,
+    mrp: 2999,
+    basePrice: 1400,
+    sellingPrice: 2499,
     marginPercent: 43.98,
     changedBy: "Admin",
     changedAt: "2024-01-15T09:00:00Z",
@@ -120,28 +135,30 @@ export default function ProductPricing() {
 
   // Form state
   const [formData, setFormData] = useState({
+    mrp: 0,
     basePrice: 0,
-    costPrice: 0,
+    sellingPrice: 0,
     minMarginPercent: 15,
   });
 
   const selectedProduct = mockProducts.find(p => p.id === selectedProductId);
 
   // Derived calculations
-  const marginPercent = formData.costPrice > 0 && formData.basePrice > 0
-    ? ((formData.basePrice - formData.costPrice) / formData.basePrice) * 100
+  const marginPercent = formData.sellingPrice > 0 && formData.basePrice > 0
+    ? ((formData.sellingPrice - formData.basePrice) / formData.sellingPrice) * 100
     : 0;
   const marginWarning = marginPercent < formData.minMarginPercent;
-  const profitAmount = formData.basePrice - formData.costPrice;
+  const profitAmount = formData.sellingPrice - formData.basePrice;
 
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
     const product = mockProducts.find(p => p.id === productId);
     if (product) {
       setFormData({
-        basePrice: product.basePrice,
-        costPrice: product.costPrice,
-        minMarginPercent: product.minMarginPercent,
+        mrp: product.mrp || 0,
+        basePrice: product.base_price,
+        sellingPrice: product.selling_price || 0,
+        minMarginPercent: product.min_margin_percent,
       });
     }
     setHasChanges(false);
@@ -163,9 +180,10 @@ export default function ProductPricing() {
   const handleReset = () => {
     if (selectedProduct) {
       setFormData({
-        basePrice: selectedProduct.basePrice,
-        costPrice: selectedProduct.costPrice,
-        minMarginPercent: selectedProduct.minMarginPercent,
+        mrp: selectedProduct.mrp || 0,
+        basePrice: selectedProduct.base_price,
+        sellingPrice: selectedProduct.selling_price || 0,
+        minMarginPercent: selectedProduct.min_margin_percent,
       });
     }
     setHasChanges(false);
@@ -265,7 +283,7 @@ export default function ProductPricing() {
                 <CardContent className="space-y-6">
                   {/* Base Price */}
                   <div className="space-y-2">
-                    <Label htmlFor="basePrice">Base Price (₹)</Label>
+                    <Label htmlFor="basePrice">Base Price / Cost (₹)</Label>
                     <Input
                       id="basePrice"
                       type="number"
@@ -274,14 +292,14 @@ export default function ProductPricing() {
                     />
                   </div>
 
-                  {/* Cost Price */}
+                  {/* Selling Price */}
                   <div className="space-y-2">
-                    <Label htmlFor="costPrice">Cost Price (₹)</Label>
+                    <Label htmlFor="sellingPrice">Selling Price (₹)</Label>
                     <Input
-                      id="costPrice"
+                      id="sellingPrice"
                       type="number"
-                      value={formData.costPrice}
-                      onChange={(e) => handleInputChange("costPrice", parseFloat(e.target.value) || 0)}
+                      value={formData.sellingPrice}
+                      onChange={(e) => handleInputChange("sellingPrice", parseFloat(e.target.value) || 0)}
                     />
                   </div>
 
@@ -323,7 +341,7 @@ export default function ProductPricing() {
                           <TableCell className="font-medium">
                             {formatCurrency(history.basePrice)}
                           </TableCell>
-                          <TableCell>{formatCurrency(history.costPrice)}</TableCell>
+                          <TableCell>{formatCurrency(history.sellingPrice)}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">
                               {history.marginPercent.toFixed(1)}%
@@ -358,11 +376,11 @@ export default function ProductPricing() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{selectedProduct.categoryName}</span>
+                  <span className="text-sm">{selectedProduct.category_name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Commission Rule:</span>
-                  <Badge variant="secondary">{selectedProduct.commissionRuleName}</Badge>
+                  <Badge variant="secondary">{(selectedProduct as any).commissionRuleName || "Standard"}</Badge>
                 </div>
               </CardContent>
             </Card>

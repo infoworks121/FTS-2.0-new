@@ -11,8 +11,12 @@ export interface Product {
   category_id: string;
   category_name: string;
   product_type: ProductType;
+  mrp: number;
   base_price: number;
-  cost_price: number;
+  selling_price: number;
+  bulk_price: number | null;
+  admin_margin_pct: number;
+  profit_channel: "B2B" | "B2C";
   margin_percent: number;
   min_margin_percent: number;
   stock_required: boolean;
@@ -34,8 +38,12 @@ export interface ProductFormData {
   sku: string;
   categoryId: string;
   type: ProductType;
+  mrp: number;
   basePrice: number;
-  costPrice: number;
+  sellingPrice: number;
+  bulkPrice?: number;
+  adminMarginPct?: number;
+  profitChannel: "B2B" | "B2C";
   minMarginPercent: number;
   stockRequired: boolean;
   stockQuantity: number;
@@ -49,8 +57,11 @@ export interface ProductFormData {
 
 export interface ProductPricingUpdate {
   productId: string;
+  mrp: number;
   basePrice: number;
-  costPrice: number;
+  sellingPrice: number;
+  bulkPrice?: number;
+  adminMarginPct?: number;  
   minMarginPercent: number;
 }
 

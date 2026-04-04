@@ -5,11 +5,19 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 import { api } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 export default function UserApprovalPage() {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const openUserDetails = (user: any) => {
+    setSelectedUser(user);
+    setIsDialogOpen(true);
+  };
 
   const fetchPendingUsers = async () => {
     try {
@@ -72,7 +80,7 @@ export default function UserApprovalPage() {
           ) : (
             <div className="space-y-4">
               {coreBodyUsers.map((user: any) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => openUserDetails(user)}>
                   <div>
                     <p className="font-semibold">{user.full_name}</p>
                     <p className="text-sm text-slate-600">{user.email} | {user.phone}</p>
@@ -81,7 +89,7 @@ export default function UserApprovalPage() {
                       {user.district_name && <Badge variant="outline">{user.district_name}</Badge>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" onClick={() => handleApprove(user.id)}>
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Approve
@@ -113,7 +121,7 @@ export default function UserApprovalPage() {
           ) : (
             <div className="space-y-4">
               {businessmanUsers.map((user: any) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => openUserDetails(user)}>
                   <div>
                     <p className="font-semibold">{user.full_name}</p>
                     <p className="text-sm text-slate-600">{user.email} | {user.phone}</p>
@@ -122,7 +130,7 @@ export default function UserApprovalPage() {
                       {user.businessman_type && <Badge variant="outline">{user.businessman_type}</Badge>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" onClick={() => handleApprove(user.id)}>
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Approve
@@ -138,6 +146,110 @@ export default function UserApprovalPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>User Approval Review</DialogTitle>
+            <DialogDescription>Review full details of the registered user before approving.</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                <div>
+                  <p className="text-sm text-slate-500">Full Name</p>
+                  <p className="font-semibold">{selectedUser.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Role</p>
+                  <p><Badge>{selectedUser.role_code}</Badge></p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Email</p>
+                  <p className="font-semibold">{selectedUser.email || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Phone</p>
+                  <p className="font-semibold">{selectedUser.phone}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">District</p>
+                  <p className="font-semibold">{selectedUser.district_name || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">PAN Number</p>
+                  <p className="font-semibold">{selectedUser.pan_number || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Referral Code Used</p>
+                  <p className="font-semibold">{selectedUser.referral_code || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Registered At</p>
+                  <p className="font-semibold">{new Date(selectedUser.created_at).toLocaleString()}</p>
+                </div>
+
+                {selectedUser.businessman_type && (
+                  <>
+                    <div className="col-span-2 pt-4 border-t mt-2">
+                      <p className="font-semibold text-lg">Businessman Profile</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Businessman Mode</p>
+                      <p className="font-semibold capitalize">{selectedUser.businessman_type.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Business Name</p>
+                      <p className="font-semibold">{selectedUser.business_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">GST Number</p>
+                      <p className="font-semibold">{selectedUser.gst_number || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Advance Amount</p>
+                      <p className="font-semibold">₹{selectedUser.advance_amount || 0}</p>
+                    </div>
+                  </>
+                )}
+
+                {selectedUser.core_body_type && (
+                  <>
+                    <div className="col-span-2 pt-4 border-t mt-2">
+                      <p className="font-semibold text-lg">Core Body Profile</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Core Body Type</p>
+                      <p className="font-semibold capitalize">{selectedUser.core_body_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Investment Amount</p>
+                      <p className="font-semibold">₹{selectedUser.investment_amount || 0}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button>
+            <Button variant="destructive" onClick={() => {
+              setIsDialogOpen(false);
+              handleReject(selectedUser.id);
+            }}>
+              <XCircle className="w-4 h-4 mr-1" />
+              Reject
+            </Button>
+            <Button onClick={() => {
+              setIsDialogOpen(false);
+              handleApprove(selectedUser.id);
+            }}>
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

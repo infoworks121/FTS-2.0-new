@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { productApi } from "@/lib/productApi";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,7 +38,8 @@ import {
 } from "lucide-react";
 import { uploadApi } from "@/lib/uploadApi";
 import { ProductsLayout } from "@/components/products";
-import { ProductType, ProductFormData } from "@/types/product";
+import { Product, ProductFormData } from "@/types/product";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
 // Steps configuration
 const steps = [
@@ -53,6 +54,9 @@ const steps = [
 
 export default function AddNewProduct() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const editingProduct = location.state?.product as Product | undefined;
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -76,25 +80,29 @@ export default function AddNewProduct() {
   
   // Form state
   const [formData, setFormData] = useState<ProductFormData>({
-    name: "",
-    sku: "",
-    categoryId: "",
-    type: "physical",
-    basePrice: 0,
-    costPrice: 0,
-    minMarginPercent: 15,
-    stockRequired: true,
-    stockQuantity: 0,
-    isDigital: false,
-    isService: false,
-    description: "",
-    thumbnailUrl: "",
-    imageUrls: [],
+    name: editingProduct?.name || "",
+    sku: editingProduct?.sku || "",
+    categoryId: editingProduct?.category_id || "",
+    type: editingProduct?.product_type || "physical",
+    mrp: editingProduct?.mrp || 0,
+    basePrice: editingProduct?.base_price || 0,
+    sellingPrice: editingProduct?.selling_price || 0,
+    bulkPrice: editingProduct?.bulk_price || 0,
+    adminMarginPct: editingProduct?.admin_margin_pct || 0,
+    profitChannel: editingProduct?.profit_channel || "B2C",
+    minMarginPercent: editingProduct?.min_margin_percent || 15,
+    stockRequired: editingProduct?.stock_required ?? true,
+    stockQuantity: editingProduct?.stock_quantity || 0,
+    isDigital: editingProduct?.is_digital ?? false,
+    isService: editingProduct?.is_service ?? false,
+    description: editingProduct?.description || "",
+    thumbnailUrl: editingProduct?.thumbnail_url || "",
+    imageUrls: editingProduct?.image_urls || [],
   });
 
   // Derived calculations
-  const marginPercent = formData.costPrice > 0 
-    ? ((formData.basePrice - formData.costPrice) / formData.basePrice) * 100 
+  const marginPercent = formData.sellingPrice > 0 
+    ? ((formData.sellingPrice - formData.basePrice) / formData.sellingPrice) * 100 
     : 0;
   const marginWarning = marginPercent < formData.minMarginPercent;
 
@@ -119,7 +127,11 @@ export default function AddNewProduct() {
     setIsSaving(true);
     setError(null);
     try {
-      await productApi.create({ ...formData, status: 'active' });
+      if (editingProduct?.id) {
+        await productApi.update(editingProduct.id, { ...formData, status: 'active' });
+      } else {
+        await productApi.create({ ...formData, status: 'active' });
+      }
       setHasChanges(false);
       navigate("/admin/products");
     } catch (err: unknown) {
@@ -134,7 +146,11 @@ export default function AddNewProduct() {
     setIsSaving(true);
     setError(null);
     try {
-      await productApi.create({ ...formData, status: 'draft' });
+      if (editingProduct?.id) {
+        await productApi.update(editingProduct.id, { ...formData, status: 'draft' });
+      } else {
+        await productApi.create({ ...formData, status: 'draft' });
+      }
       navigate("/admin/products");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to save draft';
@@ -176,7 +192,7 @@ export default function AddNewProduct() {
       case 2:
         return true; // Images are optional for now
       case 3:
-        return formData.basePrice > 0 && formData.costPrice >= 0;
+        return formData.mrp > 0 && formData.basePrice >= 0 && formData.sellingPrice > 0;
       case 4:
         return true;
       case 5:
@@ -317,7 +333,11 @@ export default function AddNewProduct() {
                     <div className="flex items-center gap-6">
                       <div className="relative group h-32 w-32 rounded-xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden transition-all hover:border-blue-500/50">
                         {formData.thumbnailUrl ? (
-                          <img src={formData.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" />
+                          <img 
+                            src={formData.thumbnailUrl.startsWith('data:') || formData.thumbnailUrl.startsWith('http') ? formData.thumbnailUrl : `${IMAGE_BASE_URL}${formData.thumbnailUrl}`} 
+                            alt="Thumbnail preview" 
+                            className="h-full w-full object-cover" 
+                          />
                         ) : (
                           <div className="text-center p-4">
                             <Upload className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -383,7 +403,12 @@ export default function AddNewProduct() {
                       </div>
                       <div className="h-10 w-10 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden border">
                         {formData.thumbnailUrl ? (
-                          <img src={formData.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.src = "")} />
+                          <img 
+                            src={formData.thumbnailUrl.startsWith('data:') || formData.thumbnailUrl.startsWith('http') ? formData.thumbnailUrl : `${IMAGE_BASE_URL}${formData.thumbnailUrl}`} 
+                            alt="Thumbnail preview" 
+                            className="h-full w-full object-cover" 
+                            onError={(e) => (e.currentTarget.src = "")} 
+                          />
                         ) : (
                           <Eye className="h-5 w-5 text-muted-foreground/50" />
                         )}
@@ -439,7 +464,11 @@ export default function AddNewProduct() {
                           <div className="flex items-center gap-4">
                             <div className="relative h-16 w-16 rounded border bg-background flex items-center justify-center overflow-hidden">
                               {url ? (
-                                <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                                <img 
+                                  src={url.startsWith('data:') || url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url}`} 
+                                  alt={`Gallery ${idx + 1}`} 
+                                  className="h-full w-full object-cover" 
+                                />
                               ) : (
                                 <Upload className="h-4 w-4 text-muted-foreground/30" />
                               )}
@@ -477,7 +506,11 @@ export default function AddNewProduct() {
                             />
                             <div className="h-10 w-10 flex-shrink-0 rounded bg-background flex items-center justify-center overflow-hidden border">
                               {url ? (
-                                <img src={url} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                                <img 
+                                  src={url.startsWith('data:') || url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url}`} 
+                                  alt={`Gallery ${idx + 1}`} 
+                                  className="h-full w-full object-cover" 
+                                />
                               ) : (
                                 <Eye className="h-4 w-4 text-muted-foreground/50" />
                               )}
@@ -518,28 +551,87 @@ export default function AddNewProduct() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Base Price */}
-              <div className="space-y-2">
-                <Label htmlFor="basePrice">Base Price (₹) *</Label>
-                <Input
-                  id="basePrice"
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.basePrice || ""}
-                  onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)}
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {/* MRP */}
+                <div className="space-y-2">
+                  <Label htmlFor="mrp">Maximum Retail Price (MRP) ₹ *</Label>
+                  <Input
+                    id="mrp"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.mrp || ""}
+                    onChange={(e) => handleInputChange("mrp", parseFloat(e.target.value) || 0)}
+                  />
+                </div>
 
-              {/* Cost Price */}
-              <div className="space-y-2">
-                <Label htmlFor="costPrice">Cost Price (₹) *</Label>
-                <Input
-                  id="costPrice"
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.costPrice || ""}
-                  onChange={(e) => handleInputChange("costPrice", parseFloat(e.target.value) || 0)}
-                />
+                {/* Base Price (Cost) */}
+                <div className="space-y-2">
+                  <Label htmlFor="basePrice">Base/Landing Price (Cost) ₹ *</Label>
+                  <Input
+                    id="basePrice"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.basePrice || ""}
+                    onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">The actual purchase cost of the item.</p>
+                </div>
+
+                {/* Selling Price (B2C) */}
+                <div className="space-y-2">
+                  <Label htmlFor="sellingPrice">Selling Price (B2C) ₹ *</Label>
+                  <Input
+                    id="sellingPrice"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.sellingPrice || ""}
+                    onChange={(e) => handleInputChange("sellingPrice", parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Price shown to Customers in marketplace.</p>
+                </div>
+
+                {/* Bulk Price (B2B) */}
+                <div className="space-y-2">
+                  <Label htmlFor="bulkPrice">Bulk Price (B2B) ₹</Label>
+                  <Input
+                    id="bulkPrice"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.bulkPrice || ""}
+                    onChange={(e) => handleInputChange("bulkPrice", parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Discounted price for Businessman/Core Body.</p>
+                </div>
+
+                {/* Admin Margin Pct */}
+                <div className="space-y-2">
+                  <Label htmlFor="adminMarginPct">Admin Specific Margin %</Label>
+                  <Input
+                    id="adminMarginPct"
+                    type="number"
+                    placeholder="0.00"
+                    value={formData.adminMarginPct || ""}
+                    onChange={(e) => handleInputChange("adminMarginPct", parseFloat(e.target.value) || 0)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Fixed minimum margin for FTS Admin.</p>
+                </div>
+
+                {/* Profit Channel */}
+                <div className="space-y-2">
+                  <Label htmlFor="profitChannel">Profit Distribution Channel *</Label>
+                  <Select
+                    value={formData.profitChannel}
+                    onValueChange={(value) => handleInputChange("profitChannel", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select channel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="B2C">B2C (Retail Direct to Customer)</SelectItem>
+                      <SelectItem value="B2B">B2B (Bulk to Core Body/Businessman)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Margin Display */}
@@ -551,9 +643,9 @@ export default function AddNewProduct() {
               )}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Calculated Margin</p>
+                    <p className="text-sm font-medium">Customer (B2C) Gross Margin</p>
                     <p className="text-xs text-muted-foreground">
-                      Based on base price and cost price
+                      Based on Selling Price and Base (Cost) Price
                     </p>
                   </div>
                   <div className="text-right">
@@ -678,25 +770,61 @@ export default function AddNewProduct() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Financial Summary */}
+              <div className="p-4 rounded-lg border bg-blue-50/10 border-blue-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600 mb-3">Financial Summary</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">MRP</p>
+                    <p className="text-sm font-black">₹{formData.mrp.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Cost</p>
+                    <p className="text-sm font-black">₹{formData.basePrice.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-blue-600/70 font-bold uppercase">Selling (B2C)</p>
+                    <p className="text-sm font-black text-blue-600">₹{formData.sellingPrice.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-emerald-600 font-bold uppercase">Profit</p>
+                    <p className="text-sm font-black text-emerald-600">
+                      ₹{(formData.sellingPrice - formData.basePrice).toFixed(2)} 
+                      <span className="text-[10px] ml-1">({formData.sellingPrice > 0 ? (((formData.sellingPrice - formData.basePrice) / formData.sellingPrice) * 100).toFixed(1) : 0}%)</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Media Summary */}
               <div className="p-4 rounded-lg border bg-muted/20">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">Media Assets</h3>
                 <div className="flex flex-wrap gap-4">
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Thumbnail</p>
-                    <div className="h-20 w-20 rounded bg-muted border overflow-hidden">
-                      {formData.thumbnailUrl ? (
-                         <img src={formData.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                      ) : <Package className="h-full w-full p-4 text-muted-foreground/30" />}
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Thumbnail</p>
+                      <div className="h-20 w-20 rounded bg-muted border overflow-hidden">
+                        {formData.thumbnailUrl ? (
+                           <img 
+                             src={formData.thumbnailUrl.startsWith('data:') || formData.thumbnailUrl.startsWith('http') ? formData.thumbnailUrl : `${IMAGE_BASE_URL}${formData.thumbnailUrl}`} 
+                             alt="" 
+                             className="h-full w-full object-cover" 
+                           />
+                        ) : <Package className="h-full w-full p-4 text-muted-foreground/30" />}
+                      </div>
                     </div>
-                  </div>
                   {formData.imageUrls && formData.imageUrls.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">Gallery ({formData.imageUrls.length})</p>
                       <div className="flex gap-2">
                          {formData.imageUrls.slice(0, 3).map((url, i) => (
                            <div key={i} className="h-20 w-20 rounded bg-muted border overflow-hidden">
-                             {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+                             {url ? (
+                               <img 
+                                 src={url.startsWith('data:') || url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url}`} 
+                                 alt="" 
+                                 className="h-full w-full object-cover" 
+                               />
+                             ) : null}
                            </div>
                          ))}
                          {formData.imageUrls.length > 3 && (
@@ -726,15 +854,19 @@ export default function AddNewProduct() {
         </div>
       )}
       {/* Stepper */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-muted-foreground/10">
         {steps.map((step, idx) => (
-          <div key={step.id} className="flex items-center">
-            <div className="flex items-center gap-3">
+          <div key={step.id} className="flex items-center group">
+            <button 
+              type="button"
+              onClick={() => setCurrentStep(step.id)}
+              className="flex items-center gap-3 transition-opacity hover:opacity-80 disabled:opacity-50"
+            >
               <div className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
+                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300",
                 currentStep >= step.id
-                  ? "bg-primary border-primary text-primary-foreground"
-                  : "border-muted-foreground/30 text-muted-foreground"
+                  ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110"
+                  : "border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50"
               )}>
                 {currentStep > step.id ? (
                   <Check className="h-5 w-5" />
@@ -742,22 +874,22 @@ export default function AddNewProduct() {
                   <step.icon className="h-5 w-5" />
                 )}
               </div>
-              <div className="hidden md:block">
+              <div className="hidden md:block text-left">
                 <p className={cn(
-                  "text-sm font-medium",
-                  currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
+                  "text-sm font-bold transition-colors",
+                  currentStep >= step.id ? "text-foreground" : "text-muted-foreground group-hover:text-primary/70"
                 )}>
                   {step.title}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {step.description}
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider opacity-60">
+                  {step.description.split(',')[0]}
                 </p>
               </div>
-            </div>
+            </button>
             {idx < steps.length - 1 && (
               <div className={cn(
-                "w-12 lg:w-24 h-0.5 mx-2",
-                currentStep > step.id ? "bg-primary" : "bg-muted"
+                "w-8 lg:w-16 h-[2px] mx-4 rounded-full transition-colors duration-500",
+                currentStep > step.id ? "bg-primary" : "bg-muted-foreground/20"
               )} />
             )}
           </div>
@@ -802,7 +934,7 @@ export default function AddNewProduct() {
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Check className="h-4 w-4 mr-2" />
-                {isSaving ? "Publishing..." : "Publish Product"}
+                {isSaving ? (editingProduct ? "Saving..." : "Publishing...") : (editingProduct ? "Save Changes" : "Publish Product")}
               </Button>
             )}
           </div>

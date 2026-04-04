@@ -48,8 +48,10 @@ import StockPointShareRules from "./pages/commission/StockPointShareRules";
 // Products & Categories Pages
 import AllProducts from "./pages/products/AllProducts";
 import AddNewProduct from "./pages/products/AddNewProduct";
+
 import ProductPricing from "./pages/products/ProductPricing";
 import ProductStatus from "./pages/products/ProductStatus";
+import ProductDetails from "./pages/products/ProductDetails";
 import IssuedProducts from "./pages/products/IssuedProducts";
 import CategoryList from "./pages/categories/CategoryList";
 import ManageCategory from "./pages/categories/ManageCategory";
@@ -93,7 +95,8 @@ import CoreBodyWithdrawalRequest from "./pages/corebody/wallet/WithdrawalRequest
 
 // Users Layout
 import { UsersLayout } from "./components/users/UsersLayoutWrapper";
-import { AllBusinessmen, EntryModeUsers, AdvanceModeUsers, BulkUsers, StockPointList, RolePermissions, FeatureAccessControl } from "./pages/users";
+import { AllUsers, AllBusinessmen, EntryModeUsers, AdvanceModeUsers, BulkUsers, StockPointList, RolePermissions, FeatureAccessControl } from "./pages/users";
+import BusinessmanSettings from "./pages/users/BusinessmanSettings";
 import UserApproval from "./pages/users/UserApproval";
 import AdminProfile from "./pages/admin/AdminProfile";
 import CoreBodyProfile from "./pages/corebody/CoreBodyProfile";
@@ -140,13 +143,13 @@ const App = () => {
       <ThemeProvider>
         <TooltipProvider>
           <CartProvider>
-            <Toaster />
-            <Sonner />
-          {(loading && showSplash) ? (
-            <SplashScreen onComplete={() => setLoading(false)} />
-          ) : (
             <BrowserRouter>
-          <Routes>
+              <Toaster />
+              <Sonner />
+              {(loading && showSplash) ? (
+                <SplashScreen onComplete={() => setLoading(false)} />
+              ) : (
+                <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
@@ -186,6 +189,8 @@ const App = () => {
             <Route path="/admin/products/new" element={<ProductsPageLayout><AddNewProduct /></ProductsPageLayout>} />
             <Route path="/admin/products/pricing" element={<ProductsPageLayout><ProductPricing /></ProductsPageLayout>} />
             <Route path="/admin/products/status" element={<ProductsPageLayout><ProductStatus /></ProductsPageLayout>} />
+            <Route path="/admin/products/:id" element={<ProductsPageLayout><ProductDetails /></ProductsPageLayout>} />
+
             <Route path="/products-issued" element={<IssuedProducts />} />
             
             {/* Service Catalog Routes */}
@@ -209,9 +214,11 @@ const App = () => {
             <Route path="/admin/referral/earnings" element={<UsersLayout><GlobalReferralEarnings /></UsersLayout>} />
 
             {/* Users & Roles Routes */}
+            <Route path="/admin/users" element={<UsersLayout><AllUsers /></UsersLayout>} />
             <Route path="/admin/approval" element={<UsersLayout><UserApproval /></UsersLayout>} />
             <Route path="/admin/users/approval" element={<UsersLayout><UserApproval /></UsersLayout>} />
             <Route path="/admin/users/businessmen" element={<UsersLayout><AllBusinessmen /></UsersLayout>} />
+            <Route path="/admin/users/businessmen/:id/settings" element={<UsersLayout><BusinessmanSettings /></UsersLayout>} />
             <Route path="/admin/users/entry" element={<UsersLayout><EntryModeUsers /></UsersLayout>} />
             <Route path="/admin/users/advance" element={<UsersLayout><AdvanceModeUsers /></UsersLayout>} />
             <Route path="/admin/users/bulk" element={<UsersLayout><BulkUsers /></UsersLayout>} />
@@ -292,9 +299,9 @@ const App = () => {
             {/* Other Routes */}
             <Route path="/businessman/*" element={<BusinessmanDashboard />} />
             <Route path="*" element={<NotFound />} />
-            </Routes>
+                </Routes>
+              )}
             </BrowserRouter>
-          )}
           </CartProvider>
         </TooltipProvider>
       </ThemeProvider>

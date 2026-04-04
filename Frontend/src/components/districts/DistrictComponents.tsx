@@ -70,13 +70,15 @@ export function CapacityBar({ used, max, showLabel = true, size = "md" }: Capaci
 
 // Core Body Type Badge
 interface CoreBodyTypeBadgeProps {
-  type: "A" | "B";
+  type: "A" | "B" | "Dealer";
 }
 
 export function CoreBodyTypeBadge({ type }: CoreBodyTypeBadgeProps) {
   const styles = type === "A" 
     ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
-    : "bg-blue-500/10 text-blue-500 border-blue-500/20";
+    : type === "B"
+      ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+      : "bg-orange-500/10 text-orange-500 border-orange-500/20";
 
   return (
     <span className={cn(

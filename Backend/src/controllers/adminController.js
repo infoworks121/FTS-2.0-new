@@ -3,13 +3,16 @@ const db = require('../config/db');
 const getPendingUsers = async (req, res) => {
     try {
         const result = await db.query(`
-            SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.district_id, u.created_at,
+            SELECT u.id, u.phone, u.email, u.full_name, u.pan_number, u.referral_code, 
+                   r.role_code, u.district_id, u.created_at,
                    d.name as district_name,
-                   bp.mode as businessman_type
+                   bp.mode as businessman_type, bp.business_name, bp.gst_number, bp.advance_amount,
+                   cp.type as core_body_type, cp.investment_amount
             FROM users u
             JOIN user_roles r ON u.role_id = r.id
             LEFT JOIN districts d ON u.district_id = d.id
             LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+            LEFT JOIN core_body_profiles cp ON u.id = cp.user_id
             WHERE u.is_approved = FALSE AND u.role_id != 1
             ORDER BY u.created_at DESC
         `);
@@ -133,4 +136,508 @@ const getAllBusinessmen = async (req, res) => {
     }
 };
 
-module.exports = { getPendingUsers, approveUser, rejectUser, getAllBusinessmen };
+
+const getAllCoreBodies = async (req, res) => {
+    try {
+        const { search, type, district, status } = req.query;
+
+        let query = `
+            SELECT 
+                u.id, u.full_name as name, u.email, u.phone,
+                cb.type, cb.is_active,
+                cb.investment_amount, cb.ytd_earnings, cb.annual_cap,
+                cb.mtd_earnings, cb.monthly_cap,
+                d.name as district, d.id as district_id,
+                u.created_at,
+                u.is_approved,
+                CASE 
+                    WHEN cb.is_active = FALSE THEN 'inactive'
+                    WHEN (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 100 THEN 'cap-reached'
+                    WHEN (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 80 THEN 'warning'
+                    ELSE 'active' 
+                END as status,
+                ROUND((cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100, 1) as cap_usage
+            FROM users u
+            JOIN core_body_profiles cb ON u.id = cb.user_id
+            LEFT JOIN districts d ON cb.district_id = d.id
+        `;
+
+        const params = [];
+        let paramIndex = 1;
+        let whereClauses = [];
+
+        if (search) {
+            whereClauses.push(`(u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex} OR CAST(u.id AS TEXT) ILIKE $${paramIndex})`);
+            params.push(`%${search}%`);
+            paramIndex++;
+        }
+        if (type) {
+            whereClauses.push(`cb.type = $${paramIndex}`);
+            params.push(type);
+            paramIndex++;
+        }
+        if (district) {
+            whereClauses.push(`d.name = $${paramIndex}`);
+            params.push(district);
+            paramIndex++;
+        }
+        if (status) {
+            if (status === 'active') {
+                whereClauses.push(`cb.is_active = TRUE AND (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 < 80`);
+            } else if (status === 'warning') {
+                whereClauses.push(`(cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 80 AND (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 < 100`);
+            } else if (status === 'cap-reached') {
+                whereClauses.push(`(cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 100`);
+            } else if (status === 'inactive') {
+                whereClauses.push(`cb.is_active = FALSE`);
+            }
+        }
+
+        if (whereClauses.length > 0) {
+            query += ' WHERE ' + whereClauses.join(' AND ');
+        }
+
+        query += ` ORDER BY u.created_at DESC`;
+
+        const result = await db.query(query, params);
+
+        // KPI summary
+        const kpiQuery = `
+            SELECT 
+                COUNT(*) as total_core_bodies,
+                COUNT(*) FILTER (WHERE cb.type = 'A') as type_a,
+                COUNT(*) FILTER (WHERE cb.type = 'B') as type_b,
+                COUNT(*) FILTER (WHERE cb.is_active = TRUE) as active,
+                COUNT(*) FILTER (WHERE cb.is_active = FALSE) as inactive,
+                COUNT(*) FILTER (WHERE (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 80) as cap_warning,
+                COALESCE(SUM(cb.investment_amount), 0) as total_investment,
+                COALESCE(SUM(cb.ytd_earnings), 0) as total_earnings
+            FROM core_body_profiles cb
+        `;
+        const kpiResult = await db.query(kpiQuery);
+
+        res.json({
+            coreBodies: result.rows,
+            kpis: kpiResult.rows[0]
+        });
+    } catch (err) {
+        console.error('Get all core bodies error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getCoreBodyById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // 1. Basic Profile & User Info
+        const profileResult = await db.query(`
+            SELECT 
+                u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url, u.is_sph,
+                cb.id as profile_id, cb.type, cb.is_active,
+                cb.investment_amount, cb.installment_count,
+                cb.annual_cap, cb.monthly_cap,
+                cb.ytd_earnings, cb.mtd_earnings,
+                cb.activated_at, cb.created_at,
+                d.name as district, d.id as district_id,
+                s.name as state
+            FROM users u
+            JOIN core_body_profiles cb ON u.id = cb.user_id
+            LEFT JOIN districts d ON cb.district_id = d.id
+            LEFT JOIN states s ON d.state_id = s.id
+            WHERE u.id = $1
+        `, [id]);
+
+        if (profileResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Core Body not found' });
+        }
+
+        const profile = profileResult.rows[0];
+
+        // 2. Businessman Count
+        const businessmanResult = await db.query(`
+            SELECT COUNT(*) as count 
+            FROM businessman_profiles 
+            WHERE assigned_core_body_id = $1
+        `, [profile.profile_id]);
+
+        profile.businessman_count = parseInt(businessmanResult.rows[0].count);
+
+        // 3. Installments
+        const installmentsResult = await db.query(`
+            SELECT * FROM core_body_installments 
+            WHERE core_body_id = $1
+            ORDER BY installment_no ASC
+        `, [profile.profile_id]);
+
+        profile.installments = installmentsResult.rows;
+
+        // 4. Earnings History (Last 12 months)
+        const earningsHistoryResult = await db.query(`
+            SELECT period_label as month, total_earned as amount
+            FROM earnings_summary
+            WHERE user_id = $1 AND period_type = 'monthly'
+            ORDER BY snapshot_at DESC
+            LIMIT 12
+        `, [id]);
+
+        // 5. Recent Activity (Last 20 transactions)
+        const recentActivityResult = await db.query(`
+            SELECT 
+                id, transaction_type as action, amount, 
+                created_at as date, description,
+                CASE 
+                    WHEN transaction_type IN ('earning', 'deposit', 'credit') THEN 'credit'
+                    WHEN transaction_type IN ('withdrawal', 'debit', 'fee') THEN 'debit'
+                    ELSE 'info'
+                END as type
+            FROM wallet_transactions
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT 20
+        `, [id]);
+
+        res.json({
+            profile,
+            earningsHistory: earningsHistoryResult.rows.reverse(),
+            recentActivity: recentActivityResult.rows
+        });
+
+    } catch (err) {
+        console.error('Get core body by ID error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getEntryModeUsers = async (req, res) => {
+    try {
+        // 1. Fetch KPIs
+        const kpiResult = await db.query(`
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(*) FILTER (
+                    WHERE EXISTS (
+                        SELECT 1 FROM user_sessions 
+                        WHERE user_id = businessman_profiles.user_id 
+                        AND user_sessions.created_at > NOW() - INTERVAL '30 days'
+                    )
+                ) as active_users,
+                SUM(commission_earned) as total_earnings,
+                COUNT(*) FILTER (WHERE commission_earned >= 10000) as upgrade_eligible
+            FROM businessman_profiles
+            WHERE mode = 'entry'
+        `);
+
+        // 2. Fetch User List
+        const usersResult = await db.query(`
+            SELECT 
+                u.id, u.full_name as name, u.phone, u.email, u.is_approved,
+                bp.id as profile_id, bp.is_active, bp.commission_earned as earnings,
+                bp.mtd_sales, bp.ytd_sales,
+                COALESCE(ref.full_name, 'Direct') as referral_source,
+                cbu.full_name as linked_hub,
+                (
+                    SELECT MAX(wt.created_at) 
+                    FROM wallet_transactions wt
+                    JOIN wallets uw ON wt.wallet_id = uw.id
+                    WHERE uw.user_id = u.id
+                ) as last_transaction,
+                (
+                    SELECT MAX(user_sessions.created_at) 
+                    FROM user_sessions 
+                    WHERE user_id = u.id
+                ) as last_login_time
+            FROM users u
+            JOIN businessman_profiles bp ON u.id = bp.user_id
+            LEFT JOIN referral_registrations rr ON rr.referred_id = u.id
+            LEFT JOIN users ref ON rr.referrer_id = ref.id
+            LEFT JOIN core_body_profiles cbp ON bp.assigned_core_body_id = cbp.id
+            LEFT JOIN users cbu ON cbp.user_id = cbu.id
+            WHERE bp.mode = 'entry'
+            ORDER BY u.created_at DESC
+        `);
+
+        res.json({
+            kpis: {
+                totalUsers: parseInt(kpiResult.rows[0].total_users || 0),
+                activeUsers: parseInt(kpiResult.rows[0].active_users || 0),
+                totalEarnings: parseFloat(kpiResult.rows[0].total_earnings || 0),
+                upgradeEligible: parseInt(kpiResult.rows[0].upgrade_eligible || 0)
+            },
+            users: usersResult.rows.map(row => {
+                const now = new Date();
+                const lastLogin = row.last_login_time ? new Date(row.last_login_time) : null;
+                const inactivityDays = lastLogin 
+                    ? Math.floor((now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24))
+                    : 999;
+
+                // Determine effective status
+                let status = 'active';
+                if (!row.is_approved) {
+                    status = 'pending';
+                } else if (!row.is_active) {
+                    status = 'suspended';
+                } else if (inactivityDays > 30) {
+                    status = 'inactive';
+                }
+
+                return {
+                    id: row.id,
+                    name: row.name,
+                    phone: row.phone,
+                    email: row.email,
+                    earnings: parseFloat(row.earnings || 0),
+                    status,
+                    referralSource: row.referral_source,
+                    linkedHub: row.linked_hub,
+                    lastTransaction: row.last_transaction,
+                    inactivityDays,
+                    isUpgradeEligible: parseFloat(row.earnings || 0) >= 10000
+                };
+            })
+        });
+
+    } catch (err) {
+        console.error('Get entry mode users error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getBusinessmanById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // 1. Basic User & Businessman Profile Info
+        const profileResult = await db.query(`
+            SELECT 
+                u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url, u.is_approved, u.is_sph,
+                bp.id as profile_id, bp.type, bp.mode, bp.is_active,
+                bp.business_name, bp.business_address, bp.gst_number, bp.pan_number,
+                bp.bank_account, bp.ifsc_code,
+                bp.advance_amount, bp.assigned_core_body_id,
+                bp.monthly_target, bp.ytd_sales, bp.mtd_sales, bp.commission_earned,
+                bp.created_at, bp.updated_at,
+                d.name as district, d.id as district_id,
+                cbu.full_name as linked_hub_name
+            FROM users u
+            JOIN user_roles r ON u.role_id = r.id
+            JOIN businessman_profiles bp ON u.id = bp.user_id
+            LEFT JOIN districts d ON bp.district_id = d.id
+            LEFT JOIN core_body_profiles cbp ON bp.assigned_core_body_id = cbp.id
+            LEFT JOIN users cbu ON cbp.user_id = cbu.id
+            WHERE u.id = $1 AND r.role_code = 'businessman'
+        `, [id]);
+
+        if (profileResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Businessman not found' });
+        }
+
+        const profile = profileResult.rows[0];
+
+        // 2. If it's a Stock Point, get extra info
+        if (profile.mode === 'stock_point' || profile.type === 'stock_point') {
+            const stockPointResult = await db.query(`
+                SELECT storage_capacity, min_inventory_value, warehouse_address, sla_score
+                FROM stock_point_profiles
+                WHERE businessman_id = $1
+            `, [profile.profile_id]);
+
+            if (stockPointResult.rows.length > 0) {
+                const sp = stockPointResult.rows[0];
+                profile.storage_capacity = sp.storage_capacity;
+                profile.min_inventory_value = sp.min_inventory_value;
+                profile.warehouse_address = sp.warehouse_address;
+                profile.sla_score = sp.sla_score;
+            }
+        }
+
+        res.json({ profile });
+    } catch (err) {
+        console.error('Get businessman by ID error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const updateBusinessmanSettings = async (req, res) => {
+    const { id } = req.params;
+    const { 
+        name, email, phone, status, mode, district_id,
+        business_name, business_address, gst_number, pan_number,
+        bank_account, ifsc_code, monthly_target, advance_amount,
+        storage_capacity, min_inventory_value, warehouse_address, is_sph
+    } = req.body;
+
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // 1. Update User Table
+        const is_approved = status === 'active' || status === 'inactive'; 
+        
+        let user_is_active = true;
+        let user_is_approved = true;
+        
+        if (status === 'suspended') {
+            user_is_active = false;
+        } else if (status === 'pending') {
+            user_is_approved = false;
+        }
+
+        await client.query(`
+            UPDATE users 
+            SET full_name = COALESCE($1, full_name),
+                email = COALESCE($2, email),
+                phone = COALESCE($3, phone),
+                is_approved = $4,
+                is_sph = $5,
+                updated_at = NOW()
+            WHERE id = $6
+        `, [name, email, phone, user_is_approved, is_sph, id]);
+
+        // 2. Update Businessman Profile
+        const bp_is_active = status !== 'suspended' && status !== 'inactive';
+
+        await client.query(`
+            UPDATE businessman_profiles 
+            SET mode = COALESCE($1, mode),
+                type = COALESCE($1, type),
+                district_id = COALESCE($2, district_id),
+                business_name = COALESCE($3, business_name),
+                business_address = COALESCE($4, business_address),
+                gst_number = COALESCE($5, gst_number),
+                pan_number = COALESCE($6, pan_number),
+                bank_account = COALESCE($7, bank_account),
+                ifsc_code = COALESCE($8, ifsc_code),
+                monthly_target = COALESCE($9, monthly_target),
+                advance_amount = COALESCE($10, advance_amount),
+                is_active = $11,
+                updated_at = NOW()
+            WHERE user_id = $12
+        `, [
+            mode, district_id, business_name, business_address, gst_number, 
+            pan_number, bank_account, ifsc_code, monthly_target, advance_amount,
+            bp_is_active, id
+        ]);
+
+        // 3. Update Stock Point Profile if mode/type is stock_point
+        if (mode === 'stock_point') {
+            const bpResult = await client.query('SELECT id FROM businessman_profiles WHERE user_id = $1', [id]);
+            const bpId = bpResult.rows[0].id;
+
+            await client.query(`
+                INSERT INTO stock_point_profiles (businessman_id, district_id, storage_capacity, min_inventory_value, warehouse_address)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (businessman_id) DO UPDATE SET
+                    storage_capacity = EXCLUDED.storage_capacity,
+                    min_inventory_value = EXCLUDED.min_inventory_value,
+                    warehouse_address = EXCLUDED.warehouse_address,
+                    district_id = EXCLUDED.district_id
+            `, [bpId, district_id, storage_capacity, min_inventory_value, warehouse_address]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Businessman settings updated successfully' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Update businessman settings error:', err);
+        res.status(500).json({ message: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+const getAllUsers = async (req, res) => {
+    try {
+        const { search, role, status } = req.query;
+
+        let query = `
+            SELECT 
+                u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url,
+                u.is_approved, u.is_sph, u.created_at,
+                r.role_code as role, r.role_label as role_name,
+                CASE 
+                    WHEN u.is_approved = TRUE THEN 'active'
+                    ELSE 'pending'
+                END as status
+            FROM users u
+            JOIN user_roles r ON u.role_id = r.id
+            WHERE r.role_code != 'admin'
+        `;
+
+        const params = [];
+        let paramIndex = 1;
+
+        if (search) {
+            query += ` AND (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex} OR u.phone ILIKE $${paramIndex} OR CAST(u.id AS TEXT) ILIKE $${paramIndex})`;
+            params.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        if (role && role !== 'all') {
+            query += ` AND r.role_code = $${paramIndex}`;
+            params.push(role);
+            paramIndex++;
+        }
+
+        if (status && status !== 'all') {
+            if (status === 'active') {
+                query += ` AND u.is_approved = TRUE`;
+            } else if (status === 'pending') {
+                query += ` AND u.is_approved = FALSE`;
+            }
+        }
+
+        query += ` ORDER BY u.created_at DESC`;
+
+        const result = await db.query(query, params);
+
+        // KPI summary
+        const kpiResult = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE u.is_approved = TRUE) as active,
+                COUNT(*) FILTER (WHERE u.is_approved = FALSE) as pending,
+                COUNT(*) FILTER (WHERE u.is_sph = TRUE) as sph_active
+            FROM users u
+            JOIN user_roles r ON u.role_id = r.id
+            WHERE r.role_code != 'admin'
+        `);
+
+        res.json({
+            users: result.rows,
+            kpis: kpiResult.rows[0]
+        });
+    } catch (err) {
+        console.error('Get all users error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const updateUserSPHStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_sph } = req.body;
+
+        await db.query('UPDATE users SET is_sph = $1, updated_at = NOW() WHERE id = $2', [is_sph, id]);
+
+        res.json({ message: 'User SPH status updated successfully' });
+    } catch (err) {
+        console.error('Update user SPH status error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+module.exports = { 
+    getPendingUsers, 
+    approveUser, 
+    rejectUser, 
+    getAllBusinessmen, 
+    getAllCoreBodies,
+    getCoreBodyById,
+    getEntryModeUsers,
+    getBusinessmanById,
+    updateBusinessmanSettings,
+    getAllUsers,
+    updateUserSPHStatus
+};

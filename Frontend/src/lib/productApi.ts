@@ -40,7 +40,11 @@ export const productApi = {
       category_id: data.categoryId,
       product_type: data.type,
       base_price: data.basePrice,
-      cost_price: data.costPrice,
+      mrp: data.mrp,
+      selling_price: data.sellingPrice,
+      bulk_price: data.bulkPrice,
+      admin_margin_pct: data.adminMarginPct,
+      profit_channel: data.profitChannel,
       min_margin_percent: data.minMarginPercent,
       stock_required: data.stockRequired,
       stock_quantity: data.stockQuantity ?? 0,
@@ -63,7 +67,11 @@ export const productApi = {
     if (data.categoryId !== undefined) payload.category_id = data.categoryId;
     if (data.type !== undefined) payload.product_type = data.type;
     if (data.basePrice !== undefined) payload.base_price = data.basePrice;
-    if (data.costPrice !== undefined) payload.cost_price = data.costPrice;
+    if (data.mrp !== undefined) payload.mrp = data.mrp;
+    if (data.sellingPrice !== undefined) payload.selling_price = data.sellingPrice;
+    if (data.bulkPrice !== undefined) payload.bulk_price = data.bulkPrice;
+    if (data.adminMarginPct !== undefined) payload.admin_margin_pct = data.adminMarginPct;
+    if (data.profitChannel !== undefined) payload.profit_channel = data.profitChannel;
     if (data.minMarginPercent !== undefined) payload.min_margin_percent = data.minMarginPercent;
     if (data.stockRequired !== undefined) payload.stock_required = data.stockRequired;
     if (data.stockQuantity !== undefined) payload.stock_quantity = data.stockQuantity;
@@ -80,6 +88,12 @@ export const productApi = {
   // Delete (archive) product
   delete: async (id: string) => {
     const res = await api.delete(`/catalog/admin/products/${id}`);
+    return res.data;
+  },
+  
+  // Toggle product status (active/inactive)
+  toggleStatus: async (id: string) => {
+    const res = await api.patch(`/catalog/admin/products/${id}/toggle-status`);
     return res.data;
   },
 

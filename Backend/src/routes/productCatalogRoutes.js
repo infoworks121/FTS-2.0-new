@@ -18,6 +18,7 @@ router.get('/admin/products', protect, adminOnly, productCatalogController.getAd
 router.get('/admin/products/:id', protect, adminOnly, productCatalogController.getAdminProductById);
 router.post('/admin/products', protect, adminOnly, productCatalogController.createAdminProduct);
 router.put('/admin/products/:id', protect, adminOnly, productCatalogController.updateAdminProduct);
+router.patch('/admin/products/:id/toggle-status', protect, adminOnly, productCatalogController.toggleAdminProductStatus);
 router.delete('/admin/products/:id', protect, adminOnly, productCatalogController.deleteAdminProduct);
 
 // Pricing — admin only

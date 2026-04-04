@@ -25,6 +25,7 @@ import {
 import { Product } from "@/types/product";
 import { ProductStatusBadge } from "./ProductStatusBadge";
 import { ProductTypeBadgeDark } from "./ProductTypeBadge";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
 interface ProductCardProps {
   product: Product;
@@ -62,26 +63,34 @@ export function ProductCard({
     <Card className="group hover:shadow-lg transition-all duration-200 border-border/50 hover:border-primary/20">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+          <button 
+            className="flex items-center gap-3 flex-1 min-w-0 group"
+            onClick={() => onView?.(product)}
+            title="Click to view details"
+          >
             {/* Thumbnail */}
-            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center border overflow-hidden">
+            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center border overflow-hidden shrink-0 group-hover:border-primary/50 transition-colors">
               {product.thumbnail_url ? (
-                <img src={product.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                <img 
+                  src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
+                  alt="" 
+                  className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300" 
+                />
               ) : (
                 <Package className="h-6 w-6 text-muted-foreground" />
               )}
             </div>
             
             {/* Title & SKU */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground truncate">
+            <div className="flex-1 min-w-0 text-left">
+              <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                 {product.name}
               </h3>
               <p className="text-xs text-muted-foreground">
                 SKU: {product.sku}
               </p>
             </div>
-          </div>
+          </button>
           
           {/* Actions Menu */}
           <DropdownMenu>
