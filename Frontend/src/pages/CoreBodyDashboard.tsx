@@ -53,13 +53,44 @@ const dealers = [
   { name: "Mehta Supply", zone: "Zone B", orders: 58, revenue: "₹2.1L", status: "cap-reached" as const },
 ];
 
+import { coreBodyApi } from "@/lib/coreBodyApi";
+
 export default function CoreBodyDashboard() {
   const [userName, setUserName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setUserName(user.full_name || 'Core Body');
+
+    const fetchDash = async () => {
+      try {
+        setLoading(true);
+        const res = await coreBodyApi.getMyDashboard();
+        setStats(res.stats);
+      } catch (err) {
+        console.error("Failed to load dashboard stats", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDash();
   }, []);
+
+  const totalEarnings = stats ? parseFloat(stats.earnings?.ytd || 0) : 184200;
+  const monthlyEarnings = stats ? parseFloat(stats.earnings?.mtd || 0) : 84200;
+  const annualCap = stats ? parseFloat(stats.earnings?.annual_cap || 2500000) : 250000;
+  const monthlyCap = stats ? parseFloat(stats.earnings?.monthly_cap || stats.investment?.total_amount || 500000) : 50000;
+  
+  const isTypeA = stats?.profile?.type === 'A';
+  
+  // Decide which tracker to show
+  const activeEarnings = isTypeA ? totalEarnings : monthlyEarnings;
+  const activeCap = isTypeA ? annualCap : monthlyCap;
+  const capLabel = isTypeA ? "Annual Cap" : "Monthly Cap";
+  const typeStr = stats?.profile?.type ? `Type ${stats.profile.type}` : "Type A";
+  const distName = stats?.profile?.district_name || "North";
 
   return (
     <DashboardLayout role="corebody" navItems={navItems as any} roleLabel="Core Body — District North">
@@ -78,15 +109,15 @@ export default function CoreBodyDashboard() {
             <CardContent className="space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">District</span>
-                <span className="font-medium">North</span>
+                <span className="font-medium">{distName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Core Body Type</span>
-                <span className="font-medium">Type A</span>
+                <span className="font-medium">{typeStr}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Active Since</span>
-                <span className="font-medium">Jan 2024</span>
+                <span className="font-medium">{stats?.profile?.activated_at ? new Date(stats.profile.activated_at).toLocaleDateString() : "Pending"}</span>
               </div>
             </CardContent>
           </Card>
@@ -102,14 +133,16 @@ export default function CoreBodyDashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Current</span>
-                  <span className="font-mono font-medium">₹1,84,200</span>
+                  <span className="font-mono font-medium">₹{activeEarnings.toLocaleString('en-IN')}</span>
                 </div>
-                <CapProgressBar current={184200} max={250000} label="Monthly Cap" />
+                <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Cap Limit</span>
-                  <span className="font-mono">₹2,50,000</span>
+                  <span className="font-mono">₹{activeCap.toLocaleString('en-IN')}</span>
                 </div>
-                <Badge variant="secondary" className="w-full justify-center text-xs">73.7% utilized</Badge>
+                <Badge variant={stats?.earnings?.cap_hit ? "destructive" : "secondary"} className="w-full justify-center text-xs">
+                   {stats?.earnings?.cap_hit ? "CAP LIMIT EXCEEDED" : `${((activeEarnings / activeCap) * 100).toFixed(1)}% utilized`}
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -159,7 +192,7 @@ export default function CoreBodyDashboard() {
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard title="Total Earnings" value="₹1,84,200" change="+18.2%" changeType="positive" icon={DollarSign} variant="profit" />
+          <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
           <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
           <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
           <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
@@ -169,9 +202,9 @@ export default function CoreBodyDashboard() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-lg border border-border bg-card p-5 space-y-5">
             <h3 className="text-sm font-semibold text-card-foreground">Cap & Limits</h3>
-            <CapProgressBar current={184200} max={250000} label="Monthly Earnings Cap" />
-            <CapProgressBar current={45} max={50} label="Businessman Slots" />
-            <CapProgressBar current={12} max={15} label="Active Dealer Limit" />
+            <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
+            <CapProgressBar current={45} max={50} label="Businessman Slots (Demo)" />
+            <CapProgressBar current={12} max={15} label="Active Dealer Limit (Demo)" />
             <div className="mt-4 rounded-md bg-muted p-3">
               <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
               <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>

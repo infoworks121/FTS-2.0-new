@@ -334,7 +334,7 @@ exports.createB2COrder = async (req, res) => {
       [newOrder.id, user.id]
     );
 
-    // 4. Auto Assignment Engine (Find nearest stock point)
+    // 4. Auto Assignment Engine (Find nearest stock point with FULL inventory)
     let assignedStockPoint = null;
     if (district_id) {
        // Query Stock Points in the same district that have SLA score > 50
@@ -346,10 +346,54 @@ exports.createB2COrder = async (req, res) => {
          [district_id]
        );
 
-       // Simple logic: Just pick the Stock Point with the highest SLA score for now
-       // (A full system would verify stock for ALL items in the order before assigning)
-       if (spsResult.rows.length > 0) {
-         assignedStockPoint = spsResult.rows[0];
+       // Check Inventory per Stock Point sequentially
+       for (const sp of spsResult.rows) {
+          let hasFullStock = true;
+          const lockedRows = [];
+
+          for (const item of orderItemsData) {
+             // Check specific entity's stock availability
+             const invRes = await client.query(
+               `SELECT id, quantity_on_hand, quantity_reserved 
+                FROM inventory_balances 
+                WHERE entity_type = 'stock_point' AND entity_id = $1 
+                  AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3)
+                FOR UPDATE`,
+               [sp.id, item.product_id, item.variant_id]
+             );
+
+             if (invRes.rows.length === 0) {
+                hasFullStock = false;
+                break; // Missing product completely
+             }
+
+             const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+             if (available < item.quantity) {
+                hasFullStock = false;
+                break; // Insufficient product quantity
+             }
+
+             // Validly held product -> queue for reservation
+             lockedRows.push({
+                 id: invRes.rows[0].id,
+                 quantity: item.quantity
+             });
+          }
+
+          if (hasFullStock) {
+             assignedStockPoint = sp;
+             
+             // Commit Reservations
+             for (const lock of lockedRows) {
+                await client.query(
+                  `UPDATE inventory_balances 
+                   SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() 
+                   WHERE id = $2`,
+                  [lock.quantity, lock.id]
+                );
+             }
+             break; // Successful routing. Cease scanning.
+          }
        }
     }
 

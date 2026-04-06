@@ -39,7 +39,52 @@ const dealerPerformanceData = [
   { dealer: "Singh & Co", orders: "0", volume: "₹0", sla: "—", status: "Inactive" },
 ];
 
+import { useState, useEffect } from "react";
+import { walletApi } from "@/lib/walletApi";
+import { orderApi } from "@/lib/orderApi";
+
 export default function Reports() {
+  const [earningsList, setEarningsList] = useState<any[]>([]);
+  const [orderList, setOrderList] = useState<any[]>([]);
+  
+  useEffect(() => {
+    let isMounted = true;
+    const fetchReports = async () => {
+      try {
+        const txns = await walletApi.getMyTransactions();
+        const mappedTxns = (txns.transactions || []).map((t: any) => ({
+          date: new Date(t.created_at).toLocaleDateString(),
+          source: t.source_type,
+          amount: `₹${parseFloat(t.amount || 0).toLocaleString('en-IN')}`,
+          capImpact: "N/A",
+          wallet: "Main"
+        }));
+        
+        if (isMounted) setEarningsList(mappedTxns);
+
+        try {
+           const myOrders = await orderApi.getMyOrders();
+           const oList = myOrders.orders || myOrders || [];
+           const mappedOrders = oList.map((o: any) => ({
+             orderId: o.order_number || o.id?.substring(0,8),
+             type: o.order_type || 'Unknown',
+             status: o.status,
+             value: `₹${parseFloat(o.total_amount || 0).toLocaleString('en-IN')}`,
+             date: new Date(o.created_at).toLocaleDateString()
+           }));
+           if (isMounted) setOrderList(mappedOrders);
+        } catch (e) {
+           console.error("Order fetch failed: ", e);
+        }
+
+      } catch (err) {
+        console.error("Failed to load reports", err);
+      }
+    };
+    fetchReports();
+    return () => { isMounted = false; };
+  }, []);
+
   return (
     <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body — District North">
       <div className="space-y-6">
@@ -124,11 +169,13 @@ export default function Reports() {
                 { header: "Cap Impact", accessor: "capImpact", className: "font-mono text-xs" },
                 { header: "Wallet Type", accessor: "wallet" },
               ]}
-              data={earningsData}
+              data={earningsList.length > 0 ? earningsList : earningsData}
             />
             <div className="mt-4 p-3 rounded-md bg-muted flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Total Earnings (Period)</span>
-              <span className="font-mono font-bold text-lg">₹57,200</span>
+              <span className="text-muted-foreground">Total Displayed</span>
+              <span className="font-mono font-bold text-lg">
+                 {earningsList.length > 0 ? `${earningsList.length} Transactions` : "Demo Mode"}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -202,7 +249,7 @@ export default function Reports() {
                 { header: "Value", accessor: "value", className: "font-mono font-medium" },
                 { header: "Date", accessor: "date", className: "font-mono text-xs" },
               ]}
-              data={orderData}
+              data={orderList.length > 0 ? orderList : orderData}
             />
           </CardContent>
         </Card>

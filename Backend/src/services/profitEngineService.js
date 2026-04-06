@@ -13,7 +13,7 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
 
     // 1. Fetch Order Details & Items
     const orderResult = await client.query(`
-      SELECT o.id, o.order_type, o.status, o.total_profit, o.customer_id,
+      SELECT o.id, o.order_type, o.status, o.total_profit, o.customer_id, o.district_id,
              (CASE WHEN o.order_type = 'B2C' THEN fa.fulfiller_id ELSE NULL END) as stock_point_id
       FROM orders o
       LEFT JOIN fulfillment_assignments fa ON fa.order_id = o.id AND fa.fulfiller_type = 'stock_point'
@@ -178,16 +178,126 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
       );
 
       // Log Company Pool & Reserve
-      const coreBodyShare = (poolAmount * 70) / 100;
-      const reserveShare = (poolAmount * 30) / 100;
+      let coreBodyShare = (poolAmount * 70) / 100;
+      let reserveShare = (poolAmount * 30) / 100;
+
+      // Determine district of the order, fallback to customer's district
+      let targetDistrictId = order.district_id;
+      if (!targetDistrictId) {
+         const custRes = await client.query('SELECT district_id FROM users WHERE id = $1', [order.customer_id]);
+         if (custRes.rows.length > 0) targetDistrictId = custRes.rows[0].district_id;
+      }
       
-      await client.query(
-        `INSERT INTO company_pool_log (distribution_id, total_pool_amount, core_body_share, reserve_share, allocated)
-         VALUES ($1, $2, $3, $4, false)`,
+      const poolLogRes = await client.query(
+        `INSERT INTO company_pool_log (distribution_id, total_pool_amount, core_body_share, reserve_share, allocated, allocated_at)
+         VALUES ($1, $2, $3, $4, true, NOW()) RETURNING id`,
         [distLogId, poolAmount, coreBodyShare, reserveShare]
       );
 
-      // Log Reserve Fund
+      // Distribute to Core Body Members in the target district
+      let fallbackToReserve = false;
+      if (targetDistrictId) {
+         const coreBodiesRes = await client.query(
+            `SELECT cb.id, cb.user_id, cb.type, cb.investment_amount, cb.annual_cap, cb.monthly_cap, cb.ytd_earnings, cb.mtd_earnings 
+             FROM core_body_profiles cb 
+             WHERE cb.district_id = $1 AND cb.is_active = true AND cb.type IN ('A', 'B') FOR UPDATE`,
+            [targetDistrictId]
+         );
+
+         const cbMembers = coreBodiesRes.rows;
+         if (cbMembers.length > 0) {
+            const perMemberShare = coreBodyShare / cbMembers.length;
+            let totalUnallocatedExcess = 0;
+
+            for (const cb of cbMembers) {
+               let capHit = false;
+               let awardedAmount = perMemberShare;
+               let excessAmount = 0;
+               let currentYtd = parseFloat(cb.ytd_earnings || 0);
+               let currentMtd = parseFloat(cb.mtd_earnings || 0);
+
+               if (cb.type === 'A') {
+                  // Type A: Annual Cap (Default 25 Lakh)
+                  const annCap = parseFloat(cb.annual_cap || 2500000);
+                  if ((currentYtd + perMemberShare) > annCap) {
+                     awardedAmount = Math.max(0, annCap - currentYtd);
+                     excessAmount = perMemberShare - awardedAmount;
+                     capHit = true;
+                  }
+               } else if (cb.type === 'B') {
+                  // Type B: Monthly Cap (Default to investment_amount)
+                  const monCap = parseFloat(cb.monthly_cap || cb.investment_amount || 0);
+                  if ((currentMtd + perMemberShare) > monCap) {
+                     awardedAmount = Math.max(0, monCap - currentMtd);
+                     excessAmount = perMemberShare - awardedAmount;
+                     capHit = true;
+                  }
+               }
+
+               // Credit Wallet
+               if (awardedAmount > 0) {
+                  await walletService.creditWallet(
+                     cb.user_id, 'main', awardedAmount, 'B2B_Core_Body_Share', orderId, 
+                     `Company Pool Share from B2B order ${orderId}`, client
+                  );
+                  await addLineItem('core_body', awardedAmount, (companyPoolPct * 0.7) / cbMembers.length);
+                  
+                  // Update Distribution Line Item exact recipient
+                  await client.query(
+                    `UPDATE distribution_line_items 
+                     SET recipient_id = $1 
+                     WHERE id = (SELECT id FROM distribution_line_items WHERE distribution_id = $2 AND recipient_type = 'core_body' ORDER BY id DESC LIMIT 1)`,
+                    [cb.user_id, distLogId]
+                  );
+               }
+
+               // Keep Reserve Fund Overflow Tracking
+               if (excessAmount > 0) {
+                  totalUnallocatedExcess += excessAmount;
+                  await client.query(
+                     `INSERT INTO cap_enforcement_log (user_id, distribution_id, cap_type, cap_amount, earned_before_cap, awarded_amount, excess_amount, period_label)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                     [
+                        cb.user_id, distLogId, cb.type === 'A' ? 'annual' : 'monthly', 
+                        cb.type === 'A' ? (cb.annual_cap || 2500000) : (cb.monthly_cap || cb.investment_amount || 0),
+                        cb.type === 'A' ? currentYtd : currentMtd, awardedAmount, excessAmount, 
+                        cb.type === 'A' ? new Date().getFullYear().toString() : (new Date().getMonth()+1).toString()
+                     ]
+                  );
+               }
+
+               // Update Profile
+               await client.query(
+                  `UPDATE core_body_profiles 
+                   SET ytd_earnings = ytd_earnings + $1, 
+                       mtd_earnings = mtd_earnings + $1, 
+                       cap_hit_flag = CASE WHEN $2 = true THEN true ELSE cap_hit_flag END,
+                       updated_at = NOW()
+                   WHERE id = $3`,
+                  [awardedAmount, capHit, cb.id]
+               );
+            }
+
+            if (totalUnallocatedExcess > 0) {
+               reserveShare += totalUnallocatedExcess; // Overflow goes to reserve
+            }
+
+         } else {
+            fallbackToReserve = true;
+         }
+      } else {
+         fallbackToReserve = true;
+      }
+
+      if (fallbackToReserve) {
+         // entire coreBodyShare moves to reserve if no core body exists in district
+         reserveShare += coreBodyShare;
+         
+         // Update Pool Log to reflect changed reserve share due to fallback
+         await client.query(`UPDATE company_pool_log SET core_body_share = 0, reserve_share = $1 WHERE id = $2`, [reserveShare, poolLogRes.rows[0].id]);
+      }
+
+      // Log Reserve Fund (including overflowing standard share, plus base 30% share)
       await client.query(
         `INSERT INTO reserve_fund_log (source_type, source_ref_id, credit_amount, balance_after, note)
          VALUES ('B2B_Order', $1, $2, 
