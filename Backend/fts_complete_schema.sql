@@ -490,6 +490,7 @@ CREATE TABLE service_catalog (
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- NOTE: Subscription plans are for FUTURE IMPLEMENTATION and NOT active in the current phase.
 CREATE TABLE subscription_plans (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id          UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,

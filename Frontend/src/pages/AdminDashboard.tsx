@@ -38,40 +38,33 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { sidebarNavItems } from "@/config/sidebarConfig";
+import { adminApi, AdminDashboardStats } from "@/lib/adminApi";
 
-const profitData = [
-  { month: "Jan", revenue: 420000, commission: 38000, trust: 15000 },
-  { month: "Feb", revenue: 510000, commission: 45000, trust: 18000 },
-  { month: "Mar", revenue: 490000, commission: 42000, trust: 17000 },
-  { month: "Apr", revenue: 620000, commission: 55000, trust: 22000 },
-  { month: "May", revenue: 580000, commission: 51000, trust: 20000 },
-  { month: "Jun", revenue: 710000, commission: 63000, trust: 25000 },
-];
-
-const districtData = [
-  { name: "North", businessmen: 45, orders: 1230, revenue: "₹4.2L" },
-  { name: "South", businessmen: 38, orders: 980, revenue: "₹3.5L" },
-  { name: "East", businessmen: 52, orders: 1450, revenue: "₹5.1L" },
-  { name: "West", businessmen: 41, orders: 1100, revenue: "₹3.9L" },
-];
-
-const recentActivity = [
-  { id: "TXN-4521", type: "Withdrawal", user: "Ramesh K.", amount: "₹15,000", status: "pending" as const, time: "2 min ago" },
-  { id: "TXN-4520", type: "Commission", user: "District North", amount: "₹8,200", status: "active" as const, time: "15 min ago" },
-  { id: "TXN-4519", type: "Fraud Alert", user: "Unknown", amount: "₹52,000", status: "warning" as const, time: "1 hr ago" },
-  { id: "TXN-4518", type: "Order", user: "Suresh M.", amount: "₹3,400", status: "active" as const, time: "2 hr ago" },
-  { id: "TXN-4517", type: "Suspension", user: "Dealer X", amount: "—", status: "suspended" as const, time: "3 hr ago" },
-];
+// Static fallbacks removed - handled in state initialization or fetching logic
 
 
 
 export default function AdminDashboard() {
   const { theme } = useTheme();
   const [userName, setUserName] = useState('');
+  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setUserName(user.full_name || 'Admin');
+
+    const fetchStats = async () => {
+      try {
+        const data = await adminApi.getDashboardStats();
+        setStats(data);
+      } catch (err) {
+        console.error("Failed to load dashboard stats", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
   }, []);
   
   // Theme-aware chart colors
@@ -100,10 +93,38 @@ export default function AdminDashboard() {
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard title="Total Revenue" value="₹27.1L" change="+12.3%" changeType="positive" icon={TrendingUp} variant="profit" />
-          <KPICard title="Trust Fund" value="₹4.8L" change="+5.1%" changeType="positive" icon={DollarSign} variant="trust" subtitle="Reserve: ₹2.1L" />
-          <KPICard title="Active Districts" value="18 / 20" icon={Building2} variant="cap" subtitle="2 slots available" />
-          <KPICard title="Fraud Alerts" value="3" change="+2" changeType="negative" icon={AlertTriangle} variant="warning" />
+          <KPICard 
+            title="Total Revenue" 
+            value={isLoading ? "Loading..." : `₹${(parseFloat(stats?.kpis?.total_revenue?.toString() || '0') / 100000).toFixed(1)}L`} 
+            change="+12.3%" 
+            changeType="positive" 
+            icon={TrendingUp} 
+            variant="profit" 
+          />
+          <KPICard 
+            title="Trust Fund" 
+            value={isLoading ? "Loading..." : `₹${(parseFloat(stats?.kpis?.trust_fund?.toString() || '0') / 100000).toFixed(1)}L`} 
+            change="+5.1%" 
+            changeType="positive" 
+            icon={DollarSign} 
+            variant="trust" 
+            subtitle="Reserve: ₹2.1L" 
+          />
+          <KPICard 
+            title="Active Districts" 
+            value={isLoading ? "Loading..." : `${stats?.kpis?.active_districts || 0} / 20`} 
+            icon={Building2} 
+            variant="cap" 
+            subtitle="Live coverage" 
+          />
+          <KPICard 
+            title="Fraud Alerts" 
+            value={isLoading ? "Loading..." : (stats?.kpis?.fraud_alerts || 0).toString()} 
+            change={stats?.kpis?.fraud_alerts && stats.kpis.fraud_alerts > 0 ? "+"+stats.kpis.fraud_alerts : "0"} 
+            changeType="negative" 
+            icon={ShieldAlert} 
+            variant="warning" 
+          />
         </div>
 
         {/* Charts */}
@@ -111,7 +132,7 @@ export default function AdminDashboard() {
           <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5 transition-colors duration-300">
             <h3 className="text-sm font-semibold text-card-foreground mb-4">Profit Flow</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={profitData}>
+              <AreaChart data={stats?.profitData || []}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={chartColors.profitGradient} stopOpacity={0.3} />
@@ -135,7 +156,7 @@ export default function AdminDashboard() {
           <div className="rounded-lg border border-border bg-card p-5 transition-colors duration-300">
             <h3 className="text-sm font-semibold text-card-foreground mb-4">District Activity</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={districtData}>
+              <BarChart data={stats?.districtData || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                 <XAxis dataKey="name" stroke={chartColors.axis} fontSize={11} />
                 <YAxis stroke={chartColors.axis} fontSize={11} />
@@ -157,7 +178,7 @@ export default function AdminDashboard() {
             { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
             { header: "Time", accessor: "time", className: "text-muted-foreground text-xs" },
           ]}
-          data={recentActivity}
+          data={stats?.recentActivity || []}
         />
       </div>
     </DashboardLayout>

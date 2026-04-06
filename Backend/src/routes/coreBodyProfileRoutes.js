@@ -5,7 +5,8 @@ const {
   getCoreBodyProfile,
   updateCoreBodyProfile,
   getCoreBodyDashboard,
-  payInstallment
+  payInstallment,
+  getCoreBodyReports
 } = require('../controllers/coreBodyProfileController');
 
 // Core Body profile routes
@@ -13,5 +14,6 @@ router.get('/profile', protect, getCoreBodyProfile);
 router.put('/profile', protect, updateCoreBodyProfile);
 router.get('/dashboard', protect, getCoreBodyDashboard);
 router.post('/installment/pay', protect, payInstallment);
+router.get('/reports', protect, getCoreBodyReports);
 
 module.exports = router;

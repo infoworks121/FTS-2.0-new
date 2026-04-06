@@ -23,6 +23,7 @@ router.delete('/admin/products/:id', protect, adminOnly, productCatalogControlle
 
 // Pricing — admin only
 router.put('/pricing', protect, adminOnly, productCatalogController.updatePricing);
+router.get('/products/:id/price-history', protect, adminOnly, productCatalogController.getPriceHistory);
 
 // Stock Issue — admin, core_body_a, core_body_b, dealer (if approved), businessman (stock_point only)
 router.post('/stock/issue', protect, canIssueStock, productCatalogController.issueStock);
@@ -37,7 +38,9 @@ router.get('/dealer/permissions', protect, adminOnly, productCatalogController.g
 
 // Services
 router.get('/services', productCatalogController.getServices);
+router.get('/services/:id', productCatalogController.getServiceById);
 router.post('/services', protect, adminOnly, productCatalogController.createService);
+router.put('/services/:id', protect, adminOnly, productCatalogController.updateService);
 
 // Subscription Plans
 router.get('/subscription-plans', productCatalogController.getSubscriptionPlans);

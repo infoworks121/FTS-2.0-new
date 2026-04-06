@@ -42,10 +42,13 @@ const dealerPerformanceData = [
 import { useState, useEffect } from "react";
 import { walletApi } from "@/lib/walletApi";
 import { orderApi } from "@/lib/orderApi";
+import { coreBodyApi } from "@/lib/coreBodyApi";
 
 export default function Reports() {
   const [earningsList, setEarningsList] = useState<any[]>([]);
   const [orderList, setOrderList] = useState<any[]>([]);
+  const [stockMovementList, setStockMovementList] = useState<any[]>([]);
+  const [dealerPerformanceList, setDealerPerformanceList] = useState<any[]>([]);
   
   useEffect(() => {
     let isMounted = true;
@@ -75,6 +78,16 @@ export default function Reports() {
            if (isMounted) setOrderList(mappedOrders);
         } catch (e) {
            console.error("Order fetch failed: ", e);
+        }
+
+        try {
+          const reportData = await coreBodyApi.getCoreBodyReports();
+          if (isMounted) {
+            setStockMovementList(reportData.stockMovementData || []);
+            setDealerPerformanceList(reportData.dealerPerformanceData || []);
+          }
+        } catch (e) {
+          console.error("Report data fetch failed: ", e);
         }
 
       } catch (err) {
@@ -208,7 +221,7 @@ export default function Reports() {
                 )},
                 { header: "Date", accessor: "date", className: "font-mono text-xs" },
               ]}
-              data={stockMovementData}
+              data={stockMovementList.length > 0 ? stockMovementList : stockMovementData}
             />
           </CardContent>
         </Card>
@@ -294,7 +307,7 @@ export default function Reports() {
                   </span>
                 )},
               ]}
-              data={dealerPerformanceData}
+              data={dealerPerformanceList.length > 0 ? dealerPerformanceList : dealerPerformanceData}
             />
             <div className="mt-4 p-3 rounded-md bg-muted text-xs text-muted-foreground">
               ℹ️ Performance metrics are informational only. No ranking or gamification applied.

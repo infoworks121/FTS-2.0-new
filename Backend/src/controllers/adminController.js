@@ -614,16 +614,73 @@ const getAllUsers = async (req, res) => {
     }
 };
 
-const updateUserSPHStatus = async (req, res) => {
+const getAdminDashboardStats = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { is_sph } = req.body;
+        // 1. KPI Stats
+        const kpiResult = await db.query(`
+            SELECT 
+                (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'delivered') as total_revenue,
+                (SELECT COALESCE(balance, 0) FROM wallets WHERE wallet_type = 'trust_fund' LIMIT 1) as trust_fund,
+                (SELECT COUNT(DISTINCT district_id) FROM users WHERE is_active = TRUE) as active_districts,
+                (SELECT COUNT(*) FROM users WHERE is_approved = FALSE) as fraud_alerts
+        `);
 
-        await db.query('UPDATE users SET is_sph = $1, updated_at = NOW() WHERE id = $2', [is_sph, id]);
+        // 2. Profit Flow Chart (Last 6 Months)
+        const profitResult = await db.query(`
+            SELECT 
+                TO_CHAR(created_at, 'Mon') as month,
+                SUM(total_amount) as revenue,
+                SUM(total_amount * 0.05) as trust -- Assuming 5% goes to trust fund for simulation
+            FROM orders
+            WHERE created_at > NOW() - INTERVAL '6 months' AND status = 'delivered'
+            GROUP BY TO_CHAR(created_at, 'Mon'), DATE_TRUNC('month', created_at)
+            ORDER BY DATE_TRUNC('month', created_at) ASC
+        `);
 
-        res.json({ message: 'User SPH status updated successfully' });
+        // 3. District Activity Chart
+        const districtResult = await db.query(`
+            SELECT 
+                d.name,
+                COUNT(o.id) as orders,
+                COUNT(DISTINCT bp.user_id) as businessmen,
+                '₹' || ROUND(SUM(o.total_amount)/100000.0, 1) || 'L' as revenue
+            FROM districts d
+            LEFT JOIN orders o ON o.district_id = d.id
+            LEFT JOIN businessman_profiles bp ON bp.district_id = d.id
+            GROUP BY d.name
+            LIMIT 5
+        `);
+
+        // 4. Recent Activity
+        const activityResult = await db.query(`
+            SELECT 
+                id, transaction_type as type, description, amount, 
+                created_at as time,
+                CASE 
+                    WHEN transaction_type IN ('earning', 'deposit') THEN 'active'
+                    WHEN transaction_type = 'withdrawal' THEN 'pending'
+                    ELSE 'warning'
+                END as status
+            FROM wallet_transactions
+            ORDER BY created_at DESC
+            LIMIT 5
+        `);
+
+        res.json({
+            kpis: kpiResult.rows[0],
+            profitData: profitResult.rows,
+            districtData: districtResult.rows,
+            recentActivity: activityResult.rows.map(row => ({
+                id: row.id.substring(0, 8),
+                type: row.type,
+                user: row.description.split(' ')[0] || 'System',
+                amount: '₹' + parseFloat(row.amount).toLocaleString('en-IN'),
+                status: row.status,
+                time: new Date(row.time).toLocaleTimeString()
+            }))
+        });
     } catch (err) {
-        console.error('Update user SPH status error:', err);
+        console.error('Admin dashboard stats error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -639,5 +696,6 @@ module.exports = {
     getBusinessmanById,
     updateBusinessmanSettings,
     getAllUsers,
-    updateUserSPHStatus
+    updateUserSPHStatus,
+    getAdminDashboardStats
 };

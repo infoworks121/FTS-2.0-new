@@ -33,7 +33,27 @@ exports.createB2BOrder = async (req, res) => {
 
     const orderItemsData = [];
 
-    // 2. Process Items and Verify Inventory
+    // 2. Determine Eligible Suppliers (Local Core Body -> Admin)
+    const eligibleSuppliers = [];
+    if (user.role_code === 'businessman' || user.role_code === 'dealer') {
+       if (user.district_id) {
+          const coreBodies = await client.query(
+             `SELECT u.id, cbp.type 
+              FROM core_body_profiles cbp 
+              JOIN users u ON cbp.user_id = u.id
+              WHERE cbp.district_id = $1 AND u.is_active = true
+              ORDER BY cbp.type ASC`, 
+             [user.district_id]
+          );
+          for (const cb of coreBodies.rows) {
+             eligibleSuppliers.push({ type: 'core_body', id: cb.id, label: `Core Body Type ${cb.type}` });
+          }
+       }
+    }
+    // Always fallback to Admin
+    eligibleSuppliers.push({ type: 'admin', id: null, label: 'Admin (Central)' });
+
+    // 3. Process Items and Fetch Pricing
     for (const item of items) {
       const { product_id, variant_id, quantity } = item;
       
@@ -54,44 +74,12 @@ exports.createB2BOrder = async (req, res) => {
       }
 
       const pricing = priceResult.rows[0];
-      
-      // For B2B, prefer bulk_price over selling_price
       const unit_price = pricing.bulk_price ? parseFloat(pricing.bulk_price) : parseFloat(pricing.selling_price);
       const item_total = unit_price * quantity;
-      
-      // Basic unit profit assumption (unit_price - base_price)
       const unit_profit = unit_price - parseFloat(pricing.base_price);
 
       subtotal += item_total;
       total_profit += (unit_profit * quantity);
-
-      // Verify Admin Inventory (For B2B orders, assuming stock comes from Admin initially)
-      const inventoryResult = await client.query(
-        `SELECT quantity_on_hand, quantity_reserved 
-         FROM inventory_balances 
-         WHERE entity_type = 'admin' AND product_id = $1 AND ($2::uuid IS NULL OR variant_id = $2)
-         FOR UPDATE`, // Lock the row
-        [product_id, variant_id || null]
-      );
-
-      if (inventoryResult.rows.length === 0) {
-        throw new Error(`Out of stock for product_id: ${product_id}. No admin inventory found.`);
-      }
-
-      const inv = inventoryResult.rows[0];
-      const availableStock = parseFloat(inv.quantity_on_hand) - parseFloat(inv.quantity_reserved);
-
-      if (availableStock < quantity) {
-        throw new Error(`Insufficient stock for product_id: ${product_id}. Available: ${availableStock}, Requested: ${quantity}`);
-      }
-
-      // Reserve Inventory
-      await client.query(
-        `UPDATE inventory_balances 
-         SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() 
-         WHERE entity_type = 'admin' AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3)`,
-        [quantity, product_id, variant_id || null]
-      );
 
       orderItemsData.push({
         product_id,
@@ -102,6 +90,62 @@ exports.createB2BOrder = async (req, res) => {
         total_price: item_total,
         unit_profit
       });
+    }
+
+    // 4. Sequential Supplier Inventory Validation
+    let finalSupplier = null;
+    for (const supplier of eligibleSuppliers) {
+       let hasFullStock = true;
+       const lockedRows = [];
+
+       for (const item of orderItemsData) {
+          let invQuery = `SELECT id, quantity_on_hand, quantity_reserved 
+                          FROM inventory_balances 
+                          WHERE entity_type = $1 AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3)`;
+          const invParams = [supplier.type, item.product_id, item.variant_id];
+          
+          if (supplier.id) {
+             invQuery += ` AND entity_id = $4`;
+             invParams.push(supplier.id);
+          }
+          invQuery += ` FOR UPDATE`;
+
+          const invRes = await client.query(invQuery, invParams);
+
+          if (invRes.rows.length === 0) {
+             hasFullStock = false;
+             break;
+          }
+
+          const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+          if (available < item.quantity) {
+             hasFullStock = false;
+             break;
+          }
+
+          lockedRows.push({
+             id: invRes.rows[0].id,
+             quantity: item.quantity
+          });
+       }
+
+       if (hasFullStock) {
+          finalSupplier = supplier;
+          // Commit Reservations
+          for (const lock of lockedRows) {
+             await client.query(
+               `UPDATE inventory_balances 
+                SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() 
+                WHERE id = $2`,
+               [lock.quantity, lock.id]
+             );
+          }
+          break; // Stop supplier loop!
+       }
+    }
+
+    if (!finalSupplier) {
+       throw new Error('Insufficient stock across eligible suppliers (including Admin fallback).');
     }
 
     const order_number = await generateOrderNumber(client);
@@ -197,9 +241,18 @@ exports.createB2BOrder = async (req, res) => {
     // 5. Track Order Status Log
     await client.query(
       `INSERT INTO order_status_log (order_id, new_status, note, performed_by) 
-       VALUES ($1, 'pending', 'Order placed by B2B user', $2)`,
-      [newOrder.id, user.id]
+       VALUES ($1, 'pending', $2, $3)`,
+      [newOrder.id, `Order placed by B2B user. Assigned Supplier: ${finalSupplier.label}`, user.id]
     );
+
+    // 5.5 Optional: Insert into fulfillment_assignments if you strictly track B2B fulfills
+    if (finalSupplier.type === 'core_body' && finalSupplier.id) {
+       await client.query(
+         `INSERT INTO fulfillment_assignments (order_id, fulfiller_type, fulfiller_id, status) 
+          VALUES ($1, 'core_body', $2, 'assigned')`,
+         [newOrder.id, finalSupplier.id]
+       );
+    }
 
     // 6. Record Wallet Transaction
     if (wallet) {

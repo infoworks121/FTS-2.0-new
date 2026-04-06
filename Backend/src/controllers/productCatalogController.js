@@ -181,7 +181,8 @@ exports.createProduct = async (req, res) => {
     const {
       // Basic Product Info
       category_id, name, sku, description, type = 'physical', unit,
-      is_subscription = false, thumbnail_url, image_urls = [], tags = [],
+      is_subscription = false, // FUTURE IMPLEMENTATION: Currently not active
+      thumbnail_url, image_urls = [], tags = [],
       
       // Variants (optional)
       variants = [],
@@ -1054,20 +1055,35 @@ exports.updateAdminProduct = async (req, res) => {
       [name, sku, category_id, type, description, thumbnail_url, image_urls ? JSON.stringify(image_urls) : null, is_active, id]
     );
 
-    // Pricing update logic
+    // Pricing update logic with History Logging
     if (base_price !== undefined || mrp !== undefined || selling_price !== undefined || bulk_price !== undefined || admin_margin_pct !== undefined) {
-      const existingPricing = await client.query('SELECT id FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL', [id]);
+      const currentPricing = await client.query(
+        'SELECT * FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL', 
+        [id]
+      );
       
-      if (existingPricing.rows.length > 0) {
+      if (currentResult.rows.length > 0) {
+        const cur = currentResult.rows[0];
+        // 1. Log old prices to history BEFORE updating
+        if (selling_price !== undefined && parseFloat(cur.selling_price) !== parseFloat(selling_price)) {
+          await client.query(
+            `INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) 
+             VALUES ($1, NULL, $2, $3, 'selling_price', $4, 'Admin update')`,
+            [id, cur.selling_price, selling_price, req.user.id]
+          );
+        }
+        
+        // 2. Perform the update
         await client.query(
           `UPDATE product_pricing SET
             mrp = COALESCE($1, mrp),
             base_price = COALESCE($2, base_price),
             selling_price = COALESCE($3, selling_price),
             bulk_price = COALESCE($4, bulk_price),
-            admin_margin_pct = COALESCE($5, admin_margin_pct)
-           WHERE product_id = $6 AND is_current = true AND variant_id IS NULL`,
-          [mrp, base_price, selling_price, bulk_price, admin_margin_pct, id]
+            admin_margin_pct = COALESCE($5, admin_margin_pct),
+            updated_at = NOW()
+           WHERE id = $6`,
+          [mrp, base_price, selling_price, bulk_price, admin_margin_pct, cur.id]
         );
       } else {
         await client.query(
@@ -1157,22 +1173,22 @@ exports.updatePricing = async (req, res) => {
     if (existingResult.rows.length > 0) {
       const currentPricing = existingResult.rows[0];
       
-      // Record price history
+      // Record price history (align with SQL schema columns)
       await db.query(
-        'INSERT INTO price_history (product_id, variant_id, old_price, new_price, price_type, changed_by, change_reason) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [product_id, variant_id, currentPricing.price, price, price_type, req.user?.id, reason]
+        'INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [product_id, variant_id, currentPricing.price, price, 'selling_price', req.user?.id, reason || 'Global update']
       );
       
       // Update existing pricing
       await db.query(
-        'UPDATE product_pricing SET price = $1 WHERE id = $2',
+        'UPDATE product_pricing SET price = $1, updated_at = NOW() WHERE id = $2',
         [price, currentPricing.id]
       );
     } else {
       // Create new pricing
       await db.query(
-        'INSERT INTO product_pricing (product_id, variant_id, price_type, price) VALUES ($1, $2, $3, $4)',
-        [product_id, variant_id, price_type, price]
+        'INSERT INTO product_pricing (product_id, variant_id, price, is_current, created_by) VALUES ($1, $2, $3, true, $4)',
+        [product_id, variant_id, price, req.user?.id]
       );
     }
     
@@ -1261,6 +1277,128 @@ exports.createService = async (req, res) => {
     res.status(400).json({ error: error.message });
   } finally {
     client.release();
+  }
+};
+
+exports.getServiceById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(`
+      SELECT p.*, sc.id as service_catalog_id,
+             sc.service_type, sc.delivery_mode, sc.duration_minutes, sc.requires_booking,
+             pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price
+      FROM products p
+      JOIN service_catalog sc ON p.id = sc.product_id
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+      WHERE p.id = $1 AND p.type = 'service'
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+    res.json({ service: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateService = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    const { 
+      name, description, category_id, thumbnail_url,
+      mrp, base_price, selling_price,
+      service_type, delivery_mode, duration_minutes, requires_booking 
+    } = req.body;
+
+    await client.query('BEGIN');
+
+    // 1. Update products table
+    await client.query(
+      `UPDATE products SET
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        category_id = COALESCE($3, category_id),
+        thumbnail_url = COALESCE($4, thumbnail_url),
+        updated_at = NOW()
+       WHERE id = $5 AND type = 'service'`,
+      [name, description, category_id, thumbnail_url, id]
+    );
+
+    // 2. Update service_catalog table
+    await client.query(
+      `UPDATE service_catalog SET
+        service_type = COALESCE($1, service_type),
+        delivery_mode = COALESCE($2, delivery_mode),
+        duration_minutes = COALESCE($3, duration_minutes),
+        requires_booking = COALESCE($4, requires_booking)
+       WHERE product_id = $5`,
+      [service_type, delivery_mode, duration_minutes, requires_booking, id]
+    );
+
+    // 3. Update pricing
+    if (mrp || base_price || selling_price) {
+      const currentRes = await client.query(
+        'SELECT * FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL',
+        [id]
+      );
+      if (currentRes.rows.length > 0) {
+        const cur = currentRes.rows[0];
+        await client.query(
+          `INSERT INTO price_history (product_id, old_price, new_price, field_changed, changed_by, reason)
+           VALUES ($1, $2, $3, 'selling_price', $4, 'Service update')`,
+          [id, cur.selling_price, selling_price || cur.selling_price, req.user.id]
+        );
+
+        await client.query(
+          `UPDATE product_pricing SET
+            mrp = COALESCE($1, mrp),
+            base_price = COALESCE($2, base_price),
+            selling_price = COALESCE($3, selling_price),
+            updated_at = NOW()
+           WHERE id = $4`,
+          [mrp, base_price, selling_price, cur.id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Service updated successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+exports.getPriceHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { variant_id } = req.query;
+    
+    let query = `
+      SELECT ph.*, u.full_name as changed_by_name
+      FROM price_history ph
+      LEFT JOIN users u ON ph.changed_by = u.id
+      WHERE ph.product_id = $1
+    `;
+    const params = [id];
+
+    if (variant_id) {
+      params.push(variant_id);
+      query += ` AND ph.variant_id = $${params.length}`;
+    } else {
+      query += ` AND ph.variant_id IS NULL`;
+    }
+
+    query += ` ORDER BY ph.changed_at DESC`;
+
+    const result = await db.query(query, params);
+    res.json({ history: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 

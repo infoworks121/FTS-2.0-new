@@ -79,6 +79,10 @@ export const coreBodyApi = {
     const response = await api.get('/corebody-profile/dashboard');
     return response.data;
   },
+  getCoreBodyReports: async () => {
+    const response = await api.get('/corebody-profile/reports');
+    return response.data;
+  },
 };
 
 export default coreBodyApi;

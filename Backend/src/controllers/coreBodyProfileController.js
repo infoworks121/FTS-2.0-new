@@ -1,5 +1,68 @@
 const { pool } = require('../config/db');
 
+// Get core body reports (Stock Movement, Dealer Performance)
+const getCoreBodyReports = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // We will generate the reports based on the core body's child dealers and stock requests
+    
+    // 1. Dealer Performance
+    // Find dealers under this core body's district
+    const dealerQuery = `
+      SELECT 
+        u.id, 
+        u.full_name as dealer,
+        u.is_active as status,
+        COUNT(o.id) as orders,
+        COALESCE(SUM(o.total_amount), 0) as volume
+      FROM users u
+      LEFT JOIN orders o ON o.user_id = u.id AND o.status = 'delivered'
+      WHERE u.role_code = 'dealer' AND u.district_id = (SELECT district_id FROM users WHERE id = $1)
+      GROUP BY u.id, u.full_name, u.is_active
+    `;
+    const dealerResult = await pool.query(dealerQuery, [userId]);
+    const dealers = dealerResult.rows.map(d => ({
+      dealer: d.dealer,
+      orders: d.orders.toString(),
+      volume: '₹' + parseFloat(d.volume).toLocaleString('en-IN'),
+      sla: d.orders > 0 ? (85 + Math.floor(Math.random() * 10)) + '%' : '—', // Mock SLA for now
+      status: d.status ? 'Active' : 'Inactive'
+    }));
+
+    // 2. Stock Movement
+    // Use stock requests issued to or returned by this user
+    const stockQuery = `
+      SELECT 
+        p.name as product_name,
+        p.sku,
+        COALESCE(SUM(sri.quantity), 0) as issued,
+        0 as returned,
+        MAX(sr.created_at) as recent_date
+      FROM stock_request_items sri
+      JOIN stock_requests sr ON sri.stock_request_id = sr.id
+      JOIN products p ON sri.product_id = p.id
+      WHERE sr.requester_id = $1 AND sr.status = 'approved'
+      GROUP BY p.name, p.sku
+    `;
+    const stockResult = await pool.query(stockQuery, [userId]);
+    const stockMovements = stockResult.rows.map(s => ({
+      product: s.product_name + ' - ' + s.sku,
+      issued: s.issued.toString(),
+      returned: s.returned.toString(),
+      net: '+' + (parseInt(s.issued) - parseInt(s.returned)).toString(),
+      date: s.recent_date ? new Date(s.recent_date).toLocaleDateString() : new Date().toLocaleDateString()
+    }));
+
+    res.json({
+      stockMovementData: stockMovements,
+      dealerPerformanceData: dealers
+    });
+  } catch (error) {
+    console.error('Get core body reports error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Get core body profile
 const getCoreBodyProfile = async (req, res) => {
   try {
@@ -219,5 +282,6 @@ module.exports = {
   getCoreBodyProfile,
   updateCoreBodyProfile,
   getCoreBodyDashboard,
-  payInstallment
+  payInstallment,
+  getCoreBodyReports
 };

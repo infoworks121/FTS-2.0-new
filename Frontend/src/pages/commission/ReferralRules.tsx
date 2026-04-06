@@ -12,6 +12,8 @@ import {
   RuleHistoryTable,
   ChangePreview,
 } from "@/components/commission";
+import { adminApi } from "@/lib/adminApi";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Info, 
   Users, 
@@ -106,10 +108,48 @@ const scenarioConfigs = [
 
 export default function ReferralRules() {
   const [data, setData] = useState<ReferralRulesData>(initialData);
-  const [originalData] = useState<ReferralRulesData>(initialData);
+  const [originalData, setOriginalData] = useState<ReferralRulesData>(initialData);
+  const [historyList, setHistoryList] = useState<any[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [simulationAmount, setSimulationAmount] = useState(5000);
+  const { toast } = useToast();
+
+  const fetchRule = async () => {
+    try {
+      const response = await adminApi.getProfitRule('referral');
+      if (response.rule) {
+        const mappedData = {
+          ...initialData,
+          referralPercentage: parseFloat(response.rule.percentage),
+        };
+        setData(mappedData);
+        setOriginalData(mappedData);
+      }
+      
+      const historyRes = await adminApi.getProfitRuleHistory('referral');
+      const mappedHistory = (historyRes.history || []).map((h: any) => ({
+        id: h.id,
+        version: h.snapshot.version || 'v' + h.id.substring(0,4),
+        effectiveFrom: new Date(h.snapshot.created_at).toLocaleDateString(),
+        effectiveTo: new Date(h.archived_at).toLocaleDateString(),
+        status: "archived" as const,
+        changes: `Updated by ${h.changed_by}`,
+        changedBy: h.changed_by,
+        changedAt: new Date(h.archived_at).toLocaleString(),
+        details: [
+          { field: "Percentage", oldValue: "N/A", newValue: `${h.snapshot.percentage}%` }
+        ]
+      }));
+      setHistoryList(mappedHistory);
+    } catch (err) {
+      console.error("Failed to fetch referral rules", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRule();
+  }, []);
 
   const updateField = (
     field: keyof ReferralRulesData,
@@ -154,12 +194,28 @@ export default function ReferralRules() {
     return changes;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await adminApi.updateProfitRule('referral', {
+        name: `Referral Rule ${data.referralPercentage}%`,
+        percentage: data.referralPercentage
+      });
+      toast({
+        title: "Success",
+        description: "Referral rules updated successfully",
+      });
+      fetchRule();
       setHasChanges(false);
-    }, 1500);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to update referral rules",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
@@ -181,7 +237,7 @@ export default function ReferralRules() {
       hasChanges={hasChanges}
       changes={getChanges()}
       historySection={
-        <RuleHistoryTable history={historyData} title="" />
+        <RuleHistoryTable history={historyList.length > 0 ? historyList : historyData} title="" />
       }
     >
       {/* Self Purchase Configuration */}

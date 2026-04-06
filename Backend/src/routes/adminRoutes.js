@@ -3,6 +3,7 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 
+router.get('/dashboard-stats', protect, adminOnly, adminController.getAdminDashboardStats);
 router.get('/pending-users', protect, adminController.getPendingUsers);
 router.post('/approve-user/:userId', protect, adminController.approveUser);
 router.delete('/reject-user/:userId', protect, adminController.rejectUser);
