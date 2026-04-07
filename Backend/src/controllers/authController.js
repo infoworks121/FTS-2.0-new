@@ -219,6 +219,13 @@ const login = async (req, res) => {
         const token = generateToken({ id: user.id, role_code: user.role_code });
         const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+        // Check if user has set a transaction PIN in their wallet
+        const walletPinRes = await db.query(
+            'SELECT transaction_pin FROM wallets WHERE user_id = $1 LIMIT 1',
+            [user.id]
+        );
+        const has_transaction_pin = walletPinRes.rows.length > 0 && walletPinRes.rows[0].transaction_pin !== null;
+
         await db.query(
             'INSERT INTO user_sessions (user_id, panel, token_hash, ip_address, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
             [user.id, panel || 'unknown', token, req.ip, req.get('user-agent'), expires_at]
@@ -232,6 +239,7 @@ const login = async (req, res) => {
                 email: user.email,
                 full_name: user.full_name,
                 role_code: user.role_code,
+                has_transaction_pin,
             },
             token,
         });
@@ -283,7 +291,8 @@ const changePassword = async (req, res) => {
 const getMe = async (req, res) => {
     try {
         const userResult = await db.query(
-            `SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.is_active, u.created_at 
+            `SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.is_active, u.created_at,
+             COALESCE((SELECT transaction_pin IS NOT NULL FROM wallets WHERE user_id = u.id LIMIT 1), false) as has_transaction_pin
        FROM users u 
        JOIN user_roles r ON u.role_id = r.id 
        WHERE u.id = $1`,

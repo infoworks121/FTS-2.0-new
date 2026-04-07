@@ -1,0 +1,10 @@
+[dotenv@17.3.1] injecting env (6) from .env -- tip: ΓÜÖ∩╕Å  load multiple .env files with { path: ['.env.local', '.env'] }
+
+=== ALL ORDERS ===
+Γ£à Found 3 order(s):
+  - FTS-B2B-7655406195 | jsk878787@gmail.com | type: B2B | status: pending | amount: 90.00
+  - FTS-B2B-7843527995 | jsk878787@gmail.com | type: B2B | status: pending | amount: 180.00
+  - FTS-B2B-3299558372 | najib1@gmail.com | type: B2B | status: pending | amount: 20000.00
+
+=== BUSINESSMEN USERS ===
+Error: column "role_code" does not exist

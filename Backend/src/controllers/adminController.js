@@ -614,7 +614,25 @@ const getAllUsers = async (req, res) => {
     }
 };
 
+const updateUserSPHStatus = async (req, res) => {
+    const { id } = req.params;
+    const { is_sph } = req.body;
+
+    try {
+        await db.query(
+            'UPDATE users SET is_sph = $1, updated_at = NOW() WHERE id = $2',
+            [is_sph, id]
+        );
+
+        res.json({ message: `User SPH status updated successfully` });
+    } catch (err) {
+        console.error('Update user SPH status error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 const getAdminDashboardStats = async (req, res) => {
+
     try {
         // 1. KPI Stats
         const kpiResult = await db.query(`

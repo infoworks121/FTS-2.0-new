@@ -31,6 +31,17 @@ import api from "@/lib/api";
 import walletApi, { DepositRequest } from "@/lib/walletApi";
 import { useToast } from "@/components/ui/use-toast";
 
+// Helper to load Razorpay script
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -53,7 +64,8 @@ export default function WalletOverviewPage() {
   
   // Deposit State
   const [depositAmount, setDepositAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("bkash");
+  const [paymentType, setPaymentType] = useState<"online" | "manual">("online");
+  const [paymentMethod, setPaymentMethod] = useState("upi");
   const [txnRef, setTxnRef] = useState("");
   
   const { toast } = useToast();
@@ -102,6 +114,12 @@ export default function WalletOverviewPage() {
       toast({ title: "Invalid Amount", description: "Please enter a valid amount", variant: "destructive" });
       return;
     }
+
+    if (paymentType === "online") {
+      handleOnlinePayment();
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await walletApi.submitDepositRequest({
@@ -116,6 +134,75 @@ export default function WalletOverviewPage() {
       fetchData(); // Refresh history
     } catch (error: any) {
       toast({ title: "Error", description: error.response?.data?.error || "Failed to submit deposit", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOnlinePayment = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Create order on backend
+      const { data: orderData } = await api.post("/payment/razorpay/create-order", {
+        amount: parseFloat(depositAmount)
+      });
+
+      // 2. Load script
+      const res = await loadRazorpayScript();
+      if (!res) {
+        toast({ title: "Error", description: "Razorpay SDK failed to load. Check your internet connection.", variant: "destructive" });
+        return;
+      }
+
+      // 3. Open Razorpay
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "FTS Wallet",
+        description: "Add funds to your main wallet balance",
+        image: "/logo.png",
+        order_id: orderData.order_id,
+        handler: async function (response: any) {
+          // 4. Verify on backend
+          try {
+            const verifyRes = await api.post("/payment/razorpay/verify", {
+               razorpay_order_id: response.razorpay_order_id,
+               razorpay_payment_id: response.razorpay_payment_id,
+               razorpay_signature: response.razorpay_signature
+            });
+            
+            if (verifyRes.data.success) {
+               toast({ title: "Deposit Successful", description: "Funds have been added to your wallet." });
+               setIsDepositDialogOpen(false);
+               setDepositAmount("");
+               fetchData();
+            }
+          } catch (err: any) {
+             toast({ 
+                title: "Verification Failed", 
+                description: err.response?.data?.error || "Payment was successful but verification failed. Support will review.", 
+                variant: "destructive" 
+             });
+          }
+        },
+        prefill: {
+          name: data?.user?.full_name || "",
+          email: data?.user?.email || "",
+          contact: data?.user?.phone || "",
+        },
+        theme: { color: "#3b82f6" },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (error: any) {
+      console.error("Online payment error:", error);
+      toast({
+        title: "Order Creation Failed",
+        description: error.response?.data?.error || "Could not initialize online paymentgateway. Use manual deposit if issue persists.",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -164,6 +251,28 @@ export default function WalletOverviewPage() {
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
+                  <Label>Deposit Method</Label>
+                  <div className="flex bg-muted p-1 rounded-lg gap-1">
+                    <Button 
+                      variant={paymentType === "online" ? "secondary" : "ghost"} 
+                      size="sm" 
+                      className={`flex-1 h-8 ${paymentType === "online" ? "bg-white shadow-sm" : ""}`}
+                      onClick={() => setPaymentType("online")}
+                    >
+                      Instant Payment (Online)
+                    </Button>
+                    <Button 
+                      variant={paymentType === "manual" ? "secondary" : "ghost"} 
+                      size="sm" 
+                      className={`flex-1 h-8 ${paymentType === "manual" ? "bg-white shadow-sm" : ""}`}
+                      onClick={() => setPaymentType("manual")}
+                    >
+                      Manual Deposit
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
                   <Label htmlFor="amount">Amount (₹)</Label>
                   <Input 
                     id="amount" 
@@ -173,34 +282,43 @@ export default function WalletOverviewPage() {
                     onChange={(e) => setDepositAmount(e.target.value)}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="method">Payment Method</Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger id="method">
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bkash">bKash</SelectItem>
-                      <SelectItem value="nagad">Nagad</SelectItem>
-                      <SelectItem value="bank">Bank Transfer</SelectItem>
-                      <SelectItem value="cash">Cash Deposit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="ref">Transaction Reference / ID</Label>
-                  <Input 
-                    id="ref" 
-                    placeholder="e.g. TRX12345678" 
-                    value={txnRef} 
-                    onChange={(e) => setTxnRef(e.target.value)}
-                  />
-                </div>
+                
+                {paymentType === "manual" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="method">Payment Method</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger id="method">
+                          <SelectValue placeholder="Select method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="upi">UPI (GPay/PhonePe/Paytm)</SelectItem>
+                          <SelectItem value="bank">Bank Transfer (IMPS/NEFT)</SelectItem>
+                          <SelectItem value="cash">Cash Deposit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="ref">Transaction Reference / ID</Label>
+                      <Input 
+                        id="ref" 
+                        placeholder="e.g. TRX12345678" 
+                        value={txnRef} 
+                        onChange={(e) => setTxnRef(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-3 rounded-lg border border-blue-100 bg-blue-50/50 text-[11px] text-blue-700 leading-relaxed">
+                    <p className="font-bold mb-1 underline">Safe & Secure Payment</p>
+                    <p>Funds will be instantly added to your wallet upon successful transaction via Razorpay. Supported: UPI, Cards, Netbanking.</p>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDepositDialogOpen(false)}>Cancel</Button>
                 <Button onClick={handleSubmitDeposit} disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Request"}
+                  {isSubmitting ? "Processing..." : (paymentType === "online" ? "Pay Now" : "Submit Request")}
                 </Button>
               </DialogFooter>
             </DialogContent>

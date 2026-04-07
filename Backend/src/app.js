@@ -33,6 +33,8 @@ const referralRoutes = require('./routes/referralRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const sphRoutes = require('./routes/sphRoutes');
 const profitRuleRoutes = require('./routes/profitRuleRoutes');
+const addressRoutes = require('./routes/addressRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const path = require('path');
 
 const app = express();
@@ -83,6 +85,8 @@ app.use('/api/referral', referralRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sph', sphRoutes);
 app.use('/api/admin/profit-rules', profitRuleRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

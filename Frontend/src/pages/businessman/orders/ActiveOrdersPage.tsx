@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { MessageCircle, Route, TriangleAlert } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { orderApi } from "@/lib/orderApi";
+import { MessageCircle, RefreshCw, Route, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -124,9 +125,77 @@ const ROWS: Row[] = [
 const PAGE_SIZE = 5;
 
 export default function ActiveOrdersPage() {
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dataRows, setDataRows] = useState<Row[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
+
+  const parseAddress = (addr: any): string => {
+    if (!addr) return "Local";
+    try {
+      const parsed = typeof addr === "string" ? JSON.parse(addr) : addr;
+      return parsed?.city || parsed?.street || "Local";
+    } catch {
+      return String(addr) || "Local";
+    }
+  };
+
+  const mapStatus = (status: string): ActiveStatus => {
+    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    const valid: ActiveStatus[] = ["Pending", "Confirmed", "Packed", "Out for Delivery"];
+    return valid.includes(s as ActiveStatus) ? (s as ActiveStatus) : "Pending";
+  };
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await orderApi.getMyOrders();
+      if (!res || !res.orders) {
+        setError("No response from server.");
+        return;
+      }
+      // Active = NOT delivered/cancelled/returned/closed
+      const activeOrders = res.orders.filter((o: any) =>
+        !["delivered", "cancelled", "returned", "closed"].includes((o.status || "").toLowerCase())
+      );
+      const mapped: Row[] = activeOrders.map((o: any) => ({
+        orderId: o.order_number || o.id,
+        orderType: (o.order_type || "B2B") as OrderType,
+        product: o.product_names || "Order Items",
+        quantity: o.total_quantity ? `${o.total_quantity} units` : "-",
+        orderValue: parseFloat(o.total_amount || 0),
+        marginEarned: parseFloat(o.total_profit || 0),
+        fulfilmentBy: o.status === "assigned" ? "Stock Point" : "Admin (Central)",
+        fulfilmentMode: "Stock Point",
+        orderStatus: mapStatus(o.status || "pending"),
+        createdDate: new Date(o.created_at).toISOString().split("T")[0],
+        paymentStatus: o.payment_method === "wallet" ? "Paid" : "Pending",
+        location: o.district_name || parseAddress(o.delivery_address),
+        customer: o.customer_name || "Self",
+        progress:
+          o.status === "pending" ? 15
+          : o.status === "confirmed" ? 40
+          : o.status === "packed" ? 70
+          : o.status === "out_for_delivery" ? 85
+          : o.status === "assigned" ? 50
+          : 10,
+        sla: "24:00:00",
+      }));
+      setDataRows(mapped);
+    } catch (err: any) {
+      console.error("Failed to load orders:", err);
+      setError(err?.response?.data?.details || err?.response?.data?.error || err?.message || "Failed to load orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
   const [sortKey, setSortKey] = useState<keyof Row>("createdDate");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [filters, setFilters] = useState<CommonOrderFilters>({
@@ -141,7 +210,7 @@ export default function ActiveOrdersPage() {
 
   const filtered = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
-    const list = ROWS.filter((row) => {
+    const list = dataRows.filter((row) => {
       const ts = new Date(row.createdDate).getTime();
       const byFrom = !filters.fromDate || ts >= new Date(filters.fromDate).getTime();
       const byTo = !filters.toDate || ts <= new Date(filters.toDate).getTime();
@@ -166,7 +235,7 @@ export default function ActiveOrdersPage() {
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
-  }, [filters, sortDirection, sortKey]);
+  }, [filters, sortDirection, sortKey, dataRows]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pages);
@@ -206,13 +275,24 @@ export default function ActiveOrdersPage() {
           <h1 className="text-xl font-bold">Active Orders</h1>
           <p className="text-sm text-muted-foreground">Operational queue of ongoing orders and SLA-linked movement visibility.</p>
         </div>
+        <Button size="sm" variant="outline" onClick={fetchOrders} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
+
+      {error && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600 flex items-center gap-2">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <span><strong>Error loading orders:</strong> {error}</span>
+        </div>
+      )}
 
       <OrderTrackingFilters filters={filters} setFilters={(next) => { setPage(1); setFilters(next); }} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Order List</CardTitle>
+          <CardTitle className="text-sm">Order List ({dataRows.length} total)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (

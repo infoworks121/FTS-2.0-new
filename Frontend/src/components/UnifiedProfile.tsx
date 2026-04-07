@@ -18,13 +18,14 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import walletApi from "@/lib/walletApi";
+import { AddressManager } from "./AddressManager";
 
 export default function UnifiedProfile() {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState<any>({});
   const [pinValue, setPinValue] = useState("");
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   const { toast } = useToast();
@@ -66,7 +67,7 @@ export default function UnifiedProfile() {
           shop_type: userData.shop_type || userData.shopType,
           warehouse_address: userData.warehouse_address || userData.warehouseAddress,
           storage_capacity: userData.storage_capacity || userData.storageCapacity
-        };
+        } as any;
         setProfile(profileFromStorage);
         setFormData(profileFromStorage);
         return;
@@ -446,7 +447,7 @@ export default function UnifiedProfile() {
                 <div>
                   <p className="text-sm text-gray-600">Total Users</p>
                   <p className="text-2xl font-bold">
-                    {Object.values(stats.users || {}).reduce((a, b) => a + b, 0)}
+                    {Object.values((stats as any).users || {}).reduce((a: any, b: any) => a + b, 0) as React.ReactNode}
                   </p>
                 </div>
               </div>
@@ -936,6 +937,19 @@ export default function UnifiedProfile() {
                 {isSubmittingPin ? <ShieldCheck className="w-4 h-4 animate-pulse" /> : <ShieldCheck className="w-4 h-4" />}
                 {isSubmittingPin ? "Securing Account..." : "Update PIN Securely"}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Address Management */}
+          <Card className="border-slate-200 overflow-hidden">
+            <CardHeader className="bg-slate-50/50">
+              <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
+                <MapPin className="w-4 h-4 text-primary" />
+                Delivery Addresses
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <AddressManager />
             </CardContent>
           </Card>
 

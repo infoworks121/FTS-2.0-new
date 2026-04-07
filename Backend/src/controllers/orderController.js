@@ -487,16 +487,23 @@ exports.createB2COrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     const user = req.user;
+    const roleCode = user.role_code || '';
+    
     let query = `
-      SELECT o.*, d.name as district_name, u.full_name as customer_name
+      SELECT o.*, d.name as district_name, u.full_name as customer_name,
+        (SELECT STRING_AGG(p.name, ', ')
+         FROM order_items oi 
+         JOIN products p ON oi.product_id = p.id 
+         WHERE oi.order_id = o.id) as product_names,
+        (SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = o.id) as total_quantity
       FROM orders o 
       LEFT JOIN districts d ON o.district_id = d.id
       LEFT JOIN users u ON o.customer_id = u.id
     `;
     const params = [];
 
-    // For admins and core bodies (district-level), allow broader access
-    if (user.role_code !== 'admin' && !user.role_code.startsWith('core_body')) {
+    // Admins and core bodies see all orders; everyone else sees only their own
+    if (roleCode !== 'admin' && !roleCode.startsWith('core_body')) {
       query += ` WHERE o.customer_id = $1`;
       params.push(user.id);
     }
@@ -507,9 +514,10 @@ exports.getMyOrders = async (req, res) => {
     res.json({ orders: result.rows });
   } catch (error) {
     console.error('Error fetching orders:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
+
 
 exports.getOrderDetails = async (req, res) => {
   try {

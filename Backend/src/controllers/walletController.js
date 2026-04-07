@@ -613,7 +613,7 @@ exports.getCompanyPoolLog = async (req, res) => {
 exports.getMyTransactions = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { page = 1, limit = 20, type, wallet } = req.query;
+    const { page = 1, limit = 20, type } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
     // Get wallet ID first
@@ -621,17 +621,34 @@ exports.getMyTransactions = async (req, res) => {
     if (walletRes.rows.length === 0) return res.json({ transactions: [], total: 0 });
     const walletId = walletRes.rows[0].id;
 
-    let query = `SELECT * FROM wallet_transactions WHERE wallet_id = $1`;
+    let query = `
+      SELECT 
+        wt.id, 
+        wt.transaction_type as txn_type, 
+        wt.amount, 
+        wt.source_type, 
+        wt.source_ref_id, 
+        wt.description, 
+        wt.balance_after,
+        wt.created_at,
+        (
+          SELECT STRING_AGG(p.name || ' x' || (oi.quantity::int), ', ')
+          FROM order_items oi
+          JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = wt.source_ref_id AND wt.source_type = 'order_payment'
+        ) as items_summary
+      FROM wallet_transactions wt
+      WHERE wt.wallet_id = $1`;
     let countQuery = `SELECT COUNT(*) FROM wallet_transactions WHERE wallet_id = $1`;
     const params = [walletId];
 
     if (type) {
       params.push(type);
-      query += ` AND txn_type = $${params.length}`;
-      countQuery += ` AND txn_type = $${params.length}`;
+      query += ` AND transaction_type = $${params.length}`;
+      countQuery += ` AND transaction_type = $${params.length}`;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY wt.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
     const result = await db.query(query, params);

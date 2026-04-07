@@ -11,6 +11,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import ProductPurchasePage from "./businessman/purchase/ProductPurchasePage";
 import AdvanceRequestsPage from "./businessman/purchase/AdvanceRequestsPage";
 import AdvanceLedgerPage from "./businessman/purchase/AdvanceLedgerPage";
@@ -37,6 +38,7 @@ import PerformanceMetricsPage from "./businessman/performance/PerformanceMetrics
 import SlaStatusPage from "./businessman/performance/SlaStatusPage";
 import RiskWarningsPage from "./businessman/performance/RiskWarningsPage";
 import UpgradeEligibilityPage from "./businessman/performance/UpgradeEligibilityPage";
+import BusinessmanProfile from "./businessman/BusinessmanProfile";
 
 // Marketplace Pages
 import B2CManager from "./sph/B2CManager";
@@ -61,6 +63,28 @@ const orders = [
 ];
 
 function DashboardHome({ userName }: { userName: string }) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const response = await api.get("/wallet/me");
+        if (response.data && response.data.wallet) {
+          setBalance(response.data.wallet.main_balance);
+        }
+      } catch (error) {
+        console.error("Error fetching balance:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchBalance();
+  }, []);
+
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -81,7 +105,7 @@ function DashboardHome({ userName }: { userName: string }) {
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard title="Today's Earnings" value="₹4,200" change="+₹800" changeType="positive" icon={TrendingUp} variant="profit" />
-        <KPICard title="Wallet Balance" value="₹12,450" icon={Wallet} variant="trust" subtitle="Available for withdrawal" />
+        <KPICard title="Wallet Balance" value={isLoading ? "Loading..." : formatCurrency(balance || 0)} icon={Wallet} variant="trust" subtitle="Available for withdrawal" />
         <KPICard title="Active Orders" value="4" icon={Package} variant="cap" />
         <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={Users} variant="reserve" />
       </div>
@@ -228,6 +252,9 @@ export default function BusinessmanDashboard() {
         return <RiskWarningsPage />;
       case "/businessman/performance/upgrade-eligibility":
         return <UpgradeEligibilityPage />;
+        
+      case "/businessman/profile":
+        return <BusinessmanProfile />;
       
       // Marketplace Routes
       case "/businessman/b2c-manager":

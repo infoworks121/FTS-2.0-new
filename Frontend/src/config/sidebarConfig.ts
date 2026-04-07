@@ -226,6 +226,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
       { title: "Platform Settings", url: "/admin/settings/platform" },
       { title: "Notification Rules", url: "/admin/settings/notifications" },
       { title: "API & Integration", url: "/admin/settings/api" },
+      { title: "Payment Gateway Settings", url: "/admin/settings/payment" },
       { title: "Language & Localization", url: "/admin/settings/language" },
       { title: "Maintenance Mode", url: "/admin/settings/maintenance" },
       { title: "Device Management", url: "/admin/settings/devices" },

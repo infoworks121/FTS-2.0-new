@@ -52,6 +52,11 @@ export const walletApi = {
     return response.data;
   },
 
+  getMyWallet: async () => {
+    const response = await api.get('/wallet/me');
+    return response.data;
+  },
+
   // Admin Actions
   getAllDepositRequests: async (status: string = 'pending') => {
     const response = await api.get(`/wallet/admin/deposit-requests?status=${status}`);

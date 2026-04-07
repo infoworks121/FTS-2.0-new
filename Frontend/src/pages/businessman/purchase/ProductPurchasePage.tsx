@@ -15,12 +15,25 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
   DisabledReason,
-  FinanceConfirmDialog,
   PurchaseTypeBadge,
   formatCurrency,
 } from "@/components/businessman/PurchaseAdvancePrimitives";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { productApi } from "@/lib/productApi";
 import { orderApi } from "@/lib/orderApi";
+import { addressApi, UserAddress } from "@/lib/addressApi";
 
 type PurchaseMode = "Direct" | "Advance";
 type Availability = "In Stock" | "Low Stock" | "Unavailable";
@@ -52,10 +65,37 @@ export default function ProductPurchasePage() {
   const [purchaseType, setPurchaseType] = useState<PurchaseMode>("Direct");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pin, setPin] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState({
+    street: "",
+    city: "",
+    pincode: "",
+  });
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("manual");
 
   useEffect(() => {
     fetchProducts();
+    fetchAddresses();
   }, []);
+
+  const fetchAddresses = async () => {
+    try {
+      const data = await addressApi.getAddresses();
+      setSavedAddresses(data);
+      const defaultAddr = data.find(a => a.is_default);
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+        setDeliveryAddress({
+          street: defaultAddr.street_address,
+          city: defaultAddr.city,
+          pincode: defaultAddr.pincode
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch addresses:", error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -91,6 +131,11 @@ export default function ProductPurchasePage() {
 
   const handlePurchase = async () => {
     if (!selectedProduct) return;
+    if (pin.length !== 6) {
+      toast({ title: "Invalid PIN", description: "Please enter a 6-digit transaction PIN.", variant: "destructive" });
+      return;
+    }
+    
     try {
       setIsSubmitting(true);
       
@@ -102,20 +147,28 @@ export default function ProductPurchasePage() {
           }
         ],
         payment_method: "wallet",
+        transaction_pin: pin,
+        delivery_address: deliveryAddress.city ? deliveryAddress : undefined,
         notes: `Purchase type: ${purchaseType}`
       });
 
       toast({ title: "Success", description: "B2B Order placed successfully! Funds deducted from wallet." });
       setConfirmOpen(false);
       setQuantity(1);
+      setPin("");
+      setDeliveryAddress({ street: "", city: "", pincode: "" });
       
       // Refresh stock
       fetchProducts();
     } catch (error: any) {
       toast({ title: "Order Failed", description: error.response?.data?.error || error.message, variant: "destructive" });
+      if (error.response?.data?.error?.includes("PIN")) {
+        setPin(""); // Clear it to let them try again
+      } else {
+        setConfirmOpen(false);
+      }
     } finally {
       setIsSubmitting(false);
-      setConfirmOpen(false);
     }
   };
 
@@ -313,14 +366,130 @@ export default function ProductPurchasePage() {
         )}
       </div>
 
-      <FinanceConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Confirm B2B order"
-        description={`You are placing a ${purchaseType.toLowerCase()} B2B order for ${quantity} units of ${selectedProduct?.name} at a total cost of ${formatCurrency((selectedProduct?.basePrice || 0) * quantity)}. This will process immediately.`}
-        confirmLabel="Confirm Purchase"
-        onConfirm={handlePurchase}
-      />
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Purchase & PIN</DialogTitle>
+            <DialogDescription>
+              You are placing a {purchaseType.toLowerCase()} B2B order for {quantity} units of {selectedProduct?.name} at a total cost of {formatCurrency((selectedProduct?.basePrice || 0) * quantity)}.
+              Please enter your 6-digit transaction PIN to confirm the payment from your wallet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Delivery Address</Label>
+              <Select 
+                value={selectedAddressId} 
+                onValueChange={(val) => {
+                  setSelectedAddressId(val);
+                  if (val !== "manual") {
+                    const addr = savedAddresses.find(a => a.id === val);
+                    if (addr) {
+                      setDeliveryAddress({
+                        street: addr.street_address,
+                        city: addr.city,
+                        pincode: addr.pincode
+                      });
+                    }
+                  } else {
+                    setDeliveryAddress({ street: "", city: "", pincode: "" });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an address" />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedAddresses.map(addr => (
+                    <SelectItem key={addr.id} value={addr.id}>
+                      {addr.label} ({addr.city})
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="manual">Enter Manually / Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedAddressId === "manual" ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Delivery Street / Area</Label>
+                  <Input
+                    placeholder="e.g. 12, Park Street, Block A"
+                    value={deliveryAddress.street}
+                    onChange={(e) => setDeliveryAddress(prev => ({ ...prev, street: e.target.value }))}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>City / District</Label>
+                    <Input
+                      placeholder="e.g. Kolkata"
+                      value={deliveryAddress.city}
+                      onChange={(e) => setDeliveryAddress(prev => ({ ...prev, city: e.target.value }))}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pincode</Label>
+                    <Input
+                      placeholder="e.g. 700001"
+                      value={deliveryAddress.pincode}
+                      onChange={(e) => setDeliveryAddress(prev => ({ ...prev, pincode: e.target.value }))}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 bg-muted/50 rounded-md border text-sm">
+                <p className="font-medium text-xs text-muted-foreground uppercase mb-1">Selected Destination</p>
+                <p>{deliveryAddress.street}</p>
+                <p>{deliveryAddress.city}, {deliveryAddress.pincode}</p>
+              </div>
+            )}
+
+            <div className="border-t pt-4 flex flex-col items-center space-y-2">
+              <Label htmlFor="pin-input">Transaction PIN</Label>
+              <InputOTP
+                id="pin-input"
+                maxLength={6}
+                value={pin}
+                onChange={setPin}
+                disabled={isSubmitting}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setConfirmOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handlePurchase}
+              disabled={pin.length !== 6 || isSubmitting}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

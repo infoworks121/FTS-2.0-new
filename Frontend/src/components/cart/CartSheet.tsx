@@ -26,6 +26,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 const formatCurrency = (amount: number | string) => {
   return new Intl.NumberFormat('en-IN', {
@@ -42,6 +43,7 @@ export function CartSheet() {
   const [isCheckout, setIsCheckout] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pin, setPin] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState({ street: "", city: "", pincode: "" });
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
@@ -67,6 +69,7 @@ export function CartSheet() {
         items: orderItems,
         payment_method: "wallet",
         transaction_pin: pin,
+        delivery_address: deliveryAddress.city ? deliveryAddress : undefined,
         notes: "Marketplace Cart Order",
       });
 
@@ -79,6 +82,7 @@ export function CartSheet() {
       setIsCartOpen(false);
       setPinDialogOpen(false);
       setPin("");
+      setDeliveryAddress({ street: "", city: "", pincode: "" });
     } catch (error: any) {
       toast({
         title: "Checkout Failed",
@@ -216,24 +220,55 @@ export function CartSheet() {
               Please enter your 6-digit transaction PIN to confirm the payment from your wallet.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center space-y-4 py-8">
-            <Label htmlFor="pin-input">Transaction PIN</Label>
-            <InputOTP
-              id="pin-input"
-              maxLength={6}
-              value={pin}
-              onChange={setPin}
-              disabled={isCheckout}
-            >
-              <InputOTPGroup>
-                <InputOTPSlot index={0} />
-                <InputOTPSlot index={1} />
-                <InputOTPSlot index={2} />
-                <InputOTPSlot index={3} />
-                <InputOTPSlot index={4} />
-                <InputOTPSlot index={5} />
-              </InputOTPGroup>
-            </InputOTP>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Delivery Street / Area (Optional)</Label>
+              <Input
+                placeholder="e.g. 12, Park Street"
+                value={deliveryAddress.street}
+                onChange={(e) => setDeliveryAddress(prev => ({ ...prev, street: e.target.value }))}
+                disabled={isCheckout}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>City / District</Label>
+                <Input
+                  placeholder="e.g. Kolkata"
+                  value={deliveryAddress.city}
+                  onChange={(e) => setDeliveryAddress(prev => ({ ...prev, city: e.target.value }))}
+                  disabled={isCheckout}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Pincode</Label>
+                <Input
+                  placeholder="e.g. 700001"
+                  value={deliveryAddress.pincode}
+                  onChange={(e) => setDeliveryAddress(prev => ({ ...prev, pincode: e.target.value }))}
+                  disabled={isCheckout}
+                />
+              </div>
+            </div>
+            <div className="border-t pt-4 flex flex-col items-center space-y-2">
+              <Label htmlFor="pin-input">Transaction PIN</Label>
+              <InputOTP
+                id="pin-input"
+                maxLength={6}
+                value={pin}
+                onChange={setPin}
+                disabled={isCheckout}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
           </div>
           <DialogFooter className="sm:justify-between">
             <Button

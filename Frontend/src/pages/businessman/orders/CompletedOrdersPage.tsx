@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { orderApi } from "@/lib/orderApi";
 import { Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,9 +91,46 @@ const ROWS: Row[] = [
 const PAGE_SIZE = 5;
 
 export default function CompletedOrdersPage() {
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dataRows, setDataRows] = useState<Row[]>([]);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const res = await orderApi.getMyOrders();
+        // Filter out completed ones
+        const completedOrders = res.orders.filter((o: any) => ['delivered', 'closed', 'cancelled', 'returned'].includes(o.status.toLowerCase()));
+        
+        const mapped: Row[] = completedOrders.map((o: any) => ({
+          orderId: o.order_number,
+          orderType: o.order_type as OrderType,
+          product: "Standard Order Items", 
+          quantity: "-",
+          orderValue: parseFloat(o.total_amount || 0),
+          marginEarned: parseFloat(o.total_profit || 0),
+          fulfilmentBy: o.status === 'assigned' || o.status === 'packed' ? "Stock Point" : "Admin (Central)",
+          fulfilmentMode: "Stock Point",
+          orderStatus: (o.status.charAt(0).toUpperCase() + o.status.slice(1)) as CompletedStatus,
+          createdDate: new Date(o.created_at).toISOString().split('T')[0],
+          completionAt: new Date(o.updated_at || o.created_at).toLocaleString(),
+          paymentStatus: o.payment_method === 'wallet' ? "Paid" : "Pending",
+          location: o.district_name || o.delivery_address?.city || "Local",
+          customer: o.customer_name || "Self",
+          earningsLocked: true,
+          referralPayout: o.status === 'delivered' ? "Processed" : "Pending",
+        }));
+        setDataRows(mapped);
+      } catch (err) {
+        console.error("Failed to load completed orders:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
   const [sortKey, setSortKey] = useState<keyof Row>("completionAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [filters, setFilters] = useState<CommonOrderFilters>({
@@ -107,7 +145,7 @@ export default function CompletedOrdersPage() {
 
   const filtered = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
-    const list = ROWS.filter((row) => {
+    const list = dataRows.filter((row) => {
       const ts = new Date(row.createdDate).getTime();
       const byFrom = !filters.fromDate || ts >= new Date(filters.fromDate).getTime();
       const byTo = !filters.toDate || ts <= new Date(filters.toDate).getTime();
@@ -132,7 +170,7 @@ export default function CompletedOrdersPage() {
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
-  }, [filters, sortDirection, sortKey]);
+  }, [filters, sortDirection, sortKey, dataRows]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pages);

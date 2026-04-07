@@ -42,6 +42,7 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CartSheet } from "./cart/CartSheet";
+import { walletApi } from "@/lib/walletApi";
 
 export type UserRole = "admin" | "corebody" | "businessman";
 
@@ -265,6 +266,27 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
   const navigate = useNavigate();
   const RoleIcon = roleIcons[role];
   const { theme, toggleTheme } = useTheme();
+  const [balance, setBalance] = useState<number | null>(null);
+
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const data = await walletApi.getMyWallet();
+        if (data && data.wallet) {
+          setBalance(data.wallet.main_balance);
+        }
+      } catch (error) {
+        console.error("Error fetching wallet balance:", error);
+      }
+    };
+
+    fetchBalance();
+    
+    // Optional: set up interval to refresh balance every 30 seconds
+    const interval = setInterval(fetchBalance, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -425,7 +447,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
           <div className="flex items-center gap-1 md:gap-3">
             <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground font-mono hidden md:flex">
               <Wallet className="h-3.5 w-3.5" />
-              ₹12,450.00
+              {balance !== null ? `₹${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Loading..."}
             </Button>
 
             {/* Cart Sheet */}

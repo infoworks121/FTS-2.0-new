@@ -18,6 +18,7 @@ import AuthCallback from "./pages/AuthCallback";
 import SelectRole from "./pages/SelectRole";
 import GoogleRedirect from "./pages/GoogleRedirect";
 import { CartProvider } from "./context/CartContext";
+import { PinSetupGuard } from "./components/auth/PinSetupGuard";
 
 // Settings Layout
 import { SettingsLayout } from "./components/settings/SettingsLayout";
@@ -34,6 +35,7 @@ import MaintenanceMode from "./pages/settings/MaintenanceMode";
 import DeviceManagement from "./pages/settings/DeviceManagement";
 import LoginHistory from "./pages/settings/LoginHistory";
 import SessionManagement from "./pages/settings/SessionManagement";
+import PaymentSettingsPage from "./pages/admin/PaymentSettingsPage";
 
 // Commission & Profit Engine Pages
 import B2BCommission from "./pages/commission/B2BCommission";
@@ -100,7 +102,6 @@ import BusinessmanSettings from "./pages/users/BusinessmanSettings";
 import UserApproval from "./pages/users/UserApproval";
 import AdminProfile from "./pages/admin/AdminProfile";
 import CoreBodyProfile from "./pages/corebody/CoreBodyProfile";
-import BusinessmanProfile from "./pages/businessman/BusinessmanProfile";
 import DealerProfile from "./pages/dealer/DealerProfile";
 import StockPointProfile from "./pages/stockpoint/StockPointProfile";
 import { KYCReview } from "./pages/kyc";
@@ -149,7 +150,8 @@ const App = () => {
               {(loading && showSplash) ? (
                 <SplashScreen onComplete={() => setLoading(false)} />
               ) : (
-                <Routes>
+                <PinSetupGuard>
+                  <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
@@ -160,7 +162,6 @@ const App = () => {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/profile" element={<AdminProfile />} />
             <Route path="/corebody/profile" element={<CoreBodyProfile />} />
-            <Route path="/businessman/profile" element={<BusinessmanProfile />} />
             <Route path="/dealer/profile" element={<DealerProfile />} />
             <Route path="/stockpoint/profile" element={<StockPointProfile />} />
 
@@ -179,6 +180,7 @@ const App = () => {
             <Route path="/admin/settings/notifications" element={<SettingsLayout><NotificationRules /></SettingsLayout>} />
             <Route path="/admin/settings/api" element={<SettingsLayout><APIIntegration /></SettingsLayout>} />
             <Route path="/admin/settings/language" element={<SettingsLayout><LanguageLocalization /></SettingsLayout>} />
+            <Route path="/admin/settings/payment" element={<SettingsLayout><PaymentSettingsPage /></SettingsLayout>} />
             <Route path="/admin/settings/maintenance" element={<SettingsLayout><MaintenanceMode /></SettingsLayout>} />
             <Route path="/admin/settings/devices" element={<SettingsLayout><DeviceManagement /></SettingsLayout>} />
             <Route path="/admin/settings/login-history" element={<SettingsLayout><LoginHistory /></SettingsLayout>} />
@@ -299,7 +301,8 @@ const App = () => {
             {/* Other Routes */}
             <Route path="/businessman/*" element={<BusinessmanDashboard />} />
             <Route path="*" element={<NotFound />} />
-                </Routes>
+                  </Routes>
+                </PinSetupGuard>
               )}
             </BrowserRouter>
           </CartProvider>
