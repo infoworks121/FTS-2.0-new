@@ -22,6 +22,7 @@ export function AddressManager() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -50,19 +51,46 @@ export function AddressManager() {
     }
   };
 
-  const handleAddAddress = async (e: React.FormEvent) => {
+  const handleSubmitAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await addressApi.addAddress(formData);
-      toast({ title: "Success", description: "Address added successfully" });
+      if (editId) {
+        await addressApi.updateAddress(editId, formData);
+        toast({ title: "Success", description: "Address updated successfully" });
+      } else {
+        await addressApi.addAddress(formData);
+        toast({ title: "Success", description: "Address added successfully" });
+      }
       setIsDialogOpen(false);
       setFormData({ label: "", street_address: "", city: "", state: "", pincode: "", is_default: false });
+      setEditId(null);
       fetchAddresses();
     } catch (error) {
-      toast({ title: "Error", description: "Failed to add address", variant: "destructive" });
+      toast({ title: "Error", description: editId ? "Failed to update address" : "Failed to add address", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (addr: UserAddress) => {
+    setFormData({
+      label: addr.label,
+      street_address: addr.street_address,
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+      is_default: addr.is_default
+    });
+    setEditId(addr.id);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenStatusChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditId(null);
+      setFormData({ label: "", street_address: "", city: "", state: "", pincode: "", is_default: false });
     }
   };
 
@@ -102,7 +130,7 @@ export function AddressManager() {
           <MapPin className="h-5 w-5 text-primary" />
           Delivery Addresses
         </h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={handleOpenStatusChange}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
@@ -111,7 +139,7 @@ export function AddressManager() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Delivery Address</DialogTitle>
+              <DialogTitle>{editId ? "Edit Delivery Address" : "Add New Delivery Address"}</DialogTitle>
             </DialogHeader>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
@@ -138,7 +166,7 @@ export function AddressManager() {
               </div>
 
               {/* Right Side: Form Fields */}
-              <form onSubmit={handleAddAddress} className="space-y-4">
+              <form onSubmit={handleSubmitAddress} className="space-y-4">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Address Details</Label>
                 <div className="space-y-4 p-1">
                   <div className="space-y-2">
@@ -208,7 +236,7 @@ export function AddressManager() {
                   <DialogFooter className="pt-4">
                     <Button type="submit" disabled={isSubmitting} className="w-full h-11 text-base font-semibold transition-all">
                       {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Save Address
+                      {editId ? "Update Address" : "Save Address"}
                     </Button>
                   </DialogFooter>
                 </div>
@@ -247,6 +275,9 @@ export function AddressManager() {
                     )}
                   </div>
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => openEditDialog(addr)} title="Edit">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    </Button>
                     {!addr.is_default && (
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSetDefault(addr.id)} title="Set as default">
                         <Star className="h-3.5 w-3.5" />

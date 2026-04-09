@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Activity, Download, Eye, Settings, ShieldCheck, User as UserIcon, Loader2 } from "lucide-react";
+import { Users, Activity, Download, Settings, ShieldCheck, User as UserIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -109,8 +109,8 @@ export default function AllUsers() {
   const handleNavigateToSettings = (user: UserRow) => {
     if (user.role === 'businessman' || user.role === 'stock_point') {
         navigate(`/admin/users/businessmen/${user.id}/settings`);
-    } else if (user.role === 'corebody') {
-        navigate(`/admin/corebody/${user.id}`);
+    } else if (user.role === 'corebody' || user.role === 'core_body_a' || user.role === 'core_body_b' || user.role === 'dealer') {
+        navigate(`/admin/users/corebody/${user.id}/settings`);
     } else {
         // Fallback or generic user view If implemented
         // navigate(`/admin/users/${user.id}`); 
@@ -222,9 +222,7 @@ export default function AllUsers() {
                   </TableCell>
                   <TableCell className="pr-6">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10">
-                        <Eye className="h-4 w-4" />
-                      </Button>
+
                       <Button 
                         variant="ghost" 
                         size="icon" 

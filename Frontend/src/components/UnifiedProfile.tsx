@@ -17,10 +17,15 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import walletApi from "@/lib/walletApi";
 import { AddressManager } from "./AddressManager";
 
-export default function UnifiedProfile() {
+interface ProfileProps {
+  variant?: "legacy" | "tabbed";
+}
+
+export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,11 +42,10 @@ export default function UnifiedProfile() {
 
   const fetchProfile = async () => {
     try {
-      // Always try to load from localStorage first (registration data)
+      // Always try to load from localStorage initially for fast render
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         const userData = JSON.parse(storedUser);
-        console.log('Loading profile from localStorage:', userData);
         const profileFromStorage = {
           id: userData.id || 1,
           full_name: userData.full_name || userData.name || userData.fullName,
@@ -70,7 +74,6 @@ export default function UnifiedProfile() {
         } as any;
         setProfile(profileFromStorage);
         setFormData(profileFromStorage);
-        return;
       }
 
       // Fallback to API if no localStorage data
@@ -100,14 +103,17 @@ export default function UnifiedProfile() {
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      // Show mock data on error
+      // Show mock data from localStorage if possible, otherwise default to admin
+      const storedUser = localStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      
       const mockProfile = {
-        id: 1,
-        full_name: "Sample User",
-        email: "user@example.com",
-        phone: "+1234567890",
-        role_code: "core_body_a",
-        district_name: "Sample District",
+        id: currentUser?.id || 1,
+        full_name: currentUser?.full_name || "Official User",
+        email: currentUser?.email || "user@example.com",
+        phone: currentUser?.phone || "+8801700000000",
+        role_code: currentUser?.role_code || "admin",
+        district_name: currentUser?.district_name || "Central",
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -122,25 +128,20 @@ export default function UnifiedProfile() {
       const token = localStorage.getItem('token');
       if (!token) {
         // Mock dashboard data
-        const mockStats = {
-          earnings: {
-            ytd: 250000,
-            mtd: 45000,
-            annual_cap: 500000,
-            monthly_cap: 50000,
-            annual_utilization: 50,
-            monthly_utilization: 90,
-            cap_hit: false
-          },
-          investment: {
-            total_amount: 50000,
-            installments: 2,
-            per_installment: 25000
-          }
-        };
-        setStats(mockStats);
-        setLoading(false);
-        return;
+      const storedUser = localStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      
+      const mockProfile = {
+        full_name: currentUser?.full_name || "Official User",
+        email: currentUser?.email || "user@example.com",
+        phone: currentUser?.phone || "+8801700000000",
+        district_name: currentUser?.district_name || "Central",
+        role_code: currentUser?.role_code || "admin",
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      setProfile(mockProfile);
       }
 
       // Try unified endpoint first, fallback to role-specific
@@ -806,6 +807,193 @@ export default function UnifiedProfile() {
     return fields;
   };
 
+  const renderProfileInfoCard = () => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-slate-400" />
+          Profile Information
+        </CardTitle>
+        <Button 
+          variant={editing ? "default" : "outline"} 
+          size="sm"
+          onClick={() => editing ? handleSave() : setEditing(true)}
+        >
+          {editing ? "Save Changes" : "Edit Profile"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+          {renderProfileFields()}
+        </div>
+        {editing && (
+          <div className="flex gap-2 pt-6 mt-6 border-t">
+            <Button onClick={handleSave}>Save Profile</Button>
+            <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const renderInstallmentsSection = () => {
+    if (!profile?.installments) {
+      return (
+        <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed">
+           <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3 animate-spin" />
+           <h3 className="text-lg font-semibold text-slate-700">Loading Installments...</h3>
+           <p className="text-slate-500 text-sm">Please wait while we fetch your payment schedule.</p>
+        </div>
+      );
+    }
+
+    if (profile.installments.length === 0) {
+      return (
+        <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed">
+          <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-slate-700">No Installments Found</h3>
+          <p className="text-slate-500 text-sm">Your installment schedule is empty or not generated yet.</p>
+        </div>
+      );
+    }
+
+    return (
+      <Card className="shadow-sm border-slate-200">
+        <CardHeader className="bg-slate-50/50 border-b pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="w-5 h-5 text-primary" />
+            Installment Management
+          </CardTitle>
+          <p className="text-sm text-slate-500">Track and pay your scheduled investment installments securely.</p>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            {profile.installments.map((installment: any) => {
+              const isPendingApproval = installment.status === 'pending_approval';
+              const isPaid = installment.status === 'paid';
+              
+              return (
+                <div key={installment.installment_no} className="flex items-center justify-between p-4 border rounded-xl bg-white hover:border-primary/30 transition-all shadow-sm">
+                  <div className="flex items-center gap-4">
+                    {isPaid ? (
+                      <div className="p-2 bg-green-100 rounded-full">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                    ) : (
+                      <div className={`p-2 rounded-full ${isPendingApproval ? 'bg-blue-100' : 'bg-orange-100'}`}>
+                        <Clock className={`w-5 h-5 ${isPendingApproval ? 'text-blue-600' : 'text-orange-600'}`} />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-bold text-slate-800 text-lg">Installment {installment.installment_no}</p>
+                      <p className="text-sm font-medium text-slate-500">₹{installment.amount?.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {isPaid ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 font-bold px-3 py-1">PAID</Badge>
+                        <p className="text-xs text-gray-400 font-medium">
+                          {new Date(installment.paid_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ) : isPendingApproval ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 font-bold px-3 py-1 animate-pulse">VERIFYING</Badge>
+                        <p className="text-xs text-gray-400 font-medium tracking-tight">Admin Review</p>
+                      </div>
+                    ) : (
+                      <Button 
+                        size="default" 
+                        className="font-bold shadow-sm"
+                        onClick={() => handlePayInstallment(installment.installment_no)}
+                      >
+                        Pay Now
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderSecurityCard = () => (
+    <Card className="border-slate-200 overflow-hidden shadow-sm">
+      <CardHeader className="bg-slate-50/50 border-b">
+        <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
+          <Lock className="w-4 h-4 text-emerald-600" />
+          Security & PIN
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-6">
+        <div className="space-y-3">
+          <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Transaction PIN</Label>
+          <p className="text-xs text-muted-foreground leading-relaxed">Required for secure withdrawals and payouts. Use a unique 6-digit number.</p>
+          <div className="flex justify-center py-6 bg-slate-50 border border-slate-100 rounded-2xl group focus-within:ring-2 ring-emerald-500/20 transition-all">
+            <InputOTP maxLength={6} value={pinValue} onChange={setPinValue}>
+              <InputOTPGroup className="gap-2">
+                <InputOTPSlot index={0} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+                <InputOTPSlot index={1} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+                <InputOTPSlot index={2} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+                <InputOTPSlot index={3} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+                <InputOTPSlot index={4} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+                <InputOTPSlot index={5} className="rounded-md h-12 w-10 border-slate-300 font-bold" />
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+        </div>
+        <Button 
+          className="w-full gap-2 h-12 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-all shadow-md" 
+          onClick={handleSetPin} 
+          disabled={isSubmittingPin || pinValue.length !== 6}
+        >
+          {isSubmittingPin ? <ShieldCheck className="w-4 h-4 animate-pulse" /> : <ShieldCheck className="w-4 h-4" />}
+          {isSubmittingPin ? "Securing Account..." : "Update PIN Securely"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAddressCard = () => (
+    <Card className="border-slate-200 overflow-hidden shadow-sm">
+      <CardHeader className="bg-slate-50/50 border-b">
+        <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
+          <MapPin className="w-4 h-4 text-primary" />
+          Delivery Addresses
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <AddressManager />
+      </CardContent>
+    </Card>
+  );
+
+  const renderSupportCard = () => (
+    profile?.role_code !== 'admin' && (
+      <Card className="border-emerald-100 bg-emerald-50/20 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
+        <CardHeader>
+          <CardTitle className="text-xs font-black uppercase tracking-widest text-emerald-800 flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-600" />
+            Official Support
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-emerald-800/80 leading-relaxed font-medium">
+            Facing issues? Your dedicated Support Officer is ready to assist you with account verification and inquiries.
+          </p>
+          <Button variant="link" className="px-0 h-auto text-emerald-600 font-black uppercase tracking-widest text-[10px] hover:text-emerald-700 hover:no-underline flex items-center gap-1 group">
+            Contact Now <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  );
+
   if (loading) {
     return <div className="p-6 text-center py-20">Loading profile...</div>;
   }
@@ -825,155 +1013,69 @@ export default function UnifiedProfile() {
       {/* Dashboard Stats */}
       {renderDashboardStats()}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-slate-400" />
-                Profile Information
-              </CardTitle>
-              <Button 
-                variant={editing ? "default" : "outline"} 
-                size="sm"
-                onClick={() => editing ? handleSave() : setEditing(true)}
+      {/* PROFILE CONTENT */}
+      {variant === "tabbed" ? (
+        <Tabs defaultValue="overview" className="w-full">
+          <div className="w-full border-b mb-6 pb-px overflow-x-auto">
+            <TabsList className="bg-transparent space-x-2 p-0 h-auto w-full justify-start">
+              <TabsTrigger 
+                value="overview" 
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
               >
-                {editing ? "Save Changes" : "Edit Profile"}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                {renderProfileFields()}
-              </div>
-
-              {editing && (
-                <div className="flex gap-2 pt-6 mt-6 border-t">
-                  <Button onClick={handleSave}>Save Profile</Button>
-                  <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-                </div>
+                Overview
+              </TabsTrigger>
+              {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && (
+                <TabsTrigger 
+                  value="installments" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
+                >
+                  Pay Installments
+                </TabsTrigger>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Installments for Core Body/Dealer */}
-          {profile?.installments && profile.installments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-slate-400" />
-                  Investment Installments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {profile.installments.map((installment) => (
-                    <div key={installment.installment_no} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {installment.status === 'paid' ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        ) : (
-                          <Clock className="w-5 h-5 text-orange-600" />
-                        )}
-                        <div>
-                          <p className="font-medium">Installment {installment.installment_no}</p>
-                          <p className="text-sm text-gray-600">₹{installment.amount?.toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {installment.status === 'paid' ? (
-                          <div className="flex flex-col items-end">
-                            <Badge variant="outline" className="bg-green-50 text-green-700 h-5">Paid</Badge>
-                            <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-tighter">
-                              {new Date(installment.paid_date).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            onClick={() => handlePayInstallment(installment.installment_no)}
-                          >
-                            Pay Now
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <div className="space-y-6">
-          <Card className="border-slate-200 overflow-hidden">
-            <CardHeader className="bg-slate-50/50">
-              <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
-                <Lock className="w-4 h-4 text-emerald-600" />
-                Security & PIN
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              <div className="space-y-3">
-                <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Transaction PIN</Label>
-                <p className="text-xs text-muted-foreground leading-relaxed">Required for secure withdrawals and payouts. Use a unique 6-digit number.</p>
-                <div className="flex justify-center py-6 bg-slate-50 border border-slate-100 rounded-2xl group focus-within:ring-2 ring-emerald-500/20 transition-all">
-                  <InputOTP maxLength={6} value={pinValue} onChange={setPinValue}>
-                    <InputOTPGroup className="gap-2">
-                      <InputOTPSlot index={0} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                      <InputOTPSlot index={1} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                      <InputOTPSlot index={2} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                      <InputOTPSlot index={3} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                      <InputOTPSlot index={4} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                      <InputOTPSlot index={5} className="rounded-lg h-10 w-10 border-slate-300 font-bold" />
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-              </div>
-              <Button 
-                className="w-full gap-2 h-12 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-all shadow-lg shadow-slate-900/10" 
-                onClick={handleSetPin} 
-                disabled={isSubmittingPin || pinValue.length !== 6}
+              <TabsTrigger 
+                value="security" 
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
               >
-                {isSubmittingPin ? <ShieldCheck className="w-4 h-4 animate-pulse" /> : <ShieldCheck className="w-4 h-4" />}
-                {isSubmittingPin ? "Securing Account..." : "Update PIN Securely"}
-              </Button>
-            </CardContent>
-          </Card>
+                Security & Addresses
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          {/* Address Management */}
-          <Card className="border-slate-200 overflow-hidden">
-            <CardHeader className="bg-slate-50/50">
-              <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest font-black text-slate-900">
-                <MapPin className="w-4 h-4 text-primary" />
-                Delivery Addresses
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <AddressManager />
-            </CardContent>
-          </Card>
+          <TabsContent value="overview" className="outline-none">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                {renderProfileInfoCard()}
+              </div>
+              <div className="space-y-6">
+                {renderSupportCard()}
+              </div>
+            </div>
+          </TabsContent>
 
-          {profile?.role_code !== 'admin' && (
-            <Card className="border-emerald-100 bg-emerald-50/20 overflow-hidden relative">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
-              <CardHeader>
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-emerald-800 flex items-center gap-2">
-                   <Users className="w-4 h-4 text-emerald-600" />
-                   Official Support
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-emerald-800/80 leading-relaxed font-medium">
-                  Facing issues? Your dedicated Support Officer is ready to assist you with account verification and inquiries.
-                </p>
-                <Button variant="link" className="px-0 h-auto text-emerald-600 font-black uppercase tracking-widest text-[10px] hover:text-emerald-700 hover:no-underline flex items-center gap-1 group">
-                  Contact Now <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <TabsContent value="installments" className="outline-none">
+            {renderInstallmentsSection()}
+          </TabsContent>
+
+          <TabsContent value="security" className="outline-none space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderSecurityCard()}
+              {renderAddressCard()}
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {renderProfileInfoCard()}
+            {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && renderInstallmentsSection()}
+          </div>
+          <div className="space-y-6">
+            {renderSecurityCard()}
+            {renderAddressCard()}
+            {renderSupportCard()}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

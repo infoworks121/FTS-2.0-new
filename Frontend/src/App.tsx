@@ -70,7 +70,7 @@ import { ProductsPageLayout } from "./components/products/ProductsPageLayout";
 
 // District & Core Body Pages
 import { AllDistricts, ManageDistrict, DistrictPerformance } from "./pages/districts";
-import { CoreBodyList, CoreBodyAManagement, CoreBodyBManagement } from "./pages/corebody";
+import { CoreBodyList, CoreBodyAManagement, CoreBodyBManagement, MainWallet as CoreBodyMainWallet, DepositRequest as CoreBodyDepositRequest } from "./pages/corebody";
 import UpgradeStatus from "./pages/corebody/UpgradeStatus";
 import SystemAlerts from "./pages/corebody/alerts/SystemAlerts";
 import CapWarnings from "./pages/corebody/alerts/CapWarnings";
@@ -99,6 +99,7 @@ import CoreBodyWithdrawalRequest from "./pages/corebody/wallet/WithdrawalRequest
 import { UsersLayout } from "./components/users/UsersLayoutWrapper";
 import { AllUsers, AllBusinessmen, EntryModeUsers, AdvanceModeUsers, BulkUsers, StockPointList, RolePermissions, FeatureAccessControl } from "./pages/users";
 import BusinessmanSettings from "./pages/users/BusinessmanSettings";
+import CoreBodySettings from "./pages/users/CoreBodySettings";
 import UserApproval from "./pages/users/UserApproval";
 import AdminProfile from "./pages/admin/AdminProfile";
 import CoreBodyProfile from "./pages/corebody/CoreBodyProfile";
@@ -221,6 +222,7 @@ const App = () => {
             <Route path="/admin/users/approval" element={<UsersLayout><UserApproval /></UsersLayout>} />
             <Route path="/admin/users/businessmen" element={<UsersLayout><AllBusinessmen /></UsersLayout>} />
             <Route path="/admin/users/businessmen/:id/settings" element={<UsersLayout><BusinessmanSettings /></UsersLayout>} />
+            <Route path="/admin/users/corebody/:id/settings" element={<UsersLayout><CoreBodySettings /></UsersLayout>} />
             <Route path="/admin/users/entry" element={<UsersLayout><EntryModeUsers /></UsersLayout>} />
             <Route path="/admin/users/advance" element={<UsersLayout><AdvanceModeUsers /></UsersLayout>} />
             <Route path="/admin/users/bulk" element={<UsersLayout><BulkUsers /></UsersLayout>} />
@@ -292,6 +294,8 @@ const App = () => {
             <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
             <Route path="/corebody/orders/distribution" element={<DistributionHistory />} />
             <Route path="/corebody/orders/issues" element={<FulfilmentIssues />} />
+            <Route path="/corebody/wallet/main-wallet" element={<CoreBodyMainWallet />} />
+            <Route path="/corebody/wallet/deposit" element={<CoreBodyDepositRequest />} />
             <Route path="/corebody/wallet" element={<WalletSummary />} />
             <Route path="/corebody/wallet/ledger" element={<EarningsLedger />} />
             <Route path="/corebody/wallet/cap" element={<CapStatus />} />

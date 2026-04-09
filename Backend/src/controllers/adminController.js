@@ -7,7 +7,17 @@ const getPendingUsers = async (req, res) => {
                    r.role_code, u.district_id, u.created_at,
                    d.name as district_name,
                    bp.mode as businessman_type, bp.business_name, bp.gst_number, bp.advance_amount,
-                   cp.type as core_body_type, cp.investment_amount
+                   cp.type as core_body_type, cp.investment_amount,
+                   (
+                       SELECT json_agg(i.* ORDER BY i.installment_no) 
+                       FROM core_body_installments i 
+                       WHERE i.core_body_id = cp.id
+                   ) as core_body_installments,
+                   (
+                       SELECT json_agg(bi.* ORDER BY bi.installment_no) 
+                       FROM businessman_investments bi 
+                       WHERE bi.businessman_id = bp.id
+                   ) as businessman_installments
             FROM users u
             JOIN user_roles r ON u.role_id = r.id
             LEFT JOIN districts d ON u.district_id = d.id
@@ -45,11 +55,19 @@ const rejectUser = async (req, res) => {
     const { userId } = req.params;
 
     try {
-        // Delete related records first
+        // Delete related core body installments first
+        await db.query('DELETE FROM core_body_installments WHERE core_body_id IN (SELECT id FROM core_body_profiles WHERE user_id = $1)', [userId]);
+        // Delete related businessman investments
+        await db.query('DELETE FROM businessman_investments WHERE businessman_id IN (SELECT id FROM businessman_profiles WHERE user_id = $1)', [userId]);
+        
+        // Delete profiles and sessions
         await db.query('DELETE FROM businessman_profiles WHERE user_id = $1', [userId]);
         await db.query('DELETE FROM core_body_profiles WHERE user_id = $1', [userId]);
         await db.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
         await db.query('DELETE FROM user_devices WHERE user_id = $1', [userId]);
+        await db.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
+        await db.query('DELETE FROM referral_links WHERE user_id = $1', [userId]);
+        await db.query('DELETE FROM referral_registrations WHERE referred_id = $1', [userId]);
         
         // Then delete the user
         await db.query('DELETE FROM users WHERE id = $1', [userId]);
@@ -702,6 +720,173 @@ const getAdminDashboardStats = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+const getPendingCoreBodyInstallments = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                i.id as installment_id, i.installment_no, i.amount, i.payment_ref, i.created_at,
+                u.id as user_id, u.full_name as name, u.phone, u.email,
+                cb.type as core_body_type,
+                d.name as district_name
+            FROM core_body_installments i
+            JOIN core_body_profiles cb ON i.core_body_id = cb.id
+            JOIN users u ON cb.user_id = u.id
+            LEFT JOIN districts d ON cb.district_id = d.id
+            WHERE i.status = 'pending_approval'
+            ORDER BY i.created_at DESC
+        `;
+        const result = await db.query(query);
+        res.json({ pendingInstallments: result.rows });
+    } catch (err) {
+        console.error('Get pending core body installments error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const approveCoreBodyInstallment = async (req, res) => {
+    const { id } = req.params;
+    const { action } = req.body; // action: 'approve' or 'reject'
+    const adminId = req.user.id;
+    
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Fetch installment details
+        const installmentResult = await client.query(`
+            SELECT i.*, cb.user_id 
+            FROM core_body_installments i
+            JOIN core_body_profiles cb ON i.core_body_id = cb.id
+            WHERE i.id = $1
+        `, [id]);
+
+        if (installmentResult.rows.length === 0) {
+            throw new Error('Installment not found');
+        }
+
+        const installment = installmentResult.rows[0];
+        
+        if (action === 'approve') {
+            // Update installment to paid
+            await client.query(`
+                UPDATE core_body_installments 
+                SET status = 'paid'
+                WHERE id = $1
+            `, [id]);
+
+            // Activate Core Body profile and user
+            await client.query(`
+                UPDATE core_body_profiles 
+                SET is_active = TRUE, activated_at = COALESCE(activated_at, NOW()), updated_at = NOW() 
+                WHERE id = $1
+            `, [installment.core_body_id]);
+
+            await client.query(`
+                UPDATE users 
+                SET is_approved = TRUE, approved_by = $1, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() 
+                WHERE id = $2
+            `, [adminId, installment.user_id]);
+            
+            // Add to wallet ledger if applicable - user wanted it transferred to corebody wallet
+            const walletQuery = await client.query(`SELECT id FROM wallets WHERE user_id = $1 AND wallet_type = 'main'`, [installment.user_id]);
+            let walletId;
+            
+            if (walletQuery.rows.length > 0) {
+                walletId = walletQuery.rows[0].id;
+                await client.query(`
+                    UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2
+                `, [installment.amount, walletId]);
+                
+                await client.query(`
+                    INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, description, reference_id)
+                    VALUES ($1, $2, 'deposit', $3, 'Investment Installment Payment Approved', $4)
+                `, [walletId, installment.user_id, installment.amount, id]);
+            }
+
+            await client.query('COMMIT');
+            res.json({ message: 'Installment approved and user activated successfully' });
+        } else if (action === 'reject') {
+            await client.query(`
+                UPDATE core_body_installments 
+                SET status = 'rejected', payment_ref = NULL
+                WHERE id = $1
+            `, [id]);
+
+            await client.query('COMMIT');
+            res.json({ message: 'Installment payment rejected' });
+        } else {
+            throw new Error('Invalid action');
+        }
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Approve core body installment error:', err);
+        res.status(500).json({ message: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+const updateCoreBodySettings = async (req, res) => {
+    const { id } = req.params;
+    const { 
+        name, email, phone, status, type, district_id,
+        investment_amount, installment_count, annual_cap, monthly_cap,
+        is_sph
+    } = req.body;
+
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // 1. Update User Table
+        let user_is_approved = true;
+        
+        if (status === 'pending') {
+            user_is_approved = false;
+        }
+
+        await client.query(`
+            UPDATE users 
+            SET full_name = COALESCE($1, full_name),
+                email = COALESCE($2, email),
+                phone = COALESCE($3, phone),
+                is_approved = $4,
+                is_sph = $5,
+                updated_at = NOW()
+            WHERE id = $6
+        `, [name, email, phone, user_is_approved, is_sph, id]);
+
+        // 2. Update Core Body Profile
+        const cb_is_active = status !== 'suspended' && status !== 'inactive';
+
+        await client.query(`
+            UPDATE core_body_profiles 
+            SET type = COALESCE($1, type),
+                district_id = COALESCE($2, district_id),
+                investment_amount = COALESCE($3, investment_amount),
+                installment_count = COALESCE($4, installment_count),
+                annual_cap = COALESCE($5, annual_cap),
+                monthly_cap = COALESCE($6, monthly_cap),
+                is_active = $7,
+                updated_at = NOW()
+            WHERE user_id = $8
+        `, [
+            type, district_id, investment_amount, installment_count, 
+            annual_cap, monthly_cap, cb_is_active, id
+        ]);
+
+        await client.query('COMMIT');
+        res.json({ message: 'Core Body settings updated successfully' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Update core body settings error:', err);
+        res.status(500).json({ message: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
 
 module.exports = { 
     getPendingUsers, 
@@ -713,7 +898,10 @@ module.exports = {
     getEntryModeUsers,
     getBusinessmanById,
     updateBusinessmanSettings,
+    updateCoreBodySettings,
     getAllUsers,
     updateUserSPHStatus,
-    getAdminDashboardStats
+    getAdminDashboardStats,
+    getPendingCoreBodyInstallments,
+    approveCoreBodyInstallment
 };

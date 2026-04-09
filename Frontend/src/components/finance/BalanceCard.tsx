@@ -6,7 +6,7 @@ interface BalanceCardProps {
   title: string;
   amount: number;
   currency?: string;
-  type: "credit" | "debit" | "blocked" | "available" | "pending" | "locked";
+  type: "credit" | "debit" | "blocked" | "available" | "pending" | "locked" | "neutral";
   icon?: React.ReactNode;
   trend?: {
     value: number;
@@ -53,6 +53,12 @@ const typeStyles = {
     text: "text-purple-700 dark:text-purple-400",
     icon: "text-purple-500",
   },
+  neutral: {
+    bg: "bg-gray-50 dark:bg-gray-900/30",
+    border: "border-gray-200 dark:border-gray-800",
+    text: "text-gray-700 dark:text-gray-400",
+    icon: "text-gray-500",
+  },
 };
 
 const typeLabels = {
@@ -62,6 +68,7 @@ const typeLabels = {
   available: "Available Balance",
   pending: "Pending",
   locked: "Locked",
+  neutral: "Total",
 };
 
 const typeIcons = {
@@ -71,6 +78,7 @@ const typeIcons = {
   available: TrendingUp,
   pending: AlertTriangle,
   locked: Lock,
+  neutral: TrendingUp,
 };
 
 export default function BalanceCard({
@@ -83,8 +91,8 @@ export default function BalanceCard({
   subtext,
   showCurrency = true,
 }: BalanceCardProps) {
-  const styles = typeStyles[type];
-  const TypeIcon = typeIcons[type];
+  const styles = typeStyles[type as keyof typeof typeStyles] || typeStyles.available;
+  const TypeIcon = typeIcons[type as keyof typeof typeIcons] || typeIcons.available;
 
   const formatAmount = (value: number) => {
     return new Intl.NumberFormat("en-IN", {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { RefreshCw, Lock, ShieldCheck, PlusCircle, CreditCard, Banknote, History, AlertTriangle, ArrowRightLeft, CircleAlert } from "lucide-react";
+import { RefreshCw, Lock, ShieldCheck, PlusCircle, CreditCard, Banknote, History, AlertTriangle, ArrowRightLeft, CircleAlert, Landmark, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import {
 import api from "@/lib/api";
 import walletApi, { DepositRequest } from "@/lib/walletApi";
 import { useToast } from "@/components/ui/use-toast";
+import BusinessmanInvestmentModal from "@/components/finance/BusinessmanInvestmentModal";
 
 // Helper to load Razorpay script
 const loadRazorpayScript = () => {
@@ -68,17 +69,29 @@ export default function WalletOverviewPage() {
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [txnRef, setTxnRef] = useState("");
   
+  // Investment States
+  const [profile, setProfile] = useState<any>(null);
+  const [installments, setInstallments] = useState<any[]>([]);
+  const [isInvestmentModalOpen, setIsInvestmentModalOpen] = useState(false);
+  const [selectedInstallment, setSelectedInstallment] = useState<any>(null);
+  
   const { toast } = useToast();
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [walletRes, depositsRes] = await Promise.all([
+      const [walletRes, depositsRes, profileRes] = await Promise.all([
         api.get("/wallet/me"),
-        walletApi.getMyDepositRequests()
+        walletApi.getMyDepositRequests(),
+        api.get("/businessman-profile/profile").catch(() => ({ data: { profile: null } }))
       ]);
       setData(walletRes.data);
       setDepositRequests(depositsRes.requests);
+      
+      if (profileRes.data?.profile) {
+        setProfile(profileRes.data.profile);
+        setInstallments(profileRes.data.profile.installments || []);
+      }
     } catch (error) {
       console.error("Error fetching wallet data:", error);
       toast({
@@ -392,19 +405,88 @@ export default function WalletOverviewPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground uppercase tracking-wider">Income Cap Usage</CardTitle>
+      {/* Product Advance Progress Section (For Retailer A) */}
+      {profile?.type === 'retailer_a' && (
+        <Card className="border-indigo-100 bg-indigo-50/10 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-6 opacity-5">
+            <Landmark className="h-24 w-24 text-indigo-600" />
+          </div>
+          
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-indigo-600" />
+                Product Advance Progress
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Track and pay your product advance installments to maintain Retailer A status.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Advance</p>
+              <p className="text-xl font-mono font-bold text-indigo-600">
+                ₹{(installments.reduce((acc, curr) => acc + parseFloat(curr.amount), 0)).toLocaleString()}
+              </p>
+            </div>
           </CardHeader>
+          
           <CardContent>
-            <p className="font-mono text-3xl font-bold tracking-tight text-purple-600">
-              {isLoading ? "---" : formatCurrency(parseFloat(wallet?.income_cap_used || 0))}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground italic">Current billing cycle usage.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {installments.map((inst) => (
+                <div 
+                  key={inst.installment_no}
+                  className={`relative p-4 rounded-xl border-2 transition-all ${
+                    inst.status === 'approved' 
+                      ? 'bg-white border-green-200 shadow-sm' 
+                      : inst.status === 'pending_approval'
+                        ? 'bg-white border-yellow-200'
+                        : 'bg-white border-slate-200 opacity-80'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Level {inst.installment_no}</span>
+                    <Badge variant="outline" className={`text-[9px] h-5 ${
+                      inst.status === 'approved' ? 'bg-green-50 text-green-700' :
+                      inst.status === 'pending_approval' ? 'bg-yellow-50 text-yellow-700' :
+                      'bg-slate-50 text-slate-600'
+                    }`}>
+                      {inst.status === 'pending_approval' ? 'Verifying' : inst.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="text-lg font-mono font-bold">₹{parseFloat(inst.amount).toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground">Due: {inst.due_date ? new Date(inst.due_date).toLocaleDateString() : 'Upon Request'}</p>
+                  </div>
+
+                  {inst.status === 'pending' ? (
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedInstallment(inst);
+                        setIsInvestmentModalOpen(true);
+                      }}
+                      className="w-full h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      Pay Now
+                    </Button>
+                  ) : inst.status === 'pending_approval' ? (
+                    <div className="flex items-center justify-center h-8 text-[10px] font-medium text-yellow-600 bg-yellow-50 rounded-md">
+                      Ref: {inst.payment_ref}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-8 text-[10px] font-medium text-green-600 bg-green-50 rounded-md gap-1">
+                      <ShieldCheck className="h-3 w-3" /> Paid on {new Date(inst.paid_date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       {wallet?.is_frozen && (
         <Card className="border-rose-500/30 bg-rose-500/10">
@@ -533,6 +615,16 @@ export default function WalletOverviewPage() {
           </div>
         </CardContent>
       </Card>
+      {/* Investment Payment Modal */}
+      {selectedInstallment && (
+        <BusinessmanInvestmentModal
+          open={isInvestmentModalOpen}
+          onOpenChange={setIsInvestmentModalOpen}
+          installmentNo={selectedInstallment.installment_no}
+          amount={parseFloat(selectedInstallment.amount)}
+          onSuccess={fetchData}
+        />
+      )}
     </div>
   );
 }

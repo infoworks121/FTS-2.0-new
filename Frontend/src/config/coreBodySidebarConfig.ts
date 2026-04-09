@@ -338,6 +338,12 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
           safety: "monitor",
         },
         {
+          title: "Deposit Funds",
+          icon: ArrowUpCircle,
+          url: "/corebody/wallet/deposit",
+          safety: "control",
+        },
+        {
           title: "Referral Wallet",
           icon: WalletCards,
           url: "/corebody/wallet/referral-wallet",

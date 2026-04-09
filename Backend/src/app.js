@@ -63,6 +63,7 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-profile', adminProfileRoutes);
 app.use('/api/corebody-profile', coreBodyProfileRoutes);
+app.use('/api/corebody', coreBodyProfileRoutes);
 app.use('/api/businessman-profile', businessmanProfileRoutes);
 app.use('/api/dealer-profile', dealerProfileRoutes);
 app.use('/api/stockpoint-profile', stockPointProfileRoutes);

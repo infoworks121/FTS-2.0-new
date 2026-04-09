@@ -28,9 +28,99 @@ const getBusinessmanProfile = async (req, res) => {
       return res.status(404).json({ message: 'Businessman profile not found' });
     }
     
-    res.json({ profile: result.rows[0] });
+    const profile = result.rows[0];
+    
+    // Fetch installments
+    const installmentQuery = `
+      SELECT installment_no, amount, due_date, paid_date, status, payment_ref
+      FROM businessman_investments
+      WHERE businessman_id = $1
+      ORDER BY installment_no
+    `;
+    
+    let installments = await pool.query(installmentQuery, [profile.profile_id]);
+    
+    // Auto-generate installments if Retailer A and none exist
+    if (profile.type === 'retailer_a' && installments.rows.length === 0) {
+      console.log(`[DEBUG] Auto-generating installments for Retailer A: ${profile.profile_id}`);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        const totalAdvance = 50000; // Default advance for Retailer A
+        const count = 4;
+        const amountPerInst = totalAdvance / count;
+        
+        for (let i = 1; i <= count; i++) {
+          await client.query(
+            `INSERT INTO businessman_investments (businessman_id, installment_no, amount, status)
+             VALUES ($1, $2, $3, 'pending')`,
+            [profile.profile_id, i, amountPerInst]
+          );
+        }
+        
+        await client.query(
+          `UPDATE businessman_profiles SET advance_amount = $1 WHERE id = $2`,
+          [totalAdvance, profile.profile_id]
+        );
+        
+        await client.query('COMMIT');
+        
+        // Refresh installments
+        const refreshed = await pool.query(installmentQuery, [profile.profile_id]);
+        profile.installments = refreshed.rows;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error auto-generating businessman installments:', error);
+        profile.installments = [];
+      } finally {
+        client.release();
+      }
+    } else {
+      profile.installments = installments.rows;
+    }
+    
+    res.json({ profile });
   } catch (error) {
     console.error('Get businessman profile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Pay businessman investment installment
+const payBusinessmanInvestment = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { installment_no, payment_ref } = req.body;
+    
+    if (!installment_no || !payment_ref) {
+      return res.status(400).json({ message: 'Installment number and payment reference are required' });
+    }
+    
+    // Find profile
+    const profileRes = await pool.query('SELECT id FROM businessman_profiles WHERE user_id = $1', [userId]);
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Businessman profile not found' });
+    }
+    
+    const profileId = profileRes.rows[0].id;
+    
+    // Update installment status
+    const result = await pool.query(
+      `UPDATE businessman_investments 
+       SET status = 'pending_approval', payment_ref = $1, paid_date = NOW()
+       WHERE businessman_id = $2 AND installment_no = $3 AND status = 'pending'
+       RETURNING *`,
+      [payment_ref, profileId, installment_no]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Installment not found or already paid' });
+    }
+    
+    res.json({ message: 'Payment submitted for approval', installment: result.rows[0] });
+  } catch (error) {
+    console.error('Pay businessman investment error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -135,5 +225,6 @@ const getBusinessmanDashboard = async (req, res) => {
 module.exports = {
   getBusinessmanProfile,
   updateBusinessmanProfile,
-  getBusinessmanDashboard
+  getBusinessmanDashboard,
+  payBusinessmanInvestment
 };

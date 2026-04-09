@@ -51,6 +51,13 @@ const register = async (req, res) => {
 
         // Create core_body profile if role is core_body_a or core_body_b
         if ((role_code === 'core_body_a' || role_code === 'core_body_b') && investment_amount) {
+            if (role_code === 'core_body_a' && Number(investment_amount) !== 100000) {
+                return res.status(400).json({ message: 'Core Body A investment must be exactly ₹100,000.' });
+            }
+            if (role_code === 'core_body_b' && (Number(investment_amount) < 50000 || Number(investment_amount) > 250000)) {
+                return res.status(400).json({ message: 'Core Body B investment must be between ₹50,000 and ₹250,000.' });
+            }
+
             const coreBodyResult = await db.query(
                 `INSERT INTO core_body_profiles (user_id, type, district_id, investment_amount, installment_count)
                  VALUES ($1, $2, $3, $4, $5) RETURNING id`,

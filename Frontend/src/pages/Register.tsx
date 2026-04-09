@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,16 @@ export default function Register() {
   const handleCoreBodyTypeChange = (value: string) => {
     setFormData((prev) => ({ ...prev, core_body_type: value, district: "" }));
   };
+
+  useEffect(() => {
+    if (formData.core_body_type === "core_body_a") {
+      setInstallmentData({ investment_amount: "100000", installment_count: "1" });
+      setCustomAmounts(["100000"]);
+    } else if (formData.core_body_type === "core_body_b") {
+      setInstallmentData({ investment_amount: "50000", installment_count: "1" });
+      setCustomAmounts(["50000"]);
+    }
+  }, [formData.core_body_type]);
 
   const handleBusinessmanTypeChange = (value: string) => {
     setFormData((prev) => ({ ...prev, businessman_type: value }));
@@ -137,6 +147,17 @@ export default function Register() {
   };
 
   const submitRegistration = async () => {
+    if (formData.core_body_type === "core_body_b") {
+      if (totalInvestment < 50000 || totalInvestment > 250000) {
+        toast({
+          title: "Invalid Investment",
+          description: "Core Body B investment must be between ₹50,000 and ₹250,000.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsLoading(true);
     setShowInstallmentModal(false);
 
@@ -218,8 +239,19 @@ export default function Register() {
                       setCustomAmounts(Array(count).fill(""));
                     }
                   }}
-                  className="h-11"
+                  disabled={formData.core_body_type === "core_body_a"}
+                  className="h-11 disabled:bg-gray-100 disabled:opacity-100 disabled:text-gray-700"
                 />
+                {formData.core_body_type === "core_body_a" && (
+                  <p className="text-xs text-slate-500 mt-1">Fixed at ₹1,00,000 for Core Body A</p>
+                )}
+                {formData.core_body_type === "core_body_b" && (
+                  <p className={`text-xs mt-1 ${totalInvestment < 50000 || totalInvestment > 250000 ? "text-red-500 font-medium" : "text-green-600"}`}>
+                    {totalInvestment < 50000 || totalInvestment > 250000 
+                      ? "Amount must be between ₹50,000 and ₹2,50,000" 
+                      : "✓ Valid amount"}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -275,7 +307,7 @@ export default function Register() {
                 </Button>
                 <Button
                   className="flex-1"
-                  disabled={!isCustomValid || isLoading}
+                  disabled={!isCustomValid || isLoading || (formData.core_body_type === "core_body_b" && (totalInvestment < 50000 || totalInvestment > 250000))}
                   onClick={submitRegistration}
                 >
                   {isLoading ? "Creating..." : "Confirm & Register"}

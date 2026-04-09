@@ -83,6 +83,10 @@ export const coreBodyApi = {
     const response = await api.get('/corebody-profile/reports');
     return response.data;
   },
+  updateCoreBodySettings: async (id: string, data: any): Promise<{ message: string }> => {
+    const response = await api.put(`/admin/corebodies/${id}/settings`, data);
+    return response.data;
+  },
 };
 
 export default coreBodyApi;

@@ -63,6 +63,26 @@ export const adminApi = {
   getProfitRuleHistory: async (channel: string) => {
     const response = await api.get(`/admin/profit-rules/${channel}/history`);
     return response.data;
+  },
+
+  getPendingCoreBodyInstallments: async () => {
+    const response = await api.get('/admin/corebodies/installments/pending');
+    return response.data;
+  },
+
+  approveCoreBodyInstallment: async (id: string, action: 'approve' | 'reject') => {
+    const response = await api.put(`/admin/corebodies/installments/${id}/approve`, { action });
+    return response.data;
+  },
+
+  getPendingDeposits: async () => {
+    const response = await api.get('/wallet/admin/deposit-requests?status=pending');
+    return response.data;
+  },
+
+  updateDepositStatus: async (id: string, status: 'approved' | 'rejected', adminNote?: string) => {
+    const response = await api.put(`/wallet/admin/deposit-requests/${id}/status`, { status, admin_note: adminNote });
+    return response.data;
   }
 };
 
