@@ -70,7 +70,9 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
           shop_address: userData.shop_address || userData.shopAddress,
           shop_type: userData.shop_type || userData.shopType,
           warehouse_address: userData.warehouse_address || userData.warehouseAddress,
-          storage_capacity: userData.storage_capacity || userData.storageCapacity
+          storage_capacity: userData.storage_capacity || userData.storageCapacity,
+          businessman_type: userData.businessman_type,
+          core_body_type: userData.core_body_type
         } as any;
         setProfile(profileFromStorage);
         setFormData(profileFromStorage);
@@ -239,6 +241,13 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   };
 
   const getRoleDisplayName = (roleCode) => {
+    if (roleCode === 'businessman' && (profile as any)?.businessman_type) {
+      return (profile as any).businessman_type.replace('_', ' ').toUpperCase();
+    }
+    if (roleCode.startsWith('core_body') && (profile as any)?.core_body_type) {
+      return `CORE BODY TYPE ${(profile as any).core_body_type}`;
+    }
+
     const roleMap = {
       'admin': 'System Administrator',
       'core_body_a': 'Core Body Type A',

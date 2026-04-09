@@ -64,6 +64,7 @@ export interface BusinessmanSidebarContext {
   entryModeEnabled: boolean;
   advanceModeEnabled: boolean;
   permissions: string[];
+  businessmanType?: string;
   blockedMenus?: Partial<Record<BusinessmanMenuKey, string>>;
 }
 
@@ -98,6 +99,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
     entryModeEnabled,
     advanceModeEnabled,
     permissions,
+    businessmanType,
     blockedMenus,
   } = context;
 
@@ -246,6 +248,8 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
       if (item.key === "stockInventory" && !isStockPoint) return false;
       if (item.key === "bulkOrders" && !bulkEnabled) return false;
       if (item.key === "purchaseAdvance" && !entryModeEnabled && !advanceModeEnabled) return false;
+
+      if (item.key === "referrals" && businessmanType !== 'retailer_a') return false;
 
       const permissionMap: Record<BusinessmanMenuKey, string> = {
         dashboard: "businessman.dashboard.view",

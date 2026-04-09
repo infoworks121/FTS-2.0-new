@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import walletApi, { DepositRequest } from "@/lib/walletApi";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
 export default function ManageDeposits() {
   const [isLoading, setIsLoading] = useState(true);
@@ -148,9 +149,9 @@ export default function ManageDeposits() {
                   </div>
 
                   <div className="p-5 w-full md:w-48 flex flex-col justify-center gap-2">
-                    {req.slip_url && (
+                    {req.slip_url && req.slip_url.startsWith('/') && (
                       <Button variant="outline" size="sm" asChild className="w-full">
-                        <a href={req.slip_url} target="_blank" rel="noopener noreferrer">
+                        <a href={`${IMAGE_BASE_URL}${req.slip_url}`} target="_blank" rel="noopener noreferrer">
                           <Eye className="h-4 w-4 mr-2" /> View Slip
                         </a>
                       </Button>

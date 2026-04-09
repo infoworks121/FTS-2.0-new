@@ -62,7 +62,8 @@ const orders = [
   { id: "ORD-888", product: "Pesticide Spray", qty: "100 L", total: "₹6,200", status: "active" as const, date: "3 days ago" },
 ];
 
-function DashboardHome({ userName }: { userName: string }) {
+function DashboardHome({ user }: { user: any }) {
+  const userName = user?.full_name || 'Businessman';
   const [balance, setBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -107,7 +108,9 @@ function DashboardHome({ userName }: { userName: string }) {
         <KPICard title="Today's Earnings" value="₹4,200" change="+₹800" changeType="positive" icon={TrendingUp} variant="profit" />
         <KPICard title="Wallet Balance" value={isLoading ? "Loading..." : formatCurrency(balance || 0)} icon={Wallet} variant="trust" subtitle="Available for withdrawal" />
         <KPICard title="Active Orders" value="4" icon={Package} variant="cap" />
-        <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={Users} variant="reserve" />
+        {user?.businessman_type === 'retailer_a' && (
+          <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={Users} variant="reserve" />
+        )}
       </div>
 
       {/* Quick Actions + Chart */}
@@ -118,7 +121,7 @@ function DashboardHome({ userName }: { userName: string }) {
             { label: "Place Bulk Order", icon: Package, desc: "Negotiate & order in bulk" },
             { label: "Request Withdrawal", icon: ArrowUpRight, desc: "Min ₹500 • Instant" },
             { label: "Track Shipments", icon: Clock, desc: "4 active deliveries" },
-            { label: "View Referral Link", icon: Users, desc: "Share & earn commission" },
+            ...(user?.businessman_type === 'retailer_a' ? [{ label: "View Referral Link", icon: Users, desc: "Share & earn commission" }] : []),
           ].map((action) => (
             <button
               key={action.label}
@@ -133,6 +136,11 @@ function DashboardHome({ userName }: { userName: string }) {
               </div>
             </button>
           ))}
+          {user?.businessman_type !== 'retailer_a' && (
+            <div className="rounded-md border border-dashed border-border p-3 text-center">
+              <p className="text-xs text-muted-foreground">Additional features unlocked for Retailer A</p>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5">
@@ -180,6 +188,7 @@ export default function BusinessmanDashboard() {
     bulkEnabled: true,
     entryModeEnabled: true,
     advanceModeEnabled: true,
+    businessmanType: user?.businessman_type,
     permissions: [
       "businessman.dashboard.view",
       "businessman.purchase.view",
@@ -229,11 +238,11 @@ export default function BusinessmanDashboard() {
         return <ReturnedCancelledOrdersPage />;
       case "/businessman/referrals":
       case "/businessman/referrals/my-referrals":
-        return <MyReferralsPage />;
+        return user?.businessman_type === 'retailer_a' ? <MyReferralsPage /> : <DashboardHome user={user} />;
       case "/businessman/referrals/earnings":
-        return <ReferralEarningsPage />;
+        return user?.businessman_type === 'retailer_a' ? <ReferralEarningsPage /> : <DashboardHome user={user} />;
       case "/businessman/referrals/history":
-        return <ReferralHistoryPage />;
+        return user?.businessman_type === 'retailer_a' ? <ReferralHistoryPage /> : <DashboardHome user={user} />;
       case "/businessman/wallet":
       case "/businessman/wallet/overview":
         return <WalletOverviewPage />;
@@ -266,7 +275,7 @@ export default function BusinessmanDashboard() {
         return <AddCustomProduct />;
 
       default:
-        return <DashboardHome userName={user?.full_name || 'Businessman'} />;
+        return <DashboardHome user={user} />;
     }
   };
 

@@ -75,6 +75,16 @@ export const adminApi = {
     return response.data;
   },
 
+  getPendingBusinessmanInstallments: async () => {
+    const response = await api.get('/admin/businessmen/installments/pending');
+    return response.data;
+  },
+
+  approveBusinessmanInstallment: async (id: string, action: 'approve' | 'reject') => {
+    const response = await api.put(`/admin/businessmen/installments/${id}/approve`, { action });
+    return response.data;
+  },
+
   getPendingDeposits: async () => {
     const response = await api.get('/wallet/admin/deposit-requests?status=pending');
     return response.data;

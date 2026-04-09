@@ -22,11 +22,13 @@ exports.getAllUserWallets = async (req, res) => {
         COALESCE(mw.balance, 0) as main_balance,
         COALESCE(rw.balance, 0) as referral_balance,
         mw.is_frozen as main_frozen,
-        mw.id as main_wallet_id
+        mw.id as main_wallet_id,
+        bp.type as businessman_type
       FROM users u
       JOIN user_roles r ON u.role_id = r.id
       LEFT JOIN wallets mw ON u.id = mw.user_id AND mw.wallet_type_id = (SELECT id FROM wallet_types WHERE type_code = 'main')
       LEFT JOIN wallets rw ON u.id = rw.user_id AND rw.wallet_type_id = (SELECT id FROM wallet_types WHERE type_code = 'referral')
+      LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
       WHERE 1=1
     `;
 

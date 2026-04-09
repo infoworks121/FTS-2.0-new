@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import FinanceLayout from "@/components/finance/FinanceLayout";
 import { 
   Search, 
@@ -31,6 +32,15 @@ export default function AllUserWallets() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleNavigateToUserSettings = (user: UserWalletBalance) => {
+    if (user.role_code === 'businessman' || user.role_code === 'stock_point') {
+      navigate(`/admin/users/businessmen/${user.user_id}/settings`);
+    } else if (user.role_code === 'corebody' || user.role_code === 'core_body_a' || user.role_code === 'core_body_b' || user.role_code === 'dealer') {
+      navigate(`/admin/users/corebody/${user.user_id}/settings`);
+    }
+  };
 
   const fetchWallets = async () => {
     setLoading(true);
@@ -57,12 +67,19 @@ export default function AllUserWallets() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, page]);
 
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = (role: string, businessmanType?: string | null) => {
     switch (role) {
       case 'admin': return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none">Admin</Badge>;
       case 'core_body_a': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">CB-A</Badge>;
       case 'core_body_b': return <Badge className="bg-cyan-100 text-cyan-700 hover:bg-cyan-100 border-none">CB-B</Badge>;
-      case 'businessman': return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">Businessman</Badge>;
+      case 'businessman': {
+        if (businessmanType === 'retailer_a') return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">Retailer A</Badge>;
+        if (businessmanType === 'retailer_b') return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">Retailer B</Badge>;
+        if (businessmanType === 'stock_point') return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-none">Stock Point</Badge>;
+        return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">{businessmanType ? businessmanType.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Businessman'}</Badge>;
+      }
+      case 'stock_point': return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-none">Stock Point</Badge>;
+      case 'dealer': return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">Dealer</Badge>;
       default: return <Badge variant="outline">{role}</Badge>;
     }
   };
@@ -122,13 +139,16 @@ export default function AllUserWallets() {
                 ) : (
                   users.map((user) => (
                     <TableRow key={user.user_id}>
-                      <TableCell>
+                      <TableCell 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleNavigateToUserSettings(user)}
+                      >
                         <div className="flex flex-col">
-                          <span className="font-medium">{user.full_name}</span>
+                          <span className="font-medium text-blue-600 hover:underline decoration-blue-600/30">{user.full_name}</span>
                           <span className="text-xs text-muted-foreground">{user.email || user.phone}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{getRoleBadge(user.role_code)}</TableCell>
+                      <TableCell>{getRoleBadge(user.role_code, user.businessman_type)}</TableCell>
                       <TableCell className="text-right font-mono font-bold">
                         ₹{parseFloat(user.main_balance.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </TableCell>
@@ -147,7 +167,12 @@ export default function AllUserWallets() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleNavigateToUserSettings(user)}
+                        >
                           <ArrowUpRight className="h-4 w-4" />
                         </Button>
                       </TableCell>

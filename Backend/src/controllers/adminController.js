@@ -6,7 +6,7 @@ const getPendingUsers = async (req, res) => {
             SELECT u.id, u.phone, u.email, u.full_name, u.pan_number, u.referral_code, 
                    r.role_code, u.district_id, u.created_at,
                    d.name as district_name,
-                   bp.mode as businessman_type, bp.business_name, bp.gst_number, bp.advance_amount,
+                   bp.type as businessman_type, bp.business_name, bp.gst_number, bp.advance_amount,
                    cp.type as core_body_type, cp.investment_amount,
                    (
                        SELECT json_agg(i.* ORDER BY i.installment_no) 
@@ -86,7 +86,7 @@ const getAllBusinessmen = async (req, res) => {
         let query = `
             SELECT 
                 u.id, u.full_name as name, u.email, u.phone,
-                bp.mode, bp.is_active,
+                bp.mode, bp.is_active, bp.type,
                 bp.business_name, bp.commission_earned as total_earnings,
                 bp.ytd_sales, bp.mtd_sales, bp.monthly_target,
                 d.name as district, d.id as district_id,
@@ -656,7 +656,7 @@ const getAdminDashboardStats = async (req, res) => {
         const kpiResult = await db.query(`
             SELECT 
                 (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'delivered') as total_revenue,
-                (SELECT COALESCE(balance, 0) FROM wallets WHERE wallet_type = 'trust_fund' LIMIT 1) as trust_fund,
+                (SELECT COALESCE(balance, 0) FROM wallets w JOIN wallet_types wt ON w.wallet_type_id = wt.id WHERE wt.type_code = 'trust_fund' LIMIT 1) as trust_fund,
                 (SELECT COUNT(DISTINCT district_id) FROM users WHERE is_active = TRUE) as active_districts,
                 (SELECT COUNT(*) FROM users WHERE is_approved = FALSE) as fraud_alerts
         `);
@@ -789,19 +789,27 @@ const approveCoreBodyInstallment = async (req, res) => {
             `, [adminId, installment.user_id]);
             
             // Add to wallet ledger if applicable - user wanted it transferred to corebody wallet
-            const walletQuery = await client.query(`SELECT id FROM wallets WHERE user_id = $1 AND wallet_type = 'main'`, [installment.user_id]);
+            const walletQuery = await client.query(`
+                SELECT w.id, w.balance
+                FROM wallets w 
+                JOIN wallet_types wt ON w.wallet_type_id = wt.id 
+                WHERE w.user_id = $1 AND wt.type_code = 'main'
+            `, [installment.user_id]);
             let walletId;
             
             if (walletQuery.rows.length > 0) {
                 walletId = walletQuery.rows[0].id;
+                const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
+                const newBalance = oldBalance + parseFloat(installment.amount);
+
                 await client.query(`
-                    UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2
-                `, [installment.amount, walletId]);
+                    UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
+                `, [newBalance, walletId]);
                 
                 await client.query(`
-                    INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, description, reference_id)
-                    VALUES ($1, $2, 'deposit', $3, 'Investment Installment Payment Approved', $4)
-                `, [walletId, installment.user_id, installment.amount, id]);
+                    INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
+                    VALUES ($1, $2, 'deposit', $3, $4, $5, 'Investment Installment Payment Approved', 'core_body_installment', $6)
+                `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
             }
 
             await client.query('COMMIT');
@@ -821,6 +829,120 @@ const approveCoreBodyInstallment = async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('Approve core body installment error:', err);
+        res.status(500).json({ message: 'Server error' });
+    } finally {
+        client.release();
+    }
+};
+
+const getPendingBusinessmanInstallments = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                bi.id as installment_id, bi.installment_no, bi.amount, bi.payment_ref, bi.created_at,
+                u.id as user_id, u.full_name as name, u.phone, u.email,
+                bp.mode as businessman_mode,
+                d.name as district_name
+            FROM businessman_investments bi
+            JOIN businessman_profiles bp ON bi.businessman_id = bp.id
+            JOIN users u ON bp.user_id = u.id
+            LEFT JOIN districts d ON bp.district_id = d.id
+            WHERE bi.status = 'pending_approval'
+            ORDER BY bi.created_at DESC
+        `;
+        const result = await db.query(query);
+        res.json({ pendingInstallments: result.rows });
+    } catch (err) {
+        console.error('Get pending businessman installments error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const approveBusinessmanInstallment = async (req, res) => {
+    const { id } = req.params;
+    const { action } = req.body; // action: 'approve' or 'reject'
+    const adminId = req.user.id;
+    
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Fetch installment details
+        const installmentResult = await client.query(`
+            SELECT bi.*, bp.user_id 
+            FROM businessman_investments bi
+            JOIN businessman_profiles bp ON bi.businessman_id = bp.id
+            WHERE bi.id = $1
+        `, [id]);
+
+        if (installmentResult.rows.length === 0) {
+            throw new Error('Installment not found');
+        }
+
+        const installment = installmentResult.rows[0];
+        
+        if (action === 'approve') {
+            // Update installment to paid
+            await client.query(`
+                UPDATE businessman_investments 
+                SET status = 'paid', paid_date = NOW()
+                WHERE id = $1
+            `, [id]);
+
+            // Activate Businessman profile and user if needed
+            await client.query(`
+                UPDATE businessman_profiles 
+                SET is_active = TRUE, updated_at = NOW() 
+                WHERE id = $1
+            `, [installment.businessman_id]);
+
+            await client.query(`
+                UPDATE users 
+                SET is_approved = TRUE, approved_by = $1, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() 
+                WHERE id = $2
+            `, [adminId, installment.user_id]);
+            
+            // Add to wallet ledger
+            const walletQuery = await client.query(`
+                SELECT w.id, w.balance
+                FROM wallets w 
+                JOIN wallet_types wt ON w.wallet_type_id = wt.id 
+                WHERE w.user_id = $1 AND wt.type_code = 'main'
+            `, [installment.user_id]);
+            
+            if (walletQuery.rows.length > 0) {
+                const walletId = walletQuery.rows[0].id;
+                const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
+                const newBalance = oldBalance + parseFloat(installment.amount);
+
+                await client.query(`
+                    UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
+                `, [newBalance, walletId]);
+                
+                await client.query(`
+                    INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
+                    VALUES ($1, $2, 'deposit', $3, $4, $5, 'Businessman Investment Installment Payment Approved', 'businessman_installment', $6)
+                `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
+            }
+
+            await client.query('COMMIT');
+            res.json({ message: 'Installment approved and profile activated successfully' });
+        } else if (action === 'reject') {
+            await client.query(`
+                UPDATE businessman_investments 
+                SET status = 'rejected', payment_ref = NULL, paid_date = NULL
+                WHERE id = $1
+            `, [id]);
+
+            await client.query('COMMIT');
+            res.json({ message: 'Installment payment rejected' });
+        } else {
+            throw new Error('Invalid action');
+        }
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Approve businessman installment error:', err);
         res.status(500).json({ message: 'Server error' });
     } finally {
         client.release();
@@ -942,5 +1064,10 @@ module.exports = {
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,
+<<<<<<< HEAD
     getLowStockAlerts
+=======
+    getPendingBusinessmanInstallments,
+    approveBusinessmanInstallment
+>>>>>>> 527841200646b226fd6e5d40a67d38f3bf927c90
 };

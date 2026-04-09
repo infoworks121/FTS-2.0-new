@@ -325,6 +325,20 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
   const userEmail = user.email || "user@example.com";
   const userPhone = user.phone || "N/A";
   const userRole = user.role_code || role;
+  const businessmanType = user.businessman_type;
+  const coreBodyType = user.core_body_type;
+
+  const getSubRoleLabel = () => {
+    if (userRole === "businessman" && businessmanType) {
+      return businessmanType.replace("_", " ").toUpperCase();
+    }
+    if (userRole.startsWith("core_body") && coreBodyType) {
+      return `CORE BODY TYPE ${coreBodyType}`;
+    }
+    return roleLabel;
+  };
+
+  const finalRoleLabel = getSubRoleLabel();
 
   const getProfileRoute = () => {
     switch (role) {
@@ -368,7 +382,9 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
         )}>
           <RoleIcon className={cn("h-4 w-4 shrink-0", roleColors[role])} />
           {(!collapsed || isMobile) && (
-            <span className="text-xs font-semibold text-sidebar-accent-foreground truncate">{roleLabel}</span>
+            <span className="text-[11px] font-bold text-sidebar-accent-foreground truncate">
+              {finalRoleLabel} - {userName}
+            </span>
           )}
         </div>
       </div>
@@ -458,7 +474,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
             </Button>
             <span className="text-sm text-muted-foreground hidden sm:block">
               {location.pathname.split("/").filter(Boolean).map((path, i) => (
-                <span key={path}>
+                <span key={`${path}-${i}`}>
                   {i > 0 && " / "}
                   <span className="capitalize">{path}</span>
                 </span>
@@ -563,7 +579,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
                   Phone: {userPhone}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="text-xs text-muted-foreground">
-                  Role: {userRole}
+                  Role: {finalRoleLabel}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate(getProfileRoute())}>

@@ -14,6 +14,8 @@ router.put('/corebodies/:id/settings', protect, adminOnly, adminController.updat
 // Core Body Installment Approvals
 router.get('/corebodies/installments/pending', protect, adminOnly, adminController.getPendingCoreBodyInstallments);
 router.put('/corebodies/installments/:id/approve', protect, adminOnly, adminController.approveCoreBodyInstallment);
+router.get('/businessmen/installments/pending', protect, adminOnly, adminController.getPendingBusinessmanInstallments);
+router.put('/businessmen/installments/:id/approve', protect, adminOnly, adminController.approveBusinessmanInstallment);
 
 // User Management
 router.get('/users/businessmen/:id', protect, adminOnly, adminController.getBusinessmanById);

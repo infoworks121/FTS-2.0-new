@@ -11,6 +11,7 @@ import { ArrowLeft, Save, User as UserIcon, Package, ShieldCheck, Briefcase, Cre
 import { Switch } from "@/components/ui/switch";
 import { UserStatusBadge, ModeBadge } from "@/components/users/UserComponents";
 import { UserMode, UserStatus } from "@/types/users";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { userApi, BusinessmanProfile } from "@/lib/userApi";
 import { geographyApi, DistrictSummary } from "@/lib/geographyApi";
@@ -172,6 +173,12 @@ export default function BusinessmanSettings() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Mode:</span>
                   <ModeBadge mode={formData.mode} />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Type:</span>
+                  <Badge variant="outline" className="capitalize text-[10px] font-bold border-slate-200">
+                    {profile?.type?.replace('_', ' ') || 'Businessman'}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">District:</span>

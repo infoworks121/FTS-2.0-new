@@ -39,6 +39,7 @@ import {
   WalletCards,
   Download,
   ClipboardCheck,
+  Settings,
   LucideIcon,
 } from "lucide-react";
 
@@ -151,13 +152,6 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
           safety: "monitor",
         },
         {
-          title: "Active Dealers Count",
-          icon: UserCheck,
-          url: "/corebody/dashboard/active-dealers-count",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
           title: "Risk Indicators",
           icon: ShieldAlert,
           url: "/corebody/dashboard/risk-indicators",
@@ -174,155 +168,120 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
       ],
     },
 
-    // ── 2) STOCK MANAGEMENT ──
+    // ── 2) ORDER & INVENTORY MANAGEMENT ──
     {
-      groupLabel: "Stock Management",
+      groupLabel: "Order & Inventory",
       groupIcon: Package,
-      purpose: "Stock issuance and district inventory controls with strict role restrictions.",
+      purpose: "Consolidated district inventory controls and order fulfillment monitoring.",
       items: [
         {
-          title: "Issue Stock to Businessman",
+          title: "Order & Inventory Management",
           icon: Package,
-          url: "/corebody/stock/issue-to-businessman",
-          coreBodyAOnly: true,
+          badge: (coreBodyBadgeState.pendingOrders + coreBodyBadgeState.pendingFulfilments) > 0
+            ? {
+                count: coreBodyBadgeState.pendingOrders + coreBodyBadgeState.pendingFulfilments,
+                variant: coreBodyBadgeState.pendingFulfilments > 0 ? "warning" : "default",
+              }
+            : undefined,
+          submenu: [
+            // Stock Operations
+            {
+              title: "Issue Stock",
+              url: "/corebody/stock/issue-to-businessman",
+              coreBodyAOnly: true,
+            },
+            {
+              title: "Stock Inventory",
+              url: "/corebody/stock/current-inventory",
+              readOnly: coreBodyType === "B",
+            },
+            {
+              title: "Stock Transfers",
+              url: "/corebody/stock/transfer-history",
+              readOnly: coreBodyType === "B",
+            },
+            {
+              title: "Stock Ledger",
+              url: "/corebody/stock/ledger",
+              readOnly: true,
+            },
+            {
+              title: "Block / Release Stock",
+              url: "/corebody/stock/block-release",
+              coreBodyAOnly: true,
+            },
+            // Order Operations
+            {
+              title: "B2B Orders",
+              url: "/corebody/orders/b2b-orders",
+              badge: coreBodyBadgeState.pendingOrders > 0
+                ? {
+                    count: coreBodyBadgeState.pendingOrders,
+                    variant: "default",
+                  }
+                : undefined,
+            },
+            {
+              title: "B2C Fulfillment",
+              url: "/corebody/orders/b2c-fulfillment",
+            },
+            {
+              title: "Distribution Tracking",
+              url: "/corebody/orders/distribution-tracking",
+            },
+            {
+              title: "Returns & Cancellations",
+              url: "/corebody/orders/cancelled-returned",
+              readOnly: true,
+            },
+            {
+              title: "Delayed Orders",
+              url: "/corebody/orders/pending-delayed",
+              badge: coreBodyBadgeState.pendingFulfilments > 0
+                ? {
+                    count: coreBodyBadgeState.pendingFulfilments,
+                    variant: "warning",
+                  }
+                : undefined,
+              warning: true,
+            },
+            {
+              title: "Allocation Logic View",
+              url: "/corebody/orders/allocation-logic-view",
+              readOnly: true,
+            },
+          ],
           safety: "control",
         },
-        {
-          title: "Current Stock Inventory",
-          icon: Boxes,
-          url: "/corebody/stock/current-inventory",
-          readOnly: coreBodyType === "B",
-          safety: "monitor",
-        },
-        {
-          title: "Stock Transfer History",
-          icon: History,
-          url: "/corebody/stock/transfer-history",
-          readOnly: coreBodyType === "B",
-          safety: "monitor",
-        },
-        {
-          title: "Stock Ledger",
-          icon: BookOpen,
-          url: "/corebody/stock/ledger",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Stock Block / Release",
-          icon: Ban,
-          url: "/corebody/stock/block-release",
-          coreBodyAOnly: true,
-          safety: "monitor",
-        },
       ],
     },
 
-    // ── 3) DEALERS & BUSINESSMEN ──
+    // ── 3) USER MANAGEMENT ──
     {
-      groupLabel: "Dealers & Businessmen",
+      groupLabel: "User Management",
       groupIcon: Users,
-      purpose: "District-scoped downstream participant monitoring with read-only operations.",
+      purpose: "District-scoped downstream participant monitoring and performance tracking.",
       items: [
         {
-          title: "All Dealers List",
-          icon: UserCheck,
-          url: "/corebody/dealers-businessmen/all-dealers",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "All Businessmen List",
+          title: "Users",
           icon: Users,
-          url: "/corebody/dealers-businessmen/all-businessmen",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Status (Active / Inactive)",
-          icon: UserX,
-          url: "/corebody/dealers-businessmen/status",
-          badge: coreBodyBadgeState.suspendedEntities > 0
-            ? {
-                count: coreBodyBadgeState.suspendedEntities,
-                variant: "warning",
-                label: "Inactive entities",
-              }
-            : undefined,
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Performance Snapshot",
-          icon: TrendingUp,
-          url: "/corebody/dealers-businessmen/performance-snapshot",
-          readOnly: true,
+          submenu: [
+            {
+              title: "All Users",
+              url: "/corebody/dealers-businessmen/all-users",
+              readOnly: true,
+            },
+            {
+              title: "Performance Snapshot",
+              url: "/corebody/dealers-businessmen/performance-snapshot",
+              readOnly: true,
+            },
+          ],
           safety: "monitor",
         },
       ],
     },
 
-    // ── 4) ORDERS & DISTRIBUTION ──
-    {
-      groupLabel: "Orders & Distribution",
-      groupIcon: ShoppingCart,
-      purpose: "District-level order flow, fulfilment health, and SLA visibility.",
-      items: [
-        {
-          title: "B2B Orders",
-          icon: ShoppingCart,
-          url: "/corebody/orders/b2b-orders",
-          badge: coreBodyBadgeState.pendingOrders > 0
-            ? {
-                count: coreBodyBadgeState.pendingOrders,
-                variant: "default",
-                label: "Pending orders",
-          }
-            : undefined,
-          safety: "monitor",
-        },
-        {
-          title: "B2C Fulfillment (via Stock Points)",
-          icon: Package,
-          url: "/corebody/orders/b2c-fulfillment",
-          safety: "monitor",
-        },
-        {
-          title: "Distribution Tracking",
-          icon: Truck,
-          url: "/corebody/orders/distribution-tracking",
-          safety: "monitor",
-        },
-        {
-          title: "Cancelled / Returned Orders",
-          icon: RotateCcw,
-          url: "/corebody/orders/cancelled-returned",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Pending / Delayed Orders",
-          icon: Clock,
-          url: "/corebody/orders/pending-delayed",
-          badge: coreBodyBadgeState.pendingFulfilments > 0
-            ? {
-                count: coreBodyBadgeState.pendingFulfilments,
-                variant: "warning",
-                label: "Pending fulfilments",
-              }
-            : undefined,
-          warning: true,
-          safety: "monitor",
-        },
-        {
-          title: "Allocation Logic View",
-          icon: ClipboardCheck,
-          url: "/corebody/orders/allocation-logic-view",
-          readOnly: true,
-          safety: "monitor",
-        },
-      ],
-    },
 
     // ── 5) WALLET & EARNINGS ──
     {
@@ -331,284 +290,161 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
       purpose: "Financial controls, immutable ledger traces, and cap-stop transparency.",
       items: [
         {
-          title: "Main Wallet",
+          title: "Wallet Management",
           icon: Wallet,
-          url: "/corebody/wallet/main-wallet",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Deposit Funds",
-          icon: ArrowUpCircle,
-          url: "/corebody/wallet/deposit",
-          safety: "control",
-        },
-        {
-          title: "Referral Wallet",
-          icon: WalletCards,
-          url: "/corebody/wallet/referral-wallet",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Earnings Breakdown",
-          icon: CircleDollarSign,
-          url: "/corebody/wallet/earnings-breakdown",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Cap Utilization Tracker",
-          icon: Gauge,
-          url: "/corebody/wallet/cap-utilization-tracker",
-          readOnly: true,
-          badge: coreBodyBadgeState.capNearLimit
-            ? { count: 1, variant: "danger", label: "Cap stop warning" }
-            : undefined,
-          warning: coreBodyBadgeState.capNearLimit,
-          safety: "monitor",
-        },
-        {
-          title: "Excess Profit Transfer Log",
-          icon: ArrowRightLeft,
-          url: "/corebody/wallet/excess-profit-transfer-log",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Withdrawal History",
-          icon: HandCoins,
-          url: "/corebody/wallet/withdrawal-history",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Ledger View",
-          icon: Landmark,
-          url: "/corebody/wallet/ledger-view",
-          readOnly: true,
+          submenu: [
+            {
+              title: "Main Wallet",
+              url: "/corebody/wallet/main-wallet",
+              readOnly: true,
+            },
+            {
+              title: "Deposit Funds",
+              url: "/corebody/wallet/deposit",
+            },
+            {
+              title: "Referral Wallet",
+              url: "/corebody/wallet/referral-wallet",
+              readOnly: true,
+            },
+            {
+              title: "Earnings Breakdown",
+              url: "/corebody/wallet/earnings-breakdown",
+              readOnly: true,
+            },
+            {
+              title: "Cap Utilization Tracker",
+              url: "/corebody/dashboard/earnings-vs-cap",
+              readOnly: true,
+              badge: coreBodyBadgeState.capNearLimit
+                ? { count: 1, variant: "danger" }
+                : undefined,
+            },
+            {
+              title: "Excess Profit Transfer Log",
+              url: "/corebody/wallet/excess-profit-transfer-log",
+              readOnly: true,
+            },
+            {
+              title: "Withdrawal History",
+              url: "/corebody/wallet/withdrawal-history",
+              readOnly: true,
+            },
+            {
+              title: "Ledger View",
+              url: "/corebody/wallet/ledger-view",
+              readOnly: true,
+            },
+          ],
           safety: "monitor",
         },
       ],
     },
 
-    // ── 6) REFERRAL OVERVIEW ──
+    // ── 6) REFERRALS ──
     {
-      groupLabel: "Referral Overview",
+      groupLabel: "Referrals",
       groupIcon: Users,
       purpose: "Single-level referral transparency with payout and fraud visibility.",
       items: [
         {
-          title: "Direct Referrals List",
+          title: "Referrals",
           icon: Users,
-          url: "/corebody/referrals/direct-referrals-list",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Referral Earnings",
-          icon: CircleDollarSign,
-          url: "/corebody/referrals/referral-earnings",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Pending Referral Payouts",
-          icon: Clock,
-          url: "/corebody/referrals/pending-referral-payouts",
-          badge: coreBodyBadgeState.pendingReferralPayouts > 0
-            ? {
-                count: coreBodyBadgeState.pendingReferralPayouts,
-                variant: "warning",
-                label: "Pending payouts",
-              }
-            : undefined,
-          safety: "monitor",
-        },
-        {
-          title: "Reversed Referrals (Refund)",
-          icon: RotateCcw,
-          url: "/corebody/referrals/reversed-referrals",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Blocked / Invalid Referrals",
-          icon: Ban,
-          url: "/corebody/referrals/blocked-invalid-referrals",
-          badge: coreBodyBadgeState.blockedReferrals > 0
-            ? {
-                count: coreBodyBadgeState.blockedReferrals,
-                variant: "danger",
-                label: "Fraud flags",
-              }
-            : undefined,
-          warning: coreBodyBadgeState.blockedReferrals > 0,
+          url: "/corebody/referrals",
+          submenu: [
+            { title: "My Referrals", url: "/corebody/referrals/my-referrals" },
+            { title: "Referral Earnings", url: "/corebody/referrals/earnings" },
+            { title: "Referral History", url: "/corebody/referrals/history" },
+          ],
           safety: "monitor",
         },
       ],
     },
 
-    // ── 7) UPGRADE & STATUS ──
+    // ── 7) SETTINGS & REPORTS ──
     {
-      groupLabel: "Upgrade & Status",
-      groupIcon: ArrowUpCircle,
-      purpose: "Role lifecycle, investment posture, and upgrade/reactivation pathways.",
+      groupLabel: "Settings & Reports",
+      groupIcon: Settings,
+      purpose: "Access all system settings, compliance rules, and audit-ready management reports.",
       items: [
         {
-          title: "Upgrade Eligibility",
-          icon: ListChecks,
-          url: "/corebody/upgrade/upgrade-eligibility",
-          readOnly: true,
-          badge: coreBodyBadgeState.pendingUpgrades > 0
-            ? {
-                count: coreBodyBadgeState.pendingUpgrades,
-                variant: "default",
-                label: "Upgrade candidates",
-              }
-            : undefined,
+          title: "System Settings",
+          icon: Settings,
+          submenu: [
+            {
+              title: "Rules & Limitations",
+              url: "/corebody/upgrade/rules-limitations",
+            },
+            {
+              title: "System Alerts",
+              url: "/corebody/activity-alerts/system-alerts",
+              badge: coreBodyBadgeState.activityAlerts > 0
+                ? {
+                    count: coreBodyBadgeState.activityAlerts,
+                    variant: "danger",
+                  }
+                : undefined,
+            },
+            {
+              title: "Inactivity Warnings",
+              url: "/corebody/activity-alerts/inactivity-warnings",
+              badge: coreBodyBadgeState.inactivityWarnings > 0
+                ? {
+                    count: coreBodyBadgeState.inactivityWarnings,
+                    variant: "warning",
+                  }
+                : undefined,
+            },
+            {
+              title: "SLA Violations",
+              url: "/corebody/activity-alerts/sla-violations",
+              badge: coreBodyBadgeState.slaViolations > 0
+                ? {
+                    count: coreBodyBadgeState.slaViolations,
+                    variant: "warning",
+                  }
+                : undefined,
+            },
+            {
+              title: "Compliance Notices",
+              url: "/corebody/activity-alerts/compliance-notices",
+            },
+            {
+              title: "Admin Messages",
+              url: "/corebody/activity-alerts/admin-messages",
+            },
+          ],
           safety: "monitor",
         },
         {
-          title: "Investment Status",
-          icon: Landmark,
-          url: "/corebody/upgrade/investment-status",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Monthly / Annual Cap Status",
-          icon: Gauge,
-          url: "/corebody/upgrade/monthly-annual-cap-status",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Reactivation Request",
-          icon: RotateCcw,
-          url: "/corebody/upgrade/reactivation-request",
-          readOnly: coreBodyType === "A",
-          safety: "monitor",
-        },
-        {
-          title: "Rules & Limitations",
-          icon: FileText,
-          url: "/corebody/upgrade/rules-limitations",
-          readOnly: true,
-          safety: "monitor",
-        },
-      ],
-    },
-
-    // ── 8) ACTIVITY & ALERTS ──
-    {
-      groupLabel: "Activity & Alerts",
-      groupIcon: Bell,
-      purpose: "Auto-generated and admin-triggered risk, inactivity, and compliance notices.",
-      items: [
-        {
-          title: "System Alerts",
-          icon: Bell,
-          url: "/corebody/activity-alerts/system-alerts",
-          badge: coreBodyBadgeState.activityAlerts > 0
-            ? {
-                count: coreBodyBadgeState.activityAlerts,
-                variant: "danger",
-                label: "System alerts",
-              }
-            : undefined,
-          warning: coreBodyBadgeState.activityAlerts > 0,
-          safety: "monitor",
-        },
-        {
-          title: "Inactivity Warnings",
-          icon: UserMinus,
-          url: "/corebody/activity-alerts/inactivity-warnings",
-          badge: coreBodyBadgeState.inactivityWarnings > 0
-            ? {
-                count: coreBodyBadgeState.inactivityWarnings,
-                variant: "warning",
-                label: "Inactivity warnings",
-              }
-            : undefined,
-          safety: "monitor",
-        },
-        {
-          title: "SLA Violations",
-          icon: AlertTriangle,
-          url: "/corebody/activity-alerts/sla-violations",
-          badge: coreBodyBadgeState.slaViolations > 0
-            ? {
-                count: coreBodyBadgeState.slaViolations,
-                variant: "warning",
-                label: "SLA breaches",
-              }
-            : undefined,
-          warning: coreBodyBadgeState.slaViolations > 0,
-          safety: "monitor",
-        },
-        {
-          title: "Compliance Notices",
-          icon: Scale,
-          url: "/corebody/activity-alerts/compliance-notices",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Admin Messages",
-          icon: MessageSquare,
-          url: "/corebody/activity-alerts/admin-messages",
-          safety: "monitor",
-        },
-      ],
-    },
-
-    // ── 9) REPORTS & LOGS ──
-    {
-      groupLabel: "Reports & Logs",
-      groupIcon: FileBarChart,
-      purpose: "Immutable audit-safe reporting and district traceability exports.",
-      items: [
-        {
-          title: "Earnings Reports",
+          title: "Management Reports",
           icon: FileBarChart,
-          url: "/corebody/reports/earnings",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Stock Reports",
-          icon: Archive,
-          url: "/corebody/reports/stock",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Order Reports",
-          icon: ClipboardList,
-          url: "/corebody/reports/orders",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Activity Logs",
-          icon: Activity,
-          url: "/corebody/reports-logs/activity-logs",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "Financial Ledger Export",
-          icon: Download,
-          url: "/corebody/reports-logs/financial-ledger-export",
-          readOnly: true,
-          safety: "monitor",
-        },
-        {
-          title: "District Performance Report",
-          icon: BarChart3,
-          url: "/corebody/reports/dealer-performance",
-          readOnly: true,
+          submenu: [
+            {
+              title: "Earnings Reports",
+              url: "/corebody/reports/earnings",
+            },
+            {
+              title: "Stock Reports",
+              url: "/corebody/reports/stock",
+            },
+            {
+              title: "Order Reports",
+              url: "/corebody/reports/orders",
+            },
+            {
+              title: "Activity Logs",
+              url: "/corebody/reports-logs/activity-logs",
+            },
+            {
+              title: "Financial Ledger Export",
+              url: "/corebody/reports-logs/financial-ledger-export",
+            },
+            {
+              title: "District Performance Report",
+              url: "/corebody/reports/dealer-performance",
+            },
+          ],
           safety: "monitor",
         },
       ],
@@ -621,9 +457,25 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
 export function getCoreBodyFlatNavItems(coreBodyType: CoreBodyType): CoreBodyNavItem[] {
   const groups = getCoreBodyNavGroups(coreBodyType);
   return groups.flatMap((group) =>
-    group.items.filter((item) => {
-      if (item.coreBodyAOnly && coreBodyType !== "A") return false;
-      return true;
-    })
+    group.items
+      .filter((item) => {
+        if (item.coreBodyAOnly && coreBodyType !== "A") return false;
+        // Hide referral menu for Dealers (only A and B are eligible)
+        if (group.groupLabel === "Referrals" && coreBodyType === "Dealer") return false;
+        return true;
+      })
+      .map((item) => {
+        // Filter submenus for coreBodyAOnly
+        if (item.submenu) {
+          return {
+            ...item,
+            submenu: item.submenu.filter((sub) => {
+              if (sub.coreBodyAOnly && coreBodyType !== "A") return false;
+              return true;
+            }),
+          };
+        }
+        return item;
+      })
   );
 }

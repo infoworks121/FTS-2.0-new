@@ -30,6 +30,7 @@ import {
 import api from "@/lib/api";
 import walletApi, { DepositRequest } from "@/lib/walletApi";
 import { useToast } from "@/components/ui/use-toast";
+import { uploadApi } from "@/lib/uploadApi";
 import BusinessmanInvestmentModal from "@/components/finance/BusinessmanInvestmentModal";
 
 // Helper to load Razorpay script
@@ -68,6 +69,7 @@ export default function WalletOverviewPage() {
   const [paymentType, setPaymentType] = useState<"online" | "manual">("online");
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [txnRef, setTxnRef] = useState("");
+  const [manualSlipFile, setManualSlipFile] = useState<File | null>(null);
   
   // Investment States
   const [profile, setProfile] = useState<any>(null);
@@ -135,15 +137,25 @@ export default function WalletOverviewPage() {
 
     setIsSubmitting(true);
     try {
+      let slip_url = "";
+      if (manualSlipFile) {
+        const uploadRes = await uploadApi.uploadSingle(manualSlipFile);
+        if (uploadRes.success) {
+          slip_url = uploadRes.url;
+        }
+      }
+
       await walletApi.submitDepositRequest({
         amount: parseFloat(depositAmount),
         payment_method: paymentMethod,
         transaction_ref: txnRef,
+        slip_url: slip_url
       });
       toast({ title: "Success", description: "Deposit request submitted successfully" });
       setIsDepositDialogOpen(false);
       setDepositAmount("");
       setTxnRef("");
+      setManualSlipFile(null);
       fetchData(); // Refresh history
     } catch (error: any) {
       toast({ title: "Error", description: error.response?.data?.error || "Failed to submit deposit", variant: "destructive" });
@@ -318,6 +330,15 @@ export default function WalletOverviewPage() {
                         placeholder="e.g. TRX12345678" 
                         value={txnRef} 
                         onChange={(e) => setTxnRef(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="slip">Upload Payment Slip</Label>
+                      <Input 
+                        id="slip" 
+                        type="file" 
+                        accept="image/*,.pdf"
+                        onChange={(e) => setManualSlipFile(e.target.files?.[0] || null)}
                       />
                     </div>
                   </>

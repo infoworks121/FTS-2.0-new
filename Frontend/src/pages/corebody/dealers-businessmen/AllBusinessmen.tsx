@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,13 +15,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -122,233 +117,202 @@ const businessmenData: Businessman[] = [
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
 
-export default function AllBusinessmen() {
+export function AllBusinessmenContent({ data }: { data?: any[] }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | ModeType>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | BusinessmanStatus>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [ordersOpen, setOrdersOpen] = useState(false);
-  const [selectedBusinessman, setSelectedBusinessman] = useState<Businessman | null>(null);
+
+  const actualData = data || businessmenData;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return businessmenData.filter((entity) => {
+    return actualData.filter((entity) => {
       const matchesQuery = !q || entity.name.toLowerCase().includes(q) || entity.businessmanId.toLowerCase().includes(q);
       const matchesMode = modeFilter === "all" || entity.modeType === modeFilter;
       const matchesStatus = statusFilter === "all" || entity.status === statusFilter;
       return matchesQuery && matchesMode && matchesStatus;
     });
-  }, [query, modeFilter, statusFilter]);
+  }, [query, modeFilter, statusFilter, actualData]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const paginated = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
-  const openProfile = (entity: Businessman) => {
-    setSelectedBusinessman(entity);
-    setProfileOpen(true);
+  const openProfile = (entity: any) => {
+    navigate(`/corebody/directory/businessmen/${entity.businessmanId}`);
   };
 
   const openOrders = (entity: Businessman) => {
-    setSelectedBusinessman(entity);
-    setOrdersOpen(true);
+    // Keep or handle later
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">All Businessmen</h1>
-          <p className="text-sm text-muted-foreground">
-            District-scoped businessman operations with read-only wallet and order summaries.
-          </p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2 lg:col-span-2">
-              <Label>Search by Name / ID</Label>
-              <Input
-                placeholder="e.g. Rakesh or BSM-2001"
-                value={query}
-                onChange={(e) => {
-                  setCurrentPage(1);
-                  setQuery(e.target.value);
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Mode</Label>
-              <Select
-                value={modeFilter}
-                onValueChange={(v: "all" | ModeType) => {
-                  setCurrentPage(1);
-                  setModeFilter(v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Entry">Entry</SelectItem>
-                  <SelectItem value="Advance">Advance</SelectItem>
-                  <SelectItem value="Bulk">Bulk</SelectItem>
-                  <SelectItem value="Stock Point">Stock Point</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(v: "all" | BusinessmanStatus) => {
-                  setCurrentPage(1);
-                  setStatusFilter(v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Businessman List</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Businessman ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Mode Type</TableHead>
-                    <TableHead>Associated Dealer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Total Orders</TableHead>
-                    <TableHead>Wallet Balance (Summary)</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((entity) => (
-                    <TableRow key={entity.businessmanId}>
-                      <TableCell className="font-mono text-xs">{entity.businessmanId}</TableCell>
-                      <TableCell>{entity.name}</TableCell>
-                      <TableCell>{entity.modeType}</TableCell>
-                      <TableCell>{entity.associatedDealer}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            entity.status === "Active"
-                              ? "border-green-500/40 text-green-600"
-                              : "border-amber-500/40 text-amber-600"
-                          }
-                        >
-                          {entity.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono">{entity.totalOrders}</TableCell>
-                      <TableCell className="font-mono">{formatCurrency(entity.walletBalance)}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => openProfile(entity)}>
-                          View Profile
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => openOrders(entity)}>
-                          View Order Summary
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {paginated.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                        No businessman records match the selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Showing {paginated.length} of {filtered.length} businessmen
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Businessman Profile (Read-only)</DialogTitle>
-              <DialogDescription>District-level profile details for monitoring only.</DialogDescription>
-            </DialogHeader>
-            {selectedBusinessman && (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Businessman ID</span><span className="font-mono">{selectedBusinessman.businessmanId}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span>{selectedBusinessman.name}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Mode Type</span><span>{selectedBusinessman.modeType}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Associated Dealer</span><span>{selectedBusinessman.associatedDealer}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span>{selectedBusinessman.status}</span></div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={ordersOpen} onOpenChange={setOrdersOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Order Summary</DialogTitle>
-              <DialogDescription>System-calculated summary without editable controls.</DialogDescription>
-            </DialogHeader>
-            {selectedBusinessman && (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span>{selectedBusinessman.name}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Total Orders</span><span className="font-mono">{selectedBusinessman.totalOrders}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Last Order Date</span><span className="font-mono">{selectedBusinessman.lastOrderDate}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Wallet (Summary)</span><span className="font-mono">{formatCurrency(selectedBusinessman.walletBalance)}</span></div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">All Businessmen</h1>
+        <p className="text-sm text-muted-foreground">
+          District-scoped businessman operations with read-only wallet and order summaries.
+        </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Filters</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-2 lg:col-span-2">
+            <Label>Search by Name / ID</Label>
+            <Input
+              placeholder="e.g. Rakesh or BSM-2001"
+              value={query}
+              onChange={(e) => {
+                setCurrentPage(1);
+                setQuery(e.target.value);
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Mode</Label>
+            <Select
+              value={modeFilter}
+              onValueChange={(v: "all" | ModeType) => {
+                setCurrentPage(1);
+                setModeFilter(v);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Entry">Entry</SelectItem>
+                <SelectItem value="Advance">Advance</SelectItem>
+                <SelectItem value="Bulk">Bulk</SelectItem>
+                <SelectItem value="Stock Point">Stock Point</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v: "all" | BusinessmanStatus) => {
+                setCurrentPage(1);
+                setStatusFilter(v);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Businessman List</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>District</TableHead>
+                  <TableHead>Mode Type</TableHead>
+                  <TableHead>Associated Dealer</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Total Orders</TableHead>
+                  <TableHead>Wallet Balance (Summary)</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((entity) => (
+                  <TableRow key={entity.businessmanId}>
+                    <TableCell>{entity.name}</TableCell>
+                    <TableCell>{entity.district || "—"}</TableCell>
+                    <TableCell>{entity.modeType}</TableCell>
+                    <TableCell>{entity.associatedDealer}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          entity.status === "Active"
+                            ? "border-green-500/40 text-green-600"
+                            : "border-amber-500/40 text-amber-600"
+                        }
+                      >
+                        {entity.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono">{entity.totalOrders}</TableCell>
+                    <TableCell className="font-mono">{formatCurrency(entity.walletBalance)}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button size="icon" variant="outline" title="View Profile" onClick={() => openProfile(entity)}>
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => openOrders(entity)}>
+                        View Order Summary
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
+                      No businessman records match the selected filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Showing {paginated.length} of {filtered.length} businessmen
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function AllBusinessmen() {
+  return (
+    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
+      <AllBusinessmenContent />
     </DashboardLayout>
   );
 }

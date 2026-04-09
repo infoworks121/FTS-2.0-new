@@ -18,6 +18,7 @@ export interface UserWalletBalance {
   email: string;
   phone: string;
   role_code: string;
+  businessman_type: string | null;
   is_approved: boolean;
   main_balance: number;
   referral_balance: number;
@@ -37,6 +38,7 @@ export const walletApi = {
     payment_method: string;
     transaction_ref?: string;
     slip_url?: string;
+    user_note?: string;
   }) => {
     const response = await api.post('/wallet/me/deposit-request', data);
     return response.data;

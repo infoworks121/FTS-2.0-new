@@ -8,8 +8,11 @@ import React, { useState } from "react";
 import SplashScreen from "./components/SplashScreen";
 import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
-import CoreBodyDashboard from "./pages/CoreBodyDashboard";
+import CoreBodyDashboard, { navItems as coreBodyNavItems } from "./pages/CoreBodyDashboard";
 import BusinessmanDashboard from "./pages/BusinessmanDashboard";
+import MyReferralsPage from "./pages/businessman/referrals/MyReferralsPage";
+import ReferralEarningsPage from "./pages/businessman/referrals/ReferralEarningsPage";
+import ReferralHistoryPage from "./pages/businessman/referrals/ReferralHistoryPage";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/LoginNew";
 import Register from "./pages/Register";
@@ -85,6 +88,7 @@ import AllDealers from "./pages/corebody/dealers-businessmen/AllDealers";
 import CoreBodyAllBusinessmen from "./pages/corebody/dealers-businessmen/AllBusinessmen";
 import StatusActiveInactive from "./pages/corebody/dealers-businessmen/StatusActiveInactive";
 import PerformanceSnapshot from "./pages/corebody/dealers-businessmen/PerformanceSnapshot";
+import CoreBodyAllUsers from "./pages/corebody/dealers-businessmen/CoreBodyAllUsers";
 import ActiveOrders from "./pages/corebody/orders/ActiveOrders";
 import CompletedOrders from "./pages/corebody/orders/CompletedOrders";
 import DistributionHistory from "./pages/corebody/orders/DistributionHistory";
@@ -107,6 +111,11 @@ import DealerProfile from "./pages/dealer/DealerProfile";
 import StockPointProfile from "./pages/stockpoint/StockPointProfile";
 import { KYCReview } from "./pages/kyc";
 import { DashboardLayout } from "./components/DashboardLayout";
+
+// Core Body Directory Detailed Views
+import CoreBodyMemberDetails from "./pages/corebody/dealers-businessmen/CoreBodyMemberDetails";
+import DealerDetails from "./pages/corebody/dealers-businessmen/DealerDetails";
+import BusinessmanDetails from "./pages/corebody/dealers-businessmen/BusinessmanDetails";
 
 // Finance & Wallet Pages
 import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
@@ -289,6 +298,10 @@ const App = () => {
             <Route path="/corebody/dealers-businessmen/all-dealers" element={<AllDealers />} />
             <Route path="/corebody/dealers-businessmen/all-businessmen" element={<CoreBodyAllBusinessmen />} />
             <Route path="/corebody/dealers-businessmen/status" element={<StatusActiveInactive />} />
+            <Route path="/corebody/dealers-businessmen/all-users" element={<CoreBodyAllUsers />} />
+            <Route path="/corebody/directory/corebody/:id" element={<CoreBodyMemberDetails />} />
+            <Route path="/corebody/directory/dealers/:id" element={<DealerDetails />} />
+            <Route path="/corebody/directory/businessmen/:id" element={<BusinessmanDetails />} />
             <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<PerformanceSnapshot />} />
             <Route path="/corebody/orders/active" element={<ActiveOrders />} />
             <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
@@ -299,8 +312,15 @@ const App = () => {
             <Route path="/corebody/wallet" element={<WalletSummary />} />
             <Route path="/corebody/wallet/ledger" element={<EarningsLedger />} />
             <Route path="/corebody/wallet/cap" element={<CapStatus />} />
+            <Route path="/corebody/dashboard/earnings-vs-cap" element={<CapStatus />} />
             <Route path="/corebody/wallet/withdrawals" element={<CoreBodyWithdrawalHistory />} />
             <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyWithdrawalRequest />} />
+
+            {/* Core Body Referral Routes */}
+            <Route path="/corebody/referrals" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><MyReferralsPage /></DashboardLayout>} />
+            <Route path="/corebody/referrals/my-referrals" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><MyReferralsPage /></DashboardLayout>} />
+            <Route path="/corebody/referrals/earnings" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><ReferralEarningsPage /></DashboardLayout>} />
+            <Route path="/corebody/referrals/history" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><ReferralHistoryPage /></DashboardLayout>} />
 
             {/* Other Routes */}
             <Route path="/businessman/*" element={<BusinessmanDashboard />} />

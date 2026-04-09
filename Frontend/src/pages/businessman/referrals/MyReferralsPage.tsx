@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { UserRound, UserCheck, UserX, Search } from "lucide-react";
+import { UserRound, UserCheck, UserX, Search, Copy, Share2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { KPICard } from "@/components/KPICard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import referralApi, { ReferredUser } from "@/lib/api/referral";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Select,
   SelectContent,
@@ -55,6 +57,25 @@ export default function MyReferralsPage() {
     queryFn: referralApi.getList,
   });
 
+  const { data: stats, isLoading: isStatsLoading, error: statsError } = useQuery({
+    queryKey: ["referral-stats"],
+    queryFn: referralApi.getStats,
+  });
+
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    if (!stats?.referral_link) return;
+    navigator.clipboard.writeText(stats.referral_link);
+    setCopied(true);
+    toast({
+      title: "Copied!",
+      description: "Referral link copied to clipboard.",
+    });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const members: ReferralMember[] = useMemo(() => {
     return rawMembers.map((member: ReferredUser) => ({
       id: member.id,
@@ -98,6 +119,52 @@ export default function MyReferralsPage() {
         <h1 className="text-xl font-bold">My Referrals</h1>
         <p className="text-sm text-muted-foreground">Direct referrals only. Data is read-only for transparent audit visibility.</p>
       </div>
+
+      {stats && (
+        <Card className="border-profit/20 bg-profit/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Share2 className="h-4 w-4 text-profit" />
+              Your Referral Link
+            </CardTitle>
+            <CardDescription>Share this link with potential partners to earn commission on their orders.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Input 
+                  readOnly 
+                  value={stats.referral_link} 
+                  className="bg-background font-mono text-xs pr-24 h-11"
+                />
+                <div className="absolute right-1.5 top-1.5 bottom-1.5 flex items-center bg-background pl-2">
+                  <span className="text-[10px] font-bold text-profit px-2 border-l border-border">CODE: {stats.referral_code}</span>
+                </div>
+              </div>
+              <Button 
+                onClick={handleCopyLink}
+                className="gap-2 bg-profit hover:bg-profit/90 text-profit-foreground shrink-0"
+              >
+                {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy Link"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {statsError && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-amber-800">
+              <ShieldAlert className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">
+                {(statsError as any).response?.data?.message || "Referral system is currently restricted for your account."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <ReferralRuleIndicators />
 

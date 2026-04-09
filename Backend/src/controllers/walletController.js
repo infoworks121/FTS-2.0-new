@@ -795,7 +795,7 @@ exports.setPin = async (req, res) => {
 exports.createDepositRequest = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { amount, payment_method, transaction_ref, slip_url } = req.body;
+    const { amount, payment_method, transaction_ref, slip_url, user_note } = req.body;
 
     if (!amount || parseFloat(amount) <= 0 || !payment_method) {
       return res.status(400).json({ error: 'Amount and payment method are required.' });
@@ -823,10 +823,10 @@ exports.createDepositRequest = async (req, res) => {
 
     const result = await db.query(
       `INSERT INTO wallet_deposit_requests 
-       (user_id, wallet_id, amount, payment_method, transaction_ref, slip_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       (user_id, wallet_id, amount, payment_method, transaction_ref, slip_url, user_note, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
        RETURNING *`,
-      [userId, walletId, amount, payment_method, transaction_ref || null, slip_url || null]
+      [userId, walletId, amount, payment_method, transaction_ref || null, slip_url || null, user_note || null]
     );
 
     res.status(201).json({ 
