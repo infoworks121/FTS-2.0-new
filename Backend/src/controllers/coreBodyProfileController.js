@@ -16,7 +16,7 @@ const getCoreBodyReports = async (req, res) => {
         COUNT(o.id) as orders,
         COALESCE(SUM(o.total_amount), 0) as volume
       FROM users u
-      LEFT JOIN orders o ON o.user_id = u.id AND o.status = 'delivered'
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
       WHERE u.role_code = 'dealer' AND u.district_id = (SELECT district_id FROM users WHERE id = $1)
       GROUP BY u.id, u.full_name, u.is_active
     `;
@@ -337,10 +337,288 @@ const payInstallment = async (req, res) => {
   }
 };
 
+// Get all downstream users (Dealers & Businessmen) in the Core Body's district
+const getDistrictUsers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 1. Get Core Body's district
+    const userRes = await pool.query('SELECT district_id FROM users WHERE id = $1', [userId]);
+    const districtId = userRes.rows[0]?.district_id;
+    
+    if (!districtId) {
+      return res.status(400).json({ message: 'Core Body district not found' });
+    }
+
+    // 2. Fetch Dealers in that district
+    // Note: Based on dealerProfileController, they also use core_body_profiles or just 'dealer' role
+    const dealerQuery = `
+      SELECT 
+        u.id as "dealerId", 
+        u.full_name as "dealerName",
+        u.is_active as "status",
+        u.created_at as "joinedDate",
+        COUNT(o.id) as "totalOrdersHandled",
+        COALESCE(SUM(o.total_amount), 0) as "currentMonthVolume"
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      WHERE r.role_code = 'dealer' AND u.district_id = $1
+      GROUP BY u.id, u.full_name, u.is_active, u.created_at
+    `;
+    const dealerResult = await pool.query(dealerQuery, [districtId]);
+
+    // 3. Fetch Businessmen in that district
+    const bsmQuery = `
+      SELECT 
+        u.id as "businessmanId",
+        u.full_name as "name",
+        bp.type as "modeType",
+        u.is_active as "status",
+        COUNT(o.id) as "totalOrders",
+        COALESCE(SUM(o.total_amount), 0) as "walletBalance"
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      JOIN businessman_profiles bp ON u.id = bp.user_id
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      WHERE r.role_code = 'businessman' AND u.district_id = $1
+      GROUP BY u.id, u.full_name, bp.type, u.is_active
+    `;
+    const bsmResult = await pool.query(bsmQuery, [districtId]);
+
+    // Format data for frontend (adding prefixes and default values for missing fields)
+    const dealers = dealerResult.rows.map(d => ({
+      ...d,
+      dealerId: `DLR-${d.dealerId.toString().padStart(4, '0')}`,
+      joinedDate: new Date(d.joinedDate).toISOString().split('T')[0],
+      currentStatus: d.status ? 'Active' : 'Inactive',
+      categorySpecialization: 'General Provisions',
+      lastActivityDate: new Date().toISOString().split('T')[0]
+    }));
+
+    const businessmen = bsmResult.rows.map(b => ({
+      ...b,
+      businessmanId: `BSM-${b.businessmanId.toString().padStart(4, '0')}`,
+      status: b.status ? 'Active' : 'Inactive',
+      associatedDealer: 'Direct District',
+      lastOrderDate: new Date().toISOString().split('T')[0]
+    }));
+
+    res.json({
+      dealers,
+      businessmen
+    });
+  } catch (error) {
+    console.error('Get district users error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get all directory users (Core Bodies, Dealers, Businessmen) across all districts
+const getDirectoryUsers = async (req, res) => {
+  try {
+    // 1. Fetch Core Bodies
+    const cbQuery = `
+      SELECT 
+        u.id, u.full_name as "name", u.email, u.phone,
+        cb.type, cb.is_active,
+        cb.investment_amount, cb.ytd_earnings, cb.annual_cap,
+        cb.mtd_earnings, cb.monthly_cap,
+        u.created_at,
+        u.is_approved,
+        d.name as "district"
+      FROM users u
+      JOIN core_body_profiles cb ON u.id = cb.user_id
+      LEFT JOIN districts d ON cb.district_id = d.id
+      ORDER BY u.created_at DESC
+    `;
+    const cbResult = await pool.query(cbQuery);
+    const coreBodies = cbResult.rows.map(cb => ({
+      ...cb,
+      coreBodyId: `CB-${cb.id.toString().padStart(4, '0')}`,
+      status: cb.is_active ? 'Active' : 'Inactive',
+      joinedDate: new Date(cb.created_at).toISOString().split('T')[0]
+    }));
+
+    // 2. Fetch Dealers
+    const dealerQuery = `
+      SELECT 
+        u.id as "dealerId", 
+        u.full_name as "dealerName",
+        u.is_active as "status",
+        u.created_at as "joinedDate",
+        COUNT(o.id) as "totalOrdersHandled",
+        COALESCE(SUM(o.total_amount), 0) as "currentMonthVolume",
+        d.name as "district"
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      LEFT JOIN districts d ON u.district_id = d.id
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      WHERE r.role_code = 'dealer'
+      GROUP BY u.id, u.full_name, u.is_active, u.created_at, d.name
+    `;
+    const dealerResult = await pool.query(dealerQuery);
+    const dealers = dealerResult.rows.map(d => ({
+      ...d,
+      dealerId: `DLR-${d.dealerId.toString().padStart(4, '0')}`,
+      joinedDate: new Date(d.joinedDate).toISOString().split('T')[0],
+      currentStatus: d.status ? 'Active' : 'Inactive',
+      categorySpecialization: 'General Provisions',
+      lastActivityDate: new Date().toISOString().split('T')[0]
+    }));
+
+    // 3. Fetch Businessmen
+    const bsmQuery = `
+      SELECT 
+        u.id as "businessmanId",
+        u.full_name as "name",
+        bp.type as "modeType",
+        u.is_active as "status",
+        COUNT(o.id) as "totalOrders",
+        COALESCE(SUM(o.total_amount), 0) as "walletBalance",
+        d.name as "district"
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      JOIN businessman_profiles bp ON u.id = bp.user_id
+      LEFT JOIN districts d ON bp.district_id = d.id
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      WHERE r.role_code = 'businessman'
+      GROUP BY u.id, u.full_name, bp.type, u.is_active, d.name
+    `;
+    const bsmResult = await pool.query(bsmQuery);
+    const businessmen = bsmResult.rows.map(b => ({
+      ...b,
+      businessmanId: `BSM-${b.businessmanId.toString().padStart(4, '0')}`,
+      status: b.status ? 'Active' : 'Inactive',
+      associatedDealer: 'Direct District',
+      lastOrderDate: new Date().toISOString().split('T')[0]
+    }));
+
+    res.json({
+      coreBodies,
+      dealers,
+      businessmen
+    });
+  } catch (error) {
+    console.error('Get directory users error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const getDirectoryUserDetail = async (req, res) => {
+  try {
+    let { id } = req.params;
+
+    // Remove entity prefixes if present (e.g., BSM-, DLR-, CB-)
+    if (typeof id === 'string') {
+      if (id.startsWith('BSM-')) id = id.replace('BSM-', '');
+      if (id.startsWith('DLR-')) id = id.replace('DLR-', '');
+      if (id.startsWith('CB-')) id = id.replace('CB-', '');
+    }
+
+    // 1. Fetch user and role
+    const userResult = await pool.query(`
+      SELECT u.id, u.full_name as name, u.email, u.phone, r.role_code
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      WHERE u.id = $1
+    `, [id]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // 2. Based on role, fetch detailed profile
+    if (user.role_code === 'businessman') {
+      const profileResult = await pool.query(`
+        SELECT 
+          u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url, u.is_approved, u.is_sph,
+          bp.id as profile_id, bp.type, bp.mode, bp.is_active,
+          bp.business_name, bp.business_address, bp.gst_number, bp.pan_number,
+          bp.bank_account, bp.ifsc_code,
+          bp.advance_amount, bp.assigned_core_body_id,
+          bp.monthly_target, bp.ytd_sales, bp.mtd_sales, bp.commission_earned,
+          bp.created_at, bp.updated_at,
+          d.name as district, d.id as district_id
+        FROM users u
+        JOIN businessman_profiles bp ON u.id = bp.user_id
+        LEFT JOIN districts d ON bp.district_id = d.id
+        WHERE u.id = $1
+      `, [id]);
+
+      if (profileResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Businessman profile not found' });
+      }
+
+      const profile = profileResult.rows[0];
+
+      if (profile.mode === 'stock_point' || profile.type === 'stock_point') {
+        const stockPointResult = await pool.query(`
+          SELECT storage_capacity, min_inventory_value, warehouse_address, sla_score
+          FROM stock_point_profiles
+          WHERE businessman_id = $1
+        `, [profile.profile_id]);
+
+        if (stockPointResult.rows.length > 0) {
+          const sp = stockPointResult.rows[0];
+          profile.storage_capacity = sp.storage_capacity;
+          profile.min_inventory_value = sp.min_inventory_value;
+          profile.warehouse_address = sp.warehouse_address;
+          profile.sla_score = sp.sla_score;
+        }
+      }
+      return res.json({ profile });
+
+    } else if (user.role_code === 'dealer') {
+      const dealerResult = await pool.query(`
+        SELECT 
+          u.id, u.full_name as name, u.email, u.phone, u.is_active,
+          u.created_at, d.name as district
+        FROM users u
+        LEFT JOIN districts d ON u.district_id = d.id
+        WHERE u.id = $1
+      `, [id]);
+      
+      const profile = dealerResult.rows[0];
+      return res.json({ profile });
+
+    } else if (user.role_code === 'core_body_a' || user.role_code === 'core_body_b' || user.role_code === 'core_body') {
+      const profileResult = await pool.query(`
+        SELECT 
+          u.id, u.full_name as name, u.email, u.phone, u.is_active, u.is_approved,
+          cp.type, cp.investment_amount, cp.ytd_earnings, cp.annual_cap,
+          cp.created_at, d.name as district,
+          (SELECT COUNT(*) FROM businessman_profiles WHERE assigned_core_body_id = cp.id) as businessman_count,
+          (SELECT COUNT(*) FROM core_body_installments WHERE core_body_id = cp.id) as installment_count
+        FROM users u
+        JOIN core_body_profiles cp ON u.id = cp.user_id
+        LEFT JOIN districts d ON u.district_id = d.id
+        WHERE u.id = $1
+      `, [id]);
+
+      if (profileResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Core Body profile not found' });
+      }
+
+      return res.json({ profile: profileResult.rows[0] });
+    }
+
+    res.json({ profile: user });
+  } catch (error) {
+    console.error('Get directory user detail error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getCoreBodyProfile,
   updateCoreBodyProfile,
   getCoreBodyDashboard,
   payInstallment,
-  getCoreBodyReports
+  getCoreBodyReports,
+  getDistrictUsers,
+  getDirectoryUsers,
+  getDirectoryUserDetail
 };

@@ -37,8 +37,15 @@ const register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 
-        // Generate unique referral code
-        const final_referral_code = `FTS${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        // Generate unique referral code for eligible roles (Retailer A, Core Body A, Core Body B)
+        let final_referral_code = null;
+        if (
+            (role_code === 'businessman' && businessman_type === 'retailer_a') ||
+            role_code === 'core_body_a' ||
+            role_code === 'core_body_b'
+        ) {
+            final_referral_code = `FTS${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        }
 
         // Insert user
         const newUser = await db.query(
@@ -114,12 +121,14 @@ const register = async (req, res) => {
             );
         }
 
-        // --- REFERRAL SYSTEM LOGIC ---
-        // 1. Initialize referral_links for the new user
-        await db.query(
-            `INSERT INTO referral_links (user_id, referral_code) VALUES ($1, $2)`,
-            [user.id, final_referral_code]
-        );
+        // --- REFERRAL SYSTEM LOGIC (Eligible for Retailer A only) ---
+        if (final_referral_code) {
+            // 1. Initialize referral_links for the new user
+            await db.query(
+                `INSERT INTO referral_links (user_id, referral_code) VALUES ($1, $2)`,
+                [user.id, final_referral_code]
+            );
+        }
 
         // 2. Handle referral_code_used (Optional)
         if (referral_code_used) {
@@ -233,6 +242,18 @@ const login = async (req, res) => {
         );
         const has_transaction_pin = walletPinRes.rows.length > 0 && walletPinRes.rows[0].transaction_pin !== null;
 
+        // Fetch profile subtypes if applicable
+        let businessman_type = null;
+        let core_body_type = null;
+
+        if (user.role_code === 'businessman') {
+            const bProfile = await db.query('SELECT type FROM businessman_profiles WHERE user_id = $1', [user.id]);
+            if (bProfile.rows.length > 0) businessman_type = bProfile.rows[0].type;
+        } else if (user.role_code.startsWith('core_body')) {
+            const cProfile = await db.query('SELECT type FROM core_body_profiles WHERE user_id = $1', [user.id]);
+            if (cProfile.rows.length > 0) core_body_type = cProfile.rows[0].type;
+        }
+
         await db.query(
             'INSERT INTO user_sessions (user_id, panel, token_hash, ip_address, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
             [user.id, panel || 'unknown', token, req.ip, req.get('user-agent'), expires_at]
@@ -246,6 +267,8 @@ const login = async (req, res) => {
                 email: user.email,
                 full_name: user.full_name,
                 role_code: user.role_code,
+                businessman_type,
+                core_body_type,
                 has_transaction_pin,
             },
             token,

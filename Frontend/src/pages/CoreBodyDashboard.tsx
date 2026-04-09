@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  LayoutDashboard, Package, Users, Wallet, TrendingUp, ArrowUpDown,
+  LayoutDashboard, Package, Users, Wallet, TrendingUp, ArrowUpDown, ArrowRightLeft,
   DollarSign, UserCheck, AlertCircle, BarChart3, Clock, PackageCheck,
   History, RotateCcw, UserPlus, BarChart2, ShoppingBag, CheckCircle,
   Truck, AlertTriangle, CreditCard, BookOpen, TrendingDown, Award,
@@ -195,7 +195,11 @@ export default function CoreBodyDashboard() {
           <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
           <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
           <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
-          <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
+          {["A", "B"].includes(stats?.profile?.type) ? (
+            <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={UserPlus} variant="reserve" />
+          ) : (
+            <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
+          )}
         </div>
 
         {/* Cap Progress + Chart */}
@@ -209,6 +213,23 @@ export default function CoreBodyDashboard() {
               <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
               <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>
             </div>
+            {["A", "B"].includes(stats?.profile?.type) && (
+              <button 
+                onClick={() => window.location.href='/corebody/referrals/my-referrals'}
+                className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-profit/5 px-4 py-3 text-left transition-colors hover:bg-profit/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="rounded-md bg-profit/10 p-2">
+                    <UserPlus className="h-4 w-4 text-profit" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">View Referral Link</p>
+                    <p className="text-xs text-muted-foreground">Share & earn commission</p>
+                  </div>
+                </div>
+                <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
           </div>
 
           <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5">

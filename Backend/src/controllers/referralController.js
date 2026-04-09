@@ -7,15 +7,59 @@ const getReferralStats = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const statsResult = await db.query(
+        // 1. Check if stats entry already exists
+        let statsResult = await db.query(
             `SELECT referral_code, total_referrals, total_earned 
              FROM referral_links 
              WHERE user_id = $1`,
             [userId]
         );
+        
+        // 2. If not found, check if user is eligible to have one generated on-the-fly
+        if (statsResult.rows.length === 0) {
+            const userCheck = await db.query(
+                `SELECT u.id, ur.role_code, bp.type as businessman_type
+                 FROM users u
+                 JOIN user_roles ur ON u.role_id = ur.id
+                 LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+                 WHERE u.id = $1`,
+                [userId]
+            );
+
+            if (userCheck.rows.length > 0) {
+                const user = userCheck.rows[0];
+                const isEligible = 
+                    (user.role_code === 'businessman' && user.businessman_type === 'retailer_a') ||
+                    user.role_code === 'core_body_a' ||
+                    user.role_code === 'core_body_b';
+
+                if (isEligible) {
+                    const newReferralCode = `FTS${Date.now()}${Math.floor(Math.random() * 1000)}`;
+                    
+                    // Update user table
+                    await db.query(`UPDATE users SET referral_code = $1 WHERE id = $2`, [newReferralCode, userId]);
+                    
+                    // Create referral_links entry
+                    await db.query(
+                        `INSERT INTO referral_links (user_id, referral_code) VALUES ($1, $2)`,
+                        [userId, newReferralCode]
+                    );
+
+                    // Re-fetch to get the initial stats
+                    statsResult = await db.query(
+                        `SELECT referral_code, total_referrals, total_earned 
+                         FROM referral_links 
+                         WHERE user_id = $1`,
+                        [userId]
+                    );
+                }
+            }
+        }
 
         if (statsResult.rows.length === 0) {
-            return res.status(404).json({ message: 'Referral link not found' });
+            return res.status(404).json({ 
+                message: 'Referral system is currently restricted for your account category. Only Retailer A, Core Body A, and Core Body B members are eligible for referral links.' 
+            });
         }
 
         const stats = statsResult.rows[0];

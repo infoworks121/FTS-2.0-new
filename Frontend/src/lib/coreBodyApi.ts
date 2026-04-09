@@ -87,6 +87,18 @@ export const coreBodyApi = {
     const response = await api.put(`/admin/corebodies/${id}/settings`, data);
     return response.data;
   },
+  getDistrictUsers: async () => {
+    const response = await api.get('/corebody-profile/users');
+    return response.data;
+  },
+  getDirectoryUsers: async () => {
+    const response = await api.get('/corebody-profile/directory-users');
+    return response.data;
+  },
+  getDirectoryUserDetail: async (id: string): Promise<any> => {
+    const response = await api.get(`/corebody-profile/directory-users/${id}`);
+    return response.data;
+  },
 };
 
 export default coreBodyApi;

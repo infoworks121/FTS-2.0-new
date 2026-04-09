@@ -25,6 +25,7 @@ interface BusinessmanRow {
   email: string;
   phone: string;
   mode: UserMode;
+  type: string;
   district: string;
   district_id: string;
   status: UserStatus;
@@ -227,6 +228,7 @@ export default function AllBusinessmen() {
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Name & ID</TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Type</TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">District</TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Earnings</TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
@@ -236,7 +238,7 @@ export default function AllBusinessmen() {
             <TableBody>
               {businessmen.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No businessmen found</TableCell>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No businessmen found</TableCell>
                 </TableRow>
               ) : businessmen.map((b) => (
                 <TableRow key={b.id} className="border-border hover:bg-muted/50">
@@ -254,6 +256,11 @@ export default function AllBusinessmen() {
                     </div>
                   </TableCell>
                   <TableCell><ModeBadge mode={b.mode} /></TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize text-[10px] font-bold border-slate-200">
+                      {b.type?.replace('_', ' ') || 'Businessman'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-sm">{b.district || "—"}</TableCell>
                   <TableCell>
                     <span className="font-mono font-semibold text-foreground">

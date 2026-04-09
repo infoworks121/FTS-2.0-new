@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Landmark, ArrowUpCircle, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import api from "@/lib/api";
+import { uploadApi } from "@/lib/uploadApi";
 import { useNavigate } from "react-router-dom";
+import { Upload } from "lucide-react";
 
 export default function DepositRequest() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,6 +25,7 @@ export default function DepositRequest() {
     transaction_ref: "",
     notes: ""
   });
+  const [slipFile, setSlipFile] = useState<File | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,13 +48,33 @@ export default function DepositRequest() {
       return;
     }
 
+    if (!slipFile) {
+      toast({
+        title: "Slip Required",
+        description: "Please upload a copy of your payment slip.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      let slip_url = "";
+      if (slipFile) {
+        const uploadRes = await uploadApi.uploadSingle(slipFile);
+        if (uploadRes.success) {
+          slip_url = uploadRes.url;
+        } else {
+          throw new Error("Failed to upload slip");
+        }
+      }
+
       await api.post("/wallet/me/deposit-request", {
         amount: parseFloat(formData.amount),
         payment_method: formData.payment_method,
         transaction_ref: formData.transaction_ref,
-        slip_url: formData.notes // Using notes field for extra info as backend expects slip_url/notes logic
+        slip_url: slip_url,
+        user_note: formData.notes
       });
 
       toast({
@@ -192,6 +215,28 @@ export default function DepositRequest() {
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={3}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="slip">Upload Payment Slip (Required)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="slip"
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => setSlipFile(e.target.files?.[0] || null)}
+                        required
+                        className="flex-1"
+                      />
+                      {slipFile && (
+                        <div className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
+                          <Upload className="h-3 w-3" /> Selected
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Accepted: JPG, PNG, PDF (Max 5MB)
+                    </p>
                   </div>
 
                   <div className="pt-4">
