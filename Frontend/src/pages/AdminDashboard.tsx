@@ -2,8 +2,14 @@ import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
 import { KPICard } from "@/components/KPICard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/useTheme";
-import { useMemo, useState, useEffect } from "react";
+import { 
+  useMemo, 
+  useState, 
+  useEffect,
+  useCallback 
+} from "react";
 import {
   LayoutDashboard,
   Package,
@@ -50,6 +56,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setUserName(user.full_name || 'Admin');
@@ -64,7 +72,20 @@ export default function AdminDashboard() {
         setIsLoading(false);
       }
     };
+    
+    const fetchAlerts = async () => {
+      try {
+        const data = await adminApi.getLowStockAlerts(5);
+        if (data && data.alerts) {
+          setLowStockAlerts(data.alerts);
+        }
+      } catch (err) {
+        console.error("Failed to load low stock alerts", err);
+      }
+    };
+    
     fetchStats();
+    fetchAlerts();
   }, []);
   
   // Theme-aware chart colors
@@ -90,6 +111,27 @@ export default function AdminDashboard() {
           <h1 className="text-xl font-bold text-foreground">Good Morning, {userName} 👋</h1>
           <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
         </div>
+
+        {/* Low Stock Warning Banner */}
+        {lowStockAlerts.length > 0 && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start gap-4 shadow-sm dark:bg-red-500/10 dark:border-red-500/50">
+            <AlertTriangle className="h-6 w-6 text-red-500 shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-red-800 dark:text-red-400 uppercase tracking-wide">Action Required: Low Stock Detected</h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                You have <strong>{lowStockAlerts.length}</strong> items that have fallen below the critical threshold (5 units).
+                <br />
+                <span className="text-xs opacity-80 mt-1 block">
+                  Affected: {lowStockAlerts.slice(0, 3).map(a => `${a.product_name} (${a.quantity_on_hand})`).join(', ')}
+                  {lowStockAlerts.length > 3 && ` ...and ${lowStockAlerts.length - 3} more.`}
+                </span>
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="bg-white border-red-200 text-red-700 hover:bg-red-50 dark:bg-red-950 dark:border-red-800 dark:text-red-400" onClick={() => window.location.href = '/admin/products'}>
+              Manage Inventory
+            </Button>
+          </div>
+        )}
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

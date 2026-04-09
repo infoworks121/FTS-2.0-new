@@ -3,6 +3,18 @@ export type ProductType = "physical" | "digital" | "service";
 
 export type ProductStatus = "active" | "inactive" | "draft" | "archived";
 
+export interface ProductVariant {
+  id?: string;
+  variant_name: string;
+  sku_suffix: string;
+  attributes: Record<string, string>;
+  mrp?: number;
+  basePrice?: number;
+  sellingPrice?: number;
+  bulkPrice?: number;
+  isActive?: boolean;
+}
+
 // Matches DB columns from admin_products table (snake_case from API response)
 export interface Product {
   id: string;
@@ -27,6 +39,7 @@ export interface Product {
   thumbnail_url: string | null;
   image_urls: string[] | null;
   status: ProductStatus;
+  variants: any[]; // Extended with variants from API
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -53,6 +66,7 @@ export interface ProductFormData {
   thumbnailUrl?: string;
   imageUrls?: string[];
   status?: string;
+  variants?: ProductVariant[];
 }
 
 export interface ProductPricingUpdate {

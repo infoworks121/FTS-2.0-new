@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const xlsx = require('xlsx');
+const fs = require('fs');
 
 // =============================================================================
 // CATEGORIES MANAGEMENT
@@ -104,6 +106,180 @@ exports.deleteCategory = async (req, res) => {
 // =============================================================================
 // PRODUCTS MANAGEMENT (FTS Schema Compatible)
 // =============================================================================
+
+exports.downloadBulkTemplate = (req, res) => {
+  try {
+    const headers = [
+      'Category', 'Product Name', 'SKU', 'Description', 'Type (physical/digital/service)', 'Unit (e.g. kg/pcs)', 
+      'Profit Channel (B2B/B2C)', 'MRP', 'Base Price', 'Selling Price', 'Initial Stock',
+      'Variant Name', 'Variant SKU Suffix', 'Variant MRP', 'Variant Base Price', 'Variant Selling Price'
+    ];
+    
+    const worksheet = xlsx.utils.aoa_to_sheet([headers]);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Products');
+    
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    res.setHeader('Content-Disposition', 'attachment; filename="bulk_products_template.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.bulkUploadProducts = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  
+  try {
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    
+    if (data.length === 0) {
+       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'File is empty' });
+    }
+
+    const profitChannelFallback = 'B2C';
+    const results = {
+      total: data.length,
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    const categoriesResult = await db.query('SELECT id, name FROM categories');
+    const categoriesMap = {};
+    categoriesResult.rows.forEach(c => categoriesMap[c.name.toLowerCase()] = c.id);
+
+    const profitRulesResult = await db.query('SELECT id, channel FROM profit_rules WHERE is_current = true');
+    const profitRulesMap = {};
+    profitRulesResult.rows.forEach(pr => profitRulesMap[pr.channel] = pr.id);
+    
+    for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const client = await db.pool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            const catName = row['Category'];
+            const name = row['Product Name'];
+            const sku = row['SKU'];
+            let mrp = row['MRP'];
+            let base_price = row['Base Price'];
+            let selling_price = row['Selling Price'];
+            
+            if (!catName || !name || !sku || !mrp || !base_price || !selling_price) {
+                throw new Error('Missing required fields: Category, Product Name, SKU, MRP, Base Price, or Selling Price');
+            }
+
+            let category_id = categoriesMap[catName.toLowerCase()];
+            if (!category_id) {
+                const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                const newCat = await client.query(
+                    `INSERT INTO categories (name, slug, is_active) VALUES ($1, $2, true) RETURNING id, name`,
+                    [catName, slug]
+                );
+                category_id = newCat.rows[0].id;
+                categoriesMap[catName.toLowerCase()] = category_id;
+            }
+
+            const type = (row['Type (physical/digital/service)'] || 'physical').toLowerCase();
+            const unit = row['Unit (e.g. kg/pcs)'] || 'pcs';
+            let profit_channel = (row['Profit Channel (B2B/B2C)'] || profitChannelFallback).toUpperCase();
+            
+            if (!['B2B', 'B2C'].includes(profit_channel)) profit_channel = profitChannelFallback;
+            
+            if (!profitRulesMap[profit_channel]) {
+                throw new Error(`No active profit rule found for channel: ${profit_channel}`);
+            }
+            
+            const initial_stock = parseFloat(row['Initial Stock']) || 0;
+            
+            const productResult = await client.query(
+              `INSERT INTO products 
+               (category_id, name, sku, description, type, unit, created_by) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7) 
+               RETURNING id`,
+              [category_id, name, sku, row['Description'] || '', type, unit, req.user.id]
+            );
+            const productId = productResult.rows[0].id;
+
+            const varName = row['Variant Name'];
+            let createdVariantId = null;
+            if (varName) {
+                const varSku = row['Variant SKU Suffix'] || '';
+                const varMrp = row['Variant MRP'] || mrp;
+                const varBase = row['Variant Base Price'] || base_price;
+                const varSell = row['Variant Selling Price'] || selling_price;
+                
+                const variantResult = await client.query(
+                  `INSERT INTO product_variants 
+                   (product_id, variant_name, sku_suffix, attributes) 
+                   VALUES ($1, $2, $3, '{}') RETURNING id`,
+                  [productId, varName, varSku]
+                );
+                createdVariantId = variantResult.rows[0].id;
+                
+                await client.query(
+                    `INSERT INTO product_pricing 
+                     (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
+                     VALUES ($1, $2, $3, $4, $5, true, $6)`,
+                    [productId, createdVariantId, varMrp, varBase, varSell, req.user.id]
+                );
+            }
+            
+            await client.query(
+              `INSERT INTO product_pricing 
+               (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
+               VALUES ($1, NULL, $2, $3, $4, true, $5)`,
+              [productId, mrp, base_price, selling_price, req.user.id]
+            );
+
+            if (initial_stock > 0) {
+                await client.query(
+                    `INSERT INTO inventory_balances 
+                     (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
+                     VALUES ('admin', $1, $2, $3, $4)`,
+                    [req.user.id, productId, createdVariantId, initial_stock]
+                );
+                
+                await client.query(
+                    `INSERT INTO inventory_ledger 
+                     (product_id, variant_id, entity_type, entity_id, transaction_type, 
+                      quantity, reference_type, note, created_by) 
+                     VALUES ($1, $2, 'admin', $3, 'initial_stock', $4, 'product_creation', 
+                             'Bulk Upload Initial Stock', $5)`,
+                    [productId, createdVariantId, req.user.id, initial_stock, req.user.id]
+                );
+            }
+
+            await client.query('COMMIT');
+            results.success++;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            let errorMsg = error.message;
+            if (error.code === '23505') errorMsg = 'SKU already exists';
+            results.failed++;
+            results.errors.push({ row: i + 2, sku: row['SKU'] || 'N/A', error: errorMsg });
+        } finally {
+            client.release();
+        }
+    }
+    
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(200).json(results);
+    
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.getProducts = async (req, res) => {
   try {
@@ -244,6 +420,42 @@ exports.createProduct = async (req, res) => {
            VALUES ($1, $2, $3, $4) RETURNING *`,
           [productId, variant_name, sku_suffix, JSON.stringify(attributes)]
         );
+        
+        const variantId = variantResult.rows[0].id;
+
+        // NEW: Handle Variant-specific pricing if provided in bulk
+        if (variant.mrp && variant.base_price) {
+          await client.query(
+            `INSERT INTO product_pricing 
+             (product_id, variant_id, mrp, base_price, selling_price, 
+              admin_margin_pct, bulk_price, is_current, created_by) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+            [
+              productId, variantId, variant.mrp, variant.base_price,
+              variant.selling_price || 0, variant.admin_margin_pct || 0,
+              variant.bulk_price || null, req.user.id
+            ]
+          );
+        }
+
+        // NEW: Handle Variant-specific initial stock
+        if (variant.initial_stock_quantity > 0) {
+          await client.query(
+            `INSERT INTO inventory_balances 
+             (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
+             VALUES ('admin', $1, $2, $3, $4)`,
+            [req.user.id, productId, variantId, variant.initial_stock_quantity]
+          );
+          
+          await client.query(
+            `INSERT INTO inventory_ledger 
+             (product_id, variant_id, entity_type, entity_id, transaction_type, 
+              quantity, reference_type, note, created_by) 
+             VALUES ($1, $2, 'admin', $3, 'initial_stock', $4, 'product_creation', 
+                     'Initial variant stock added during product creation', $5)`,
+            [productId, variantId, req.user.id, variant.initial_stock_quantity, req.user.id]
+          );
+        }
         
         createdVariants.push(variantResult.rows[0]);
       }
@@ -1062,15 +1274,27 @@ exports.updateAdminProduct = async (req, res) => {
         [id]
       );
       
-      if (currentResult.rows.length > 0) {
-        const cur = currentResult.rows[0];
+      if (currentPricing.rows.length > 0) {
+        const cur = currentPricing.rows[0];
         // 1. Log old prices to history BEFORE updating
-        if (selling_price !== undefined && parseFloat(cur.selling_price) !== parseFloat(selling_price)) {
-          await client.query(
-            `INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) 
-             VALUES ($1, NULL, $2, $3, 'selling_price', $4, 'Admin update')`,
-            [id, cur.selling_price, selling_price, req.user.id]
-          );
+        const pFields = [
+          { key: 'mrp', label: 'mrp' },
+          { key: 'base_price', label: 'base_price' },
+          { key: 'selling_price', label: 'selling_price' },
+          { key: 'bulk_price', label: 'bulk_price' }
+        ];
+
+        for (const f of pFields) {
+          const newVal = req.body[f.key];
+          const oldVal = cur[f.key];
+          
+          if (newVal !== undefined && parseFloat(oldVal) !== parseFloat(newVal)) {
+            await client.query(
+              `INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) 
+               VALUES ($1, NULL, $2, $3, $4, $5, 'Admin update')`,
+              [id, oldVal, newVal, f.label, req.user.id]
+            );
+          }
         }
         
         // 2. Perform the update
@@ -1081,7 +1305,7 @@ exports.updateAdminProduct = async (req, res) => {
             selling_price = COALESCE($3, selling_price),
             bulk_price = COALESCE($4, bulk_price),
             admin_margin_pct = COALESCE($5, admin_margin_pct),
-            updated_at = NOW()
+            effective_from = NOW()
            WHERE id = $6`,
           [mrp, base_price, selling_price, bulk_price, admin_margin_pct, cur.id]
         );
@@ -1181,7 +1405,7 @@ exports.updatePricing = async (req, res) => {
       
       // Update existing pricing
       await db.query(
-        'UPDATE product_pricing SET price = $1, updated_at = NOW() WHERE id = $2',
+        'UPDATE product_pricing SET price = $1, effective_from = NOW() WHERE id = $2',
         [price, currentPricing.id]
       );
     } else {
@@ -1345,18 +1569,30 @@ exports.updateService = async (req, res) => {
       );
       if (currentRes.rows.length > 0) {
         const cur = currentRes.rows[0];
-        await client.query(
-          `INSERT INTO price_history (product_id, old_price, new_price, field_changed, changed_by, reason)
-           VALUES ($1, $2, $3, 'selling_price', $4, 'Service update')`,
-          [id, cur.selling_price, selling_price || cur.selling_price, req.user.id]
-        );
+        const sFields = [
+          { key: 'mrp', label: 'mrp' },
+          { key: 'base_price', label: 'base_price' },
+          { key: 'selling_price', label: 'selling_price' }
+        ];
+
+        for (const f of sFields) {
+          const newVal = req.body[f.key];
+          const oldVal = cur[f.key];
+          if (newVal !== undefined && parseFloat(oldVal) !== parseFloat(newVal)) {
+            await client.query(
+              `INSERT INTO price_history (product_id, old_price, new_price, field_changed, changed_by, reason)
+               VALUES ($1, $2, $3, $4, $5, 'Service update')`,
+              [id, oldVal, newVal, f.label, req.user.id]
+            );
+          }
+        }
 
         await client.query(
           `UPDATE product_pricing SET
             mrp = COALESCE($1, mrp),
             base_price = COALESCE($2, base_price),
             selling_price = COALESCE($3, selling_price),
-            updated_at = NOW()
+            effective_from = NOW()
            WHERE id = $4`,
           [mrp, base_price, selling_price, cur.id]
         );

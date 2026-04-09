@@ -709,7 +709,7 @@ const getAdminDashboardStats = async (req, res) => {
             recentActivity: activityResult.rows.map(row => ({
                 id: row.id.substring(0, 8),
                 type: row.type,
-                user: row.description.split(' ')[0] || 'System',
+                user: row.description ? (row.description.split(' ')[0] || 'System') : 'System',
                 amount: '₹' + parseFloat(row.amount).toLocaleString('en-IN'),
                 status: row.status,
                 time: new Date(row.time).toLocaleTimeString()
@@ -888,6 +888,44 @@ const updateCoreBodySettings = async (req, res) => {
     }
 };
 
+const getLowStockAlerts = async (req, res) => {
+    try {
+        const threshold = parseInt(req.query.threshold) || 5;
+        const userId = req.user.id;
+
+        const query = `
+            SELECT 
+                ib.id as balance_id,
+                ib.quantity_on_hand,
+                ib.quantity_reserved,
+                p.id as product_id,
+                p.name AS product_name,
+                p.sku AS product_sku,
+                p.thumbnail_url,
+                pv.id as variant_id,
+                pv.variant_name,
+                pv.sku_suffix
+            FROM inventory_balances ib
+            JOIN products p ON ib.product_id = p.id
+            LEFT JOIN product_variants pv ON ib.variant_id = pv.id
+            WHERE ib.entity_id = $1 
+              AND ib.quantity_on_hand <= $2
+            ORDER BY ib.quantity_on_hand ASC
+        `;
+
+        const result = await db.query(query, [userId, threshold]);
+
+        res.json({
+            alerts: result.rows,
+            count: result.rows.length,
+            threshold
+        });
+    } catch (err) {
+        console.error('Get low stock alerts error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = { 
     getPendingUsers, 
     approveUser, 
@@ -903,5 +941,6 @@ module.exports = {
     updateUserSPHStatus,
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
-    approveCoreBodyInstallment
+    approveCoreBodyInstallment,
+    getLowStockAlerts
 };

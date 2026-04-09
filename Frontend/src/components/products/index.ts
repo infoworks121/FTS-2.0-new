@@ -9,3 +9,4 @@ export { ProductTable, BulkActionsBar } from "./ProductTable";
 export { ProductCard, ProductCardGrid } from "./ProductCard";
 export { ProductFilters } from "./ProductFilters";
 export type { ProductFilterState } from "./ProductFilters";
+export { BulkImportModal } from "./BulkImportModal";

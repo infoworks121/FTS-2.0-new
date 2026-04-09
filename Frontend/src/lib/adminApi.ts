@@ -83,6 +83,10 @@ export const adminApi = {
   updateDepositStatus: async (id: string, status: 'approved' | 'rejected', adminNote?: string) => {
     const response = await api.put(`/wallet/admin/deposit-requests/${id}/status`, { status, admin_note: adminNote });
     return response.data;
+  },
+  getLowStockAlerts: async (threshold: number = 5) => {
+    const response = await api.get(`/admin/low-stock-alerts?threshold=${threshold}`);
+    return response.data;
   }
 };
 

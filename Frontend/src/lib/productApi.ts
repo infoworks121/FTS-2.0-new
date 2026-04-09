@@ -54,6 +54,16 @@ export const productApi = {
       thumbnail_url: data.thumbnailUrl,
       image_urls: data.imageUrls,
       status: data.status ?? 'draft',
+      variants: data.variants?.map(v => ({
+        variant_name: v.variant_name,
+        sku_suffix: v.sku_suffix,
+        attributes: v.attributes,
+        mrp: v.mrp,
+        base_price: v.basePrice,
+        selling_price: v.sellingPrice,
+        bulk_price: v.bulkPrice,
+        is_active: v.isActive
+      })),
     };
     const res = await api.post('/catalog/admin/products', payload);
     return res.data;
@@ -81,6 +91,16 @@ export const productApi = {
     if (data.thumbnailUrl !== undefined) payload.thumbnail_url = data.thumbnailUrl;
     if (data.imageUrls !== undefined) payload.image_urls = data.imageUrls;
     if (data.status !== undefined) payload.status = data.status;
+    if (data.variants !== undefined) payload.variants = data.variants.map(v => ({
+      variant_name: v.variant_name,
+      sku_suffix: v.sku_suffix,
+      attributes: v.attributes,
+      mrp: v.mrp,
+      base_price: v.basePrice,
+      selling_price: v.sellingPrice,
+      bulk_price: v.bulkPrice,
+      is_active: v.isActive
+    }));
     const res = await api.put(`/catalog/admin/products/${id}`, payload);
     return res.data;
   },
@@ -144,6 +164,31 @@ export const productApi = {
       }
     });
     const res = await api.get(`/catalog/issued-products?${query.toString()}`);
+    return res.data;
+  },
+
+  // Bulk Upload and Template
+  downloadBulkTemplate: async () => {
+    const res = await api.get('/catalog/admin/products/bulk/template', { responseType: 'blob' });
+    return res.data;
+  },
+  
+  uploadBulkProducts: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/catalog/admin/products/bulk', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+
+  // Get price history
+  getPriceHistory: async (productId: string, variantId?: string) => {
+    const params = new URLSearchParams();
+    if (variantId) params.append('variant_id', variantId);
+    const res = await api.get(`/catalog/products/${productId}/price-history${params.toString() ? `?${params.toString()}` : ''}`);
     return res.data;
   },
 };

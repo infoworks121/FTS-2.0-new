@@ -104,6 +104,7 @@ export function ProductTable({
             <TableHead className="w-[300px]">Product Name</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Type</TableHead>
+            <TableHead className="text-right">Stock</TableHead>
             <TableHead className="text-right">Base Price</TableHead>
             <TableHead className="text-right">Margin %</TableHead>
             <TableHead>Status</TableHead>
@@ -114,7 +115,7 @@ export function ProductTable({
         <TableBody>
           {products.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
+              <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
                 No products found
               </TableCell>
             </TableRow>
@@ -165,6 +166,14 @@ export function ProductTable({
                 </TableCell>
                 <TableCell>
                   <ProductTypeCell type={product.product_type} />
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className={cn(
+                    "font-medium tabular-nums",
+                    product.stock_quantity <= 5 ? "text-red-600 animate-pulse" : "text-foreground"
+                  )}>
+                    {product.stock_quantity}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right font-medium">
                   {formatCurrency(Number(product.base_price))}

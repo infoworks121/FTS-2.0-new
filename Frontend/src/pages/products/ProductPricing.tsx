@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,108 +31,17 @@ import {
   DollarSign,
   History,
   Tag,
-  Eye,
+  Loader2,
 } from "lucide-react";
-import { ProductsLayout } from "@/components/products";
+import { productApi } from "@/lib/productApi";
 import { Product } from "@/types/product";
-
-// Mock products for selection
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Wireless Bluetooth Headphones",
-    sku: "WBH-001",
-    category_id: "cat-1",
-    category_name: "Electronics",
-    product_type: "physical",
-    mrp: 2999,
-    base_price: 1500,
-    selling_price: 2499,
-    bulk_price: 2000,
-    admin_margin_pct: 5,
-    profit_channel: "B2C",
-    margin_percent: 39.96,
-    min_margin_percent: 15,
-    stock_required: true,
-    stock_quantity: 150,
-    is_digital: false,
-    is_service: false,
-    status: "active",
-    created_at: "2024-01-15T10:30:00Z",
-    updated_at: "2024-01-20T14:45:00Z",
-    created_by: 1,
-    description: null,
-    thumbnail_url: null,
-    image_urls: null,
-  },
-  {
-    id: "2",
-    name: "Premium Watch",
-    sku: "PW-001",
-    category_id: "cat-1",
-    category_name: "Electronics",
-    product_type: "physical",
-    mrp: 19999,
-    base_price: 12000,
-    selling_price: 15999,
-    bulk_price: 14000,
-    admin_margin_pct: 5,
-    profit_channel: "B2C",
-    margin_percent: 24.99,
-    min_margin_percent: 15,
-    stock_required: true,
-    stock_quantity: 25,
-    is_digital: false,
-    is_service: false,
-    status: "active",
-    created_at: "2024-01-10T08:00:00Z",
-    updated_at: "2024-01-18T12:00:00Z",
-    created_by: 1,
-    description: null,
-    thumbnail_url: null,
-    image_urls: null,
-  },
-];
-
-// Mock price history
-const mockPriceHistory = [
-  {
-    id: "1",
-    mrp: 2999,
-    basePrice: 1500,
-    sellingPrice: 2499,
-    marginPercent: 39.96,
-    changedBy: "Admin",
-    changedAt: "2024-01-20T14:45:00Z",
-    reason: "Regular price update",
-  },
-  {
-    id: "2",
-    mrp: 2999,
-    basePrice: 1500,
-    sellingPrice: 2299,
-    marginPercent: 34.75,
-    changedBy: "Admin",
-    changedAt: "2024-01-18T10:30:00Z",
-    reason: "Promotional pricing",
-  },
-  {
-    id: "3",
-    mrp: 2999,
-    basePrice: 1400,
-    sellingPrice: 2499,
-    marginPercent: 43.98,
-    changedBy: "Admin",
-    changedAt: "2024-01-15T09:00:00Z",
-    reason: "Initial pricing",
-  },
-];
+import { toast } from "sonner";
 
 export default function ProductPricing() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [hasChanges, setHasChanges] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -141,7 +51,47 @@ export default function ProductPricing() {
     minMarginPercent: 15,
   });
 
-  const selectedProduct = mockProducts.find(p => p.id === selectedProductId);
+  // Queries
+  const { data: productsData, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['admin-products-all'],
+    queryFn: () => productApi.getAll({ limit: 100 }),
+  });
+
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['product-price-history', selectedProductId],
+    queryFn: () => productApi.getPriceHistory(selectedProductId),
+    enabled: !!selectedProductId,
+  });
+
+  const products = productsData?.products || [];
+  const selectedProduct = products.find((p: Product) => p.id === selectedProductId);
+
+  // Auto-populate form when product is selected
+  useEffect(() => {
+    if (selectedProduct) {
+      setFormData({
+        mrp: selectedProduct.mrp || 0,
+        basePrice: selectedProduct.base_price || 0,
+        sellingPrice: selectedProduct.selling_price || 0,
+        minMarginPercent: selectedProduct.min_margin_percent || 15,
+      });
+      setHasChanges(false);
+    }
+  }, [selectedProduct]);
+
+  // Mutation
+  const updateMutation = useMutation({
+    mutationFn: (data: any) => productApi.update(selectedProductId, data),
+    onSuccess: () => {
+      toast.success("Pricing updated successfully");
+      queryClient.invalidateQueries({ queryKey: ['admin-products-all'] });
+      queryClient.invalidateQueries({ queryKey: ['product-price-history', selectedProductId] });
+      setHasChanges(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Failed to update pricing");
+    }
+  });
 
   // Derived calculations
   const marginPercent = formData.sellingPrice > 0 && formData.basePrice > 0
@@ -152,16 +102,6 @@ export default function ProductPricing() {
 
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
-    const product = mockProducts.find(p => p.id === productId);
-    if (product) {
-      setFormData({
-        mrp: product.mrp || 0,
-        basePrice: product.base_price,
-        sellingPrice: product.selling_price || 0,
-        minMarginPercent: product.min_margin_percent,
-      });
-    }
-    setHasChanges(false);
   };
 
   const handleInputChange = (field: string, value: number) => {
@@ -169,21 +109,24 @@ export default function ProductPricing() {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      setHasChanges(false);
-    }, 1500);
+  const handleSave = async () => {
+    if (!selectedProductId) return;
+    
+    updateMutation.mutate({
+      mrp: formData.mrp,
+      basePrice: formData.basePrice,
+      sellingPrice: formData.sellingPrice,
+      minMarginPercent: formData.minMarginPercent,
+    });
   };
 
   const handleReset = () => {
     if (selectedProduct) {
       setFormData({
         mrp: selectedProduct.mrp || 0,
-        basePrice: selectedProduct.base_price,
+        basePrice: selectedProduct.base_price || 0,
         sellingPrice: selectedProduct.selling_price || 0,
-        minMarginPercent: selectedProduct.min_margin_percent,
+        minMarginPercent: selectedProduct.min_margin_percent || 15,
       });
     }
     setHasChanges(false);
@@ -250,12 +193,13 @@ export default function ProductPricing() {
               <Select
                 value={selectedProductId}
                 onValueChange={handleProductSelect}
+                disabled={isLoadingProducts}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a product" />
+                  <SelectValue placeholder={isLoadingProducts ? "Loading products..." : "Select a product"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockProducts.map((product) => (
+                  {products.map((product: Product) => (
                     <SelectItem key={product.id} value={product.id}>
                       <div className="flex items-center gap-2">
                         <span>{product.name}</span>
@@ -265,6 +209,11 @@ export default function ProductPricing() {
                       </div>
                     </SelectItem>
                   ))}
+                  {products.length === 0 && !isLoadingProducts && (
+                    <div className="p-2 text-sm text-center text-muted-foreground">
+                      No products found
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </CardContent>
@@ -281,6 +230,17 @@ export default function ProductPricing() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* MRP */}
+                  <div className="space-y-2">
+                    <Label htmlFor="mrp">MRP (₹)</Label>
+                    <Input
+                      id="mrp"
+                      type="number"
+                      value={formData.mrp}
+                      onChange={(e) => handleInputChange("mrp", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+
                   {/* Base Price */}
                   <div className="space-y-2">
                     <Label htmlFor="basePrice">Base Price / Cost (₹)</Label>
@@ -328,31 +288,52 @@ export default function ProductPricing() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Base Price</TableHead>
-                        <TableHead>Cost Price</TableHead>
-                        <TableHead>Margin</TableHead>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Previous Price</TableHead>
+                        <TableHead>New Price</TableHead>
                         <TableHead>Changed By</TableHead>
+                        <TableHead>Reason</TableHead>
                         <TableHead>Date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {mockPriceHistory.map((history) => (
-                        <TableRow key={history.id}>
-                          <TableCell className="font-medium">
-                            {formatCurrency(history.basePrice)}
-                          </TableCell>
-                          <TableCell>{formatCurrency(history.sellingPrice)}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {history.marginPercent.toFixed(1)}%
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{history.changedBy}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {formatDate(history.changedAt)}
+                      {isLoadingHistory ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" />
+                            <span className="text-sm text-muted-foreground mt-2 block">Loading history...</span>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : historyData?.history?.length > 0 ? (
+                        historyData.history.map((log: any) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-medium">
+                              <Badge variant="outline" className="capitalize">
+                                {log.field_changed?.replace('_', ' ') || "Price"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {formatCurrency(log.old_price)}
+                            </TableCell>
+                            <TableCell className="text-blue-600 font-semibold">
+                              {formatCurrency(log.new_price)}
+                            </TableCell>
+                            <TableCell>{log.changed_by_name || "System"}</TableCell>
+                            <TableCell className="max-w-[150px] truncate" title={log.reason}>
+                              {log.reason || "Price update"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {formatDate(log.changed_at)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                            No price history available
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -379,8 +360,8 @@ export default function ProductPricing() {
                   <span className="text-sm">{selectedProduct.category_name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Commission Rule:</span>
-                  <Badge variant="secondary">{(selectedProduct as any).commissionRuleName || "Standard"}</Badge>
+                  <span className="text-sm text-muted-foreground">Profit Channel:</span>
+                  <Badge variant="secondary">{selectedProduct.profit_channel || "B2C"}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -488,18 +469,22 @@ export default function ProductPricing() {
             <Button
               variant="outline"
               onClick={handleReset}
-              disabled={!hasChanges || isSaving}
+              disabled={!hasChanges || updateMutation.isPending}
             >
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!hasChanges || isSaving || !selectedProductId}
+              disabled={!hasChanges || updateMutation.isPending || !selectedProductId}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving ? "Saving..." : "Save Changes"}
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              {updateMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </div>

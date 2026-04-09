@@ -3,6 +3,20 @@ const router = express.Router();
 const productCatalogController = require('../controllers/productCatalogController');
 const { protect, adminOnly, canIssueStock } = require('../middleware/authMiddleware');
 
+const fs = require('fs');
+const multer = require('multer');
+
+// Configure multer for temporary file storage
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
+
 // Categories
 router.get('/categories', productCatalogController.getCategories);
 router.post('/categories', protect, adminOnly, productCatalogController.createCategory);
@@ -12,6 +26,10 @@ router.delete('/categories/:id', protect, adminOnly, productCatalogController.de
 // Products
 router.get('/products', productCatalogController.getProducts);
 router.post('/products', protect, adminOnly, productCatalogController.createProduct);
+
+// Bulk Product Management
+router.get('/admin/products/bulk/template', protect, adminOnly, productCatalogController.downloadBulkTemplate);
+router.post('/admin/products/bulk', protect, adminOnly, upload.single('file'), productCatalogController.bulkUploadProducts);
 
 // Admin Product Management (full CRUD)
 router.get('/admin/products', protect, adminOnly, productCatalogController.getAdminProducts);

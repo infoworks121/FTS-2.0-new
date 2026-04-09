@@ -26,6 +26,7 @@ import {
   ProductFilters,
   ProductCardGrid,
   ProductFilterState,
+  BulkImportModal,
 } from "@/components/products";
 import { 
   Dialog, 
@@ -60,6 +61,7 @@ export default function AllProducts() {
     maxPrice: "",
     minMargin: "",
   });
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
   // Load categories once
   useEffect(() => {
@@ -170,7 +172,7 @@ export default function AllProducts() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setIsBulkImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Import
           </Button>
@@ -355,6 +357,15 @@ export default function AllProducts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal 
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onSuccess={() => {
+          fetchProducts(filters, page);
+        }}
+      />
     </div>
   );
 }

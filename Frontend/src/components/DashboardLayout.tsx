@@ -43,6 +43,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CartSheet } from "./cart/CartSheet";
 import { walletApi } from "@/lib/walletApi";
+import { adminApi } from "@/lib/adminApi";
 
 export type UserRole = "admin" | "corebody" | "businessman";
 
@@ -288,6 +289,27 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
     return () => clearInterval(interval);
   }, []);
 
+  const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
+  const [alertsCount, setAlertsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const data = await adminApi.getLowStockAlerts(5);
+        if (data && data.alerts) {
+          setLowStockAlerts(data.alerts);
+          setAlertsCount(data.count);
+        }
+      } catch (e) { 
+        console.error("Error fetching low stock alerts", e); 
+      }
+    };
+
+    fetchAlerts();
+    const alertInterval = setInterval(fetchAlerts, 60000); // 1 minute
+    return () => clearInterval(alertInterval);
+  }, []);
+
   // Close mobile sidebar on route change
   useEffect(() => {
     setMobileOpen(false);
@@ -470,12 +492,57 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
             </Button>
 
             {/* Bell */}
-            <Button variant="ghost" size="icon" className="h-8 w-8 relative">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              {totalBadges > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500" />
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  {(totalBadges > 0 || alertsCount > 0) && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
+                      {(totalBadges + alertsCount) > 99 ? '99+' : (totalBadges + alertsCount)}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel className="font-bold flex items-center justify-between">
+                  <span>Notifications</span>
+                  {alertsCount > 0 && <span className="text-[10px] uppercase tracking-wider text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">{alertsCount} Low Stock</span>}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                {alertsCount > 0 ? (
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {lowStockAlerts.map(alert => (
+                      <DropdownMenuItem key={alert.balance_id} className="flex flex-col items-start p-3 gap-1 cursor-pointer focus:bg-red-50 focus:text-red-900 transition-colors" onClick={() => navigate('/admin/products')}>
+                        <div className="flex items-start justify-between w-full">
+                           <span className="font-semibold text-sm line-clamp-2 pr-2">{alert.product_name}</span>
+                           <span className="text-xs font-black bg-red-500 text-white shadow-sm px-1.5 py-0.5 rounded shrink-0">Qty: {alert.quantity_on_hand}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground w-full">
+                          <span className="font-mono bg-muted px-1 py-0.5 rounded">{alert.product_sku}{alert.sku_suffix ? alert.sku_suffix : ''}</span>
+                          {alert.variant_name && <span className="text-muted-foreground/70 text-[10px] uppercase truncate">{alert.variant_name}</span>}
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-sm text-muted-foreground flex flex-col items-center">
+                     <Bell className="h-6 w-6 text-muted-foreground/30 mb-2" />
+                     <p>All caught up!</p>
+                     <p className="text-xs">No active alerts or low stock warnings.</p>
+                  </div>
+                )}
+                
+                {(alertsCount > 0) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="w-full justify-center p-2 text-xs font-semibold text-blue-600 focus:bg-blue-50 focus:text-blue-700 cursor-pointer" onClick={() => navigate('/admin/products')}>
+                      View Inventory Management
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* User Dropdown */}
             <DropdownMenu>

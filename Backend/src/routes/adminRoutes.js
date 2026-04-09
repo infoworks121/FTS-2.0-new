@@ -21,4 +21,7 @@ router.put('/users/businessmen/:id/settings', protect, adminOnly, adminControlle
 router.get('/users', protect, adminOnly, adminController.getAllUsers);
 router.patch('/users/:id/is-sph', protect, adminOnly, adminController.updateUserSPHStatus);
 
+// Alerts & Dashboards
+router.get('/low-stock-alerts', protect, adminController.getLowStockAlerts);
+
 module.exports = router;
