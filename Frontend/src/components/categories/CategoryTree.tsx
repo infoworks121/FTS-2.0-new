@@ -27,6 +27,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { 
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger 
+} from "@/components/ui/context-menu";
+import { FolderPlus } from "lucide-react";
 
 interface CategoryTreeProps {
   categories: Category[];
@@ -34,6 +42,7 @@ interface CategoryTreeProps {
   onEdit?: (category: Category) => void;
   onDelete?: (category: Category) => void;
   onViewProducts?: (category: Category) => void;
+  onCreateSubCategory?: (category: Category) => void;
   selectedId?: string;
 }
 
@@ -43,6 +52,7 @@ export function CategoryTree({
   onEdit,
   onDelete,
   onViewProducts,
+  onCreateSubCategory,
   selectedId,
 }: CategoryTreeProps) {
   return (
@@ -55,6 +65,7 @@ export function CategoryTree({
           onEdit={onEdit}
           onDelete={onDelete}
           onViewProducts={onViewProducts}
+          onCreateSubCategory={onCreateSubCategory}
           selectedId={selectedId}
           level={0}
         />
@@ -69,6 +80,7 @@ interface CategoryTreeNodeProps {
   onEdit?: (category: Category) => void;
   onDelete?: (category: Category) => void;
   onViewProducts?: (category: Category) => void;
+  onCreateSubCategory?: (category: Category) => void;
   selectedId?: string;
   level: number;
 }
@@ -79,6 +91,7 @@ function CategoryTreeNode({
   onEdit, 
   onDelete, 
   onViewProducts,
+  onCreateSubCategory,
   selectedId,
   level,
 }: CategoryTreeNodeProps) {
@@ -92,95 +105,114 @@ function CategoryTreeNode({
         open={isOpen}
         onOpenChange={setIsOpen}
       >
-        <div 
-          className={cn(
-            "flex items-center gap-1 py-2 px-2 rounded-md transition-colors group",
-            isSelected 
-              ? "bg-primary/10 text-primary" 
-              : "hover:bg-muted",
-            level > 0 && "ml-4"
-          )}
-        >
-          {/* Expand/Collapse Toggle */}
-          {hasChildren ? (
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 w-6 p-0 hover:bg-transparent"
+        <ContextMenu>
+          <ContextMenuTrigger>
+            <div 
+              className={cn(
+                "flex items-center gap-1 py-2 px-2 rounded-md transition-colors group cursor-context-menu",
+                isSelected 
+                  ? "bg-primary/10 text-primary" 
+                  : "hover:bg-muted",
+                level > 0 && "ml-4"
+              )}
+            >
+              {/* Expand/Collapse Toggle */}
+              {hasChildren ? (
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 hover:bg-transparent"
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+              ) : (
+                <div className="w-6" />
+              )}
+              
+              {/* Folder Icon */}
+              {isOpen && hasChildren ? (
+                <FolderOpen className="h-4 w-4 text-amber-500" />
+              ) : (
+                <Folder className="h-4 w-4 text-amber-500" />
+              )}
+              
+              {/* Category Name */}
+              <button
+                onClick={() => onSelect?.(category)}
+                className="flex-1 text-left text-sm font-medium hover:text-foreground transition-colors truncate"
               >
-                {isOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
-            </CollapsibleTrigger>
-          ) : (
-            <div className="w-6" />
-          )}
-          
-          {/* Folder Icon */}
-          {isOpen && hasChildren ? (
-            <FolderOpen className="h-4 w-4 text-amber-500" />
-          ) : (
-            <Folder className="h-4 w-4 text-amber-500" />
-          )}
-          
-          {/* Category Name */}
-          <button
-            onClick={() => onSelect?.(category)}
-            className="flex-1 text-left text-sm font-medium hover:text-foreground transition-colors truncate"
-          >
-            {category.name}
-          </button>
-          
-          {/* Product Count Badge */}
-          <Badge variant="secondary" className="text-xs mr-1">
-            {category.productCount}
-          </Badge>
-          
-          {/* Status Indicator */}
-          <div className={cn(
-            "h-2 w-2 rounded-full",
-            category.status === "active" ? "bg-green-500" : "bg-red-500"
-          )} />
-          
-          {/* Actions Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onViewProducts?.(category)}>
+                {category.name}
+              </button>
+              
+              {/* Product Count Badge */}
+              <Badge variant="secondary" className="text-xs mr-1">
+                {category.productCount}
+              </Badge>
+              
+              {/* Status Indicator */}
+              <div className={cn(
+                "h-2 w-2 rounded-full",
+                category.status === "active" ? "bg-green-500" : "bg-red-500"
+              )} />
+              
+              {/* Actions Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onViewProducts?.(category)}>
+                    <Package className="h-4 w-4 mr-2" />
+                    View Products
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit?.(category)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Category
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => onDelete?.(category)}
+                    className="text-red-600 focus:text-red-600"
+                    disabled={category.productCount > 0}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                    {category.productCount > 0 && (
+                      <span className="ml-2 text-xs">(Has products)</span>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-64">
+             <ContextMenuItem onClick={() => onCreateSubCategory?.(category)}>
+                <FolderPlus className="h-4 w-4 mr-2" />
+                New Sub Folder
+             </ContextMenuItem>
+             <ContextMenuSeparator />
+             <ContextMenuItem onClick={() => onViewProducts?.(category)}>
                 <Package className="h-4 w-4 mr-2" />
                 View Products
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onEdit?.(category)}>
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => onEdit?.(category)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Category
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => onDelete?.(category)}
-                className="text-red-600 focus:text-red-600"
-                disabled={category.productCount > 0}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-                {category.productCount > 0 && (
-                  <span className="ml-2 text-xs">(Has products)</span>
-                )}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         
         {/* Children */}
         {hasChildren && (
@@ -193,6 +225,7 @@ function CategoryTreeNode({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onViewProducts={onViewProducts}
+                onCreateSubCategory={onCreateSubCategory}
                 selectedId={selectedId}
                 level={level + 1}
               />

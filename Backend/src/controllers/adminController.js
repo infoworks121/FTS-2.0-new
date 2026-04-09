@@ -1064,10 +1064,7 @@ module.exports = {
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,
-<<<<<<< HEAD
-    getLowStockAlerts
-=======
+    getLowStockAlerts,
     getPendingBusinessmanInstallments,
     approveBusinessmanInstallment
->>>>>>> 527841200646b226fd6e5d40a67d38f3bf927c90
 };
