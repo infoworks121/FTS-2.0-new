@@ -574,12 +574,14 @@ const getAllUsers = async (req, res) => {
                 u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url,
                 u.is_approved, u.is_sph, u.created_at,
                 r.role_code as role, r.role_label as role_name,
+                bp.type as business_type,
                 CASE 
                     WHEN u.is_approved = TRUE THEN 'active'
                     ELSE 'pending'
                 END as status
             FROM users u
             JOIN user_roles r ON u.role_id = r.id
+            LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
             WHERE r.role_code != 'admin'
         `;
 
@@ -1064,10 +1066,7 @@ module.exports = {
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,
-<<<<<<< HEAD
-    getLowStockAlerts
-=======
     getPendingBusinessmanInstallments,
-    approveBusinessmanInstallment
->>>>>>> 527841200646b226fd6e5d40a67d38f3bf927c90
+    approveBusinessmanInstallment,
+    getLowStockAlerts
 };

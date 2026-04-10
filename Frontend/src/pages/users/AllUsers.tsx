@@ -27,6 +27,7 @@ interface UserRow {
   phone: string;
   role: string;
   role_name: string;
+  business_type?: string;
   status: UserStatus;
   is_sph: boolean;
   created_at: string;
@@ -175,8 +176,7 @@ export default function AllUsers() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground pl-6">Identifier</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">User Name</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground pl-6">User Name</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Role / Designation</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Verification</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground text-center">SPH Status</TableHead>
@@ -186,14 +186,11 @@ export default function AllUsers() {
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">No matching users found in the directory</TableCell>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">No matching users found in the directory</TableCell>
                 </TableRow>
               ) : users.map((u) => (
                 <TableRow key={u.id} className="border-border hover:bg-muted/20 group h-16">
                   <TableCell className="pl-6">
-                    <span className="text-xs font-mono font-bold text-muted-foreground bg-muted/50 px-2 py-1 rounded">#{u.id.substring(0, 8)}...</span>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex flex-col">
                       <span className="font-semibold text-sm text-foreground">{u.name}</span>
                       <span className="text-[10px] text-muted-foreground">{u.phone}</span>
@@ -204,7 +201,14 @@ export default function AllUsers() {
                       <div className="p-1.5 bg-primary/5 rounded-md text-primary">
                         <UserIcon className="h-3 w-3" />
                       </div>
-                      <span className="text-sm font-medium capitalize">{u.role_name || u.role}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium capitalize">{u.role_name || u.role}</span>
+                        {u.business_type && (
+                          <span className="text-[10px] text-muted-foreground capitalize">
+                            Type: {u.business_type.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell><UserStatusBadge status={u.status} /></TableCell>

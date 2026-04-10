@@ -1008,70 +1008,117 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{getRoleDisplayName(profile?.role_code)} Profile</h1>
-        {profile && (
-          <Badge className={getRoleColor(profile.role_code)}>
-            <User className="w-4 h-4 mr-1" />
-            {getRoleDisplayName(profile.role_code)}
-          </Badge>
-        )}
-      </div>
-
-      {/* Dashboard Stats */}
-      {renderDashboardStats()}
+    <div className="space-y-6 mt-4">
+      {variant !== "tabbed" && (
+        <>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">{getRoleDisplayName(profile?.role_code)} Profile</h1>
+            {profile && (
+              <Badge className={getRoleColor(profile.role_code)}>
+                <User className="w-4 h-4 mr-1" />
+                {getRoleDisplayName(profile.role_code)}
+              </Badge>
+            )}
+          </div>
+          {renderDashboardStats()}
+        </>
+      )}
 
       {/* PROFILE CONTENT */}
       {variant === "tabbed" ? (
-        <Tabs defaultValue="overview" className="w-full">
-          <div className="w-full border-b mb-6 pb-px overflow-x-auto">
-            <TabsList className="bg-transparent space-x-2 p-0 h-auto w-full justify-start">
-              <TabsTrigger 
-                value="overview" 
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
-              >
-                Overview
-              </TabsTrigger>
-              {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && (
-                <TabsTrigger 
-                  value="installments" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
-                >
-                  Pay Installments
-                </TabsTrigger>
-              )}
-              <TabsTrigger 
-                value="security" 
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none px-4 py-2 text-muted-foreground font-semibold"
-              >
-                Security & Addresses
-              </TabsTrigger>
-            </TabsList>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Left Sidebar Profile Summary */}
+          <div className="col-span-1 space-y-4">
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg">Profile Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+                    <User className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="font-medium text-foreground text-center">{profile?.full_name}</h3>
+                  <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-full">{profile?.email}</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge variant={profile?.is_active ? "default" : "secondary"}>
+                      {profile?.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Type:</span>
+                    <Badge variant="outline" className="capitalize text-[10px] font-bold border-slate-200 truncate max-w-[120px]">
+                      {getRoleDisplayName(profile?.role_code)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">District:</span>
+                    <span className="font-medium truncate max-w-[120px] text-right" title={profile?.district_name}>
+                      {profile?.district_name || "Not Assigned"}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Account Metadata</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Created:</span>
+                  <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Last Update:</span>
+                  <span>{profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : "N/A"}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {renderSupportCard()}
           </div>
 
-          <TabsContent value="overview" className="outline-none">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
+          {/* Right Content Area */}
+          <div className="col-span-1 md:col-span-3">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="mb-4 bg-muted/50 p-1 w-full justify-start overflow-x-auto flex-nowrap rounded-lg h-12">
+                <TabsTrigger value="overview" className="flex items-center gap-2 h-10 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <User className="h-4 w-4" /> Overview
+                </TabsTrigger>
+                <TabsTrigger value="security" className="flex items-center gap-2 h-10 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                  <ShieldCheck className="h-4 w-4" /> Security & Addresses
+                </TabsTrigger>
+                {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && (
+                  <TabsTrigger value="installments" className="flex items-center gap-2 h-10 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    <CreditCard className="h-4 w-4" /> Pay Installments
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4 outline-none">
+                {renderDashboardStats()}
                 {renderProfileInfoCard()}
-              </div>
-              <div className="space-y-6">
-                {renderSupportCard()}
-              </div>
-            </div>
-          </TabsContent>
+              </TabsContent>
 
-          <TabsContent value="installments" className="outline-none">
-            {renderInstallmentsSection()}
-          </TabsContent>
+              <TabsContent value="security" className="space-y-4 outline-none">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {renderSecurityCard()}
+                  {renderAddressCard()}
+                </div>
+              </TabsContent>
 
-          <TabsContent value="security" className="outline-none space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {renderSecurityCard()}
-              {renderAddressCard()}
-            </div>
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="installments" className="space-y-4 outline-none">
+                {renderInstallmentsSection()}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">

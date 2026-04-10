@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { UserPlus, Mail, Lock, Phone, User, X, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Mail, Lock, Phone, User, X, Eye, EyeOff, FileText, Image as ImageIcon, CreditCard } from "lucide-react";
 import api from "@/lib/api";
 
 export default function Register() {
@@ -30,9 +30,25 @@ export default function Register() {
     role_code: "customer",
     core_body_type: "",
     businessman_type: "",
-    district: "",
+    district_id: "",
+    subdivision_id: "",
     referral_code_used: searchParams.get("ref") || "",
   });
+
+  const [districts, setDistricts] = useState<{id: number, name: string}[]>([]);
+  const [subdivisions, setSubdivisions] = useState<{id: number, name: string}[]>([]);
+
+  const [kycDocs, setKycDocs] = useState({
+    identityType: "aadhaar",
+    identityUrl: "",
+    identityNumber: "",
+    panUrl: "",
+    panNumber: "",
+    bankUrl: ""
+  });
+
+  const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -40,12 +56,25 @@ export default function Register() {
   };
 
   const handleRoleChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, role_code: value, core_body_type: "", businessman_type: "", district: "" }));
+    setFormData((prev) => ({ ...prev, role_code: value, core_body_type: "", businessman_type: "", district_id: "", subdivision_id: "" }));
   };
 
   const handleCoreBodyTypeChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, core_body_type: value, district: "" }));
+    setFormData((prev) => ({ ...prev, core_body_type: value, district_id: "", subdivision_id: "" }));
   };
+
+  useEffect(() => {
+    // Fetch Districts of West Bengal (ID: 1)
+    const fetchDistricts = async () => {
+      try {
+        const res = await api.get('/geography/states/1/districts');
+        setDistricts(res.data);
+      } catch (err) {
+        console.error('Error fetching districts:', err);
+      }
+    };
+    fetchDistricts();
+  }, []);
 
   useEffect(() => {
     if (formData.core_body_type === "core_body_a") {
@@ -61,8 +90,20 @@ export default function Register() {
     setFormData((prev) => ({ ...prev, businessman_type: value }));
   };
 
-  const handleDistrictChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, district: value }));
+  const handleDistrictChange = async (value: string) => {
+    setFormData((prev) => ({ ...prev, district_id: value, subdivision_id: "" }));
+    // Fetch Subdivisions
+    try {
+      const res = await api.get(`/geography/districts/${value}/subdivisions`);
+      setSubdivisions(res.data);
+    } catch (err) {
+      console.error('Error fetching subdivisions:', err);
+      setSubdivisions([]);
+    }
+  };
+
+  const handleSubdivisionChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, subdivision_id: value }));
   };
 
   const isCoreBodyWithInvestment =
@@ -73,6 +114,7 @@ export default function Register() {
     formData.role_code === "businessman" && formData.businessman_type === "retailer_a";
 
   const needsInstallmentModal = isCoreBodyWithInvestment || isRetailerA;
+  const isKycMandatory = isCoreBodyWithInvestment || isRetailerA;
 
   const totalInvestment = parseFloat(installmentData.investment_amount) || 0;
   const customTotal = customAmounts.reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
@@ -93,6 +135,55 @@ export default function Register() {
 
   const handleCustomAmountChange = (index: number, value: string) => {
     setCustomAmounts((prev) => prev.map((v, i) => (i === index ? value : v)));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(prev => ({ ...prev, [type]: true }));
+    setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // Use the public upload endpoint for registration
+      const response = await api.post('/upload/public', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+          setUploadProgress(prev => ({ ...prev, [type]: percentCompleted }));
+        },
+      });
+
+      setKycDocs(prev => ({ ...prev, [type]: response.data.url }));
+      toast({
+        title: "Upload Successful",
+        description: `${type.replace('Url', '')} document uploaded.`,
+      });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.response?.data?.error || "Could not upload document",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(prev => ({ ...prev, [type]: false }));
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -117,10 +208,18 @@ export default function Register() {
         });
         return;
       }
-      if ((formData.core_body_type === "core_body_a" || formData.core_body_type === "core_body_b") && !formData.district) {
+      if ((formData.core_body_type === "core_body_a" || formData.core_body_type === "core_body_b" || formData.core_body_type === "dealer") && !formData.district_id) {
         toast({
           title: "Validation Error",
           description: "Please select a district",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (formData.core_body_type === "dealer" && !formData.subdivision_id) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a subdivision for Dealer registration",
           variant: "destructive",
         });
         return;
@@ -135,6 +234,18 @@ export default function Register() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate KYC Documents if mandatory
+    if (isKycMandatory) {
+      if (!kycDocs.identityUrl || !kycDocs.panUrl || !kycDocs.bankUrl) {
+        toast({
+          title: "KYC Required",
+          description: "Identity, PAN, and Bank Account documents are mandatory for your selected role.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Show installment modal for Core Body A/B or Retailer A
@@ -161,15 +272,22 @@ export default function Register() {
     setIsLoading(true);
     setShowInstallmentModal(false);
 
+    const kycDocuments = [];
+    if (kycDocs.identityUrl) kycDocuments.push({ doc_type: kycDocs.identityType, doc_url: kycDocs.identityUrl, doc_number: kycDocs.identityNumber });
+    if (kycDocs.panUrl) kycDocuments.push({ doc_type: 'pan', doc_url: kycDocs.panUrl, doc_number: kycDocs.panNumber });
+    if (kycDocs.bankUrl) kycDocuments.push({ doc_type: 'bank_account_proof', doc_url: kycDocs.bankUrl });
+
     try {
       const { data } = await api.post('/auth/register', {
+        kycDocuments,
         phone: formData.phone,
         email: formData.email,
         full_name: formData.full_name,
         password: formData.password,
         role_code: formData.role_code === "core_body" ? formData.core_body_type : formData.role_code,
         businessman_type: formData.businessman_type || null,
-        district: formData.district || null,
+        district_id: formData.district_id || null,
+        subdivision_id: formData.subdivision_id || null,
         referral_code_used: formData.referral_code_used || null,
         ...(needsInstallmentModal && {
           investment_amount: totalInvestment,
@@ -370,19 +488,37 @@ export default function Register() {
               )}
             </div>
 
-            {formData.role_code === "core_body" && (formData.core_body_type === "core_body_a" || formData.core_body_type === "core_body_b") && (
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="district">District (West Bengal)</Label>
-                <Select value={formData.district} onValueChange={handleDistrictChange}>
-                  <SelectTrigger id="district" className="h-11">
-                    <SelectValue placeholder="Select district" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["Alipurduar","Bankura","Birbhum","Cooch Behar","Dakshin Dinajpur","Darjeeling","Hooghly","Howrah","Jalpaiguri","Jhargram","Kalimpong","Kolkata","Malda","Murshidabad","Nadia","North 24 Parganas","Paschim Bardhaman","Paschim Medinipur","Purba Bardhaman","Purba Medinipur","Purulia","South 24 Parganas","Uttar Dinajpur"].map((d) => (
-                      <SelectItem key={d} value={d.toLowerCase().replace(/ /g, "_")}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {(formData.role_code === "core_body" || formData.role_code === "businessman") && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="district">District (West Bengal)</Label>
+                  <Select value={formData.district_id} onValueChange={handleDistrictChange}>
+                    <SelectTrigger id="district" className="h-11">
+                      <SelectValue placeholder="Select district" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {districts.map((d) => (
+                        <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(formData.role_code === "businessman" || formData.core_body_type === "dealer") && formData.district_id && (
+                  <div className="space-y-2">
+                    <Label htmlFor="subdivision">Subdivision / Sub-area</Label>
+                    <Select value={formData.subdivision_id} onValueChange={handleSubdivisionChange}>
+                      <SelectTrigger id="subdivision" className="h-11">
+                        <SelectValue placeholder="Select subdivision" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subdivisions.map((s) => (
+                          <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -420,6 +556,110 @@ export default function Register() {
                 <div className="relative">
                   <UserPlus className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input id="referral_code_used" name="referral_code_used" type="text" className="pl-9 h-11 uppercase" placeholder="e.g. FTS123ABC" value={formData.referral_code_used} onChange={handleInputChange} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: KYC Documents */}
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              KYC Documents {isKycMandatory ? <span className="text-red-500 font-bold ml-1">(Mandatory)</span> : "(Optional)"}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label>Identity Proof {isKycMandatory && "*"}</Label>
+                <div className="flex gap-2">
+                  <Select value={kycDocs.identityType} onValueChange={(val) => setKycDocs(p => ({ ...p, identityType: val }))}>
+                    <SelectTrigger className="w-1/3 h-11">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aadhaar">Aadhaar</SelectItem>
+                      <SelectItem value="voter_id">Voter ID</SelectItem>
+                      <SelectItem value="passport">Passport</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <ImageIcon className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <div className="flex-1 flex flex-col gap-1">
+                      <Input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="pl-9 h-11"
+                        onChange={(e) => handleFileUpload(e, 'identityUrl')}
+                        required={isKycMandatory && !kycDocs.identityUrl}
+                        disabled={uploading['identityUrl']}
+                      />
+                      {uploading['identityUrl'] && (
+                        <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary transition-all duration-300" 
+                            style={{ width: `${uploadProgress['identityUrl']}%` }}
+                          />
+                        </div>
+                      )}
+                      {kycDocs.identityUrl && !uploading['identityUrl'] && (
+                        <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>PAN Card {isKycMandatory && "*"}</Label>
+                <div className="relative">
+                  <FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="pl-9 h-11"
+                      onChange={(e) => handleFileUpload(e, 'panUrl')}
+                      required={isKycMandatory && !kycDocs.panUrl}
+                      disabled={uploading['panUrl']}
+                    />
+                    {uploading['panUrl'] && (
+                      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300" 
+                          style={{ width: `${uploadProgress['panUrl']}%` }}
+                        />
+                      </div>
+                    )}
+                    {kycDocs.panUrl && !uploading['panUrl'] && (
+                      <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bank Account (1st Page) {isKycMandatory && "*"}</Label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="pl-9 h-11"
+                      onChange={(e) => handleFileUpload(e, 'bankUrl')}
+                      required={isKycMandatory && !kycDocs.bankUrl}
+                      disabled={uploading['bankUrl']}
+                    />
+                    {uploading['bankUrl'] && (
+                      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300" 
+                          style={{ width: `${uploadProgress['bankUrl']}%` }}
+                        />
+                      </div>
+                    )}
+                    {kycDocs.bankUrl && !uploading['bankUrl'] && (
+                      <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

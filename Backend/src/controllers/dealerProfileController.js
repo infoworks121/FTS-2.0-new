@@ -8,13 +8,13 @@ const getDealerProfile = async (req, res) => {
     const query = `
       SELECT 
         u.id, u.full_name, u.email, u.phone, u.role_code,
-        cb.id as profile_id, cb.type, cb.investment_amount, cb.installment_count,
-        cb.annual_cap, cb.monthly_cap, cb.ytd_earnings, cb.mtd_earnings,
-        cb.cap_hit_flag, cb.is_active, cb.activated_at, cb.last_transaction_at,
-        d.name as district_name, d.id as district_id
+        dp.id as profile_id, dp.subdivision_id,
+        dp.is_active, dp.created_at, dp.updated_at,
+        sd.name as subdivision_name, d.name as district_name, d.id as district_id
       FROM users u
-      JOIN core_body_profiles cb ON u.id = cb.user_id
-      JOIN districts d ON cb.district_id = d.id
+      JOIN dealer_profiles dp ON u.id = dp.user_id
+      JOIN subdivisions sd ON dp.subdivision_id = sd.id
+      JOIN districts d ON sd.district_id = d.id
       WHERE u.id = $1 AND u.role_code = 'dealer'
     `;
     
@@ -24,7 +24,18 @@ const getDealerProfile = async (req, res) => {
       return res.status(404).json({ message: 'Dealer profile not found' });
     }
     
-    res.json({ profile: result.rows[0] });
+    const profile = result.rows[0];
+
+    // Fetch mapped products
+    const productsQuery = `
+      SELECT p.id, p.name, p.sku, dpm.assigned_at
+      FROM dealer_product_map dpm
+      JOIN products p ON dpm.product_id = p.id
+      WHERE dpm.dealer_id = $1
+    `;
+    const productsResult = await pool.query(productsQuery, [profile.profile_id]);
+    
+    res.json({ profile, products: productsResult.rows });
   } catch (error) {
     console.error('Get dealer profile error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -35,19 +46,21 @@ const getDealerProfile = async (req, res) => {
 const updateDealerProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { investment_amount, installment_count } = req.body;
+    const { is_active } = req.body;
     
     const client = await pool.connect();
     
     try {
       await client.query('BEGIN');
       
-      await client.query(
-        `UPDATE core_body_profiles 
-         SET investment_amount = $1, installment_count = $2, updated_at = NOW() 
-         WHERE user_id = $3`,
-        [investment_amount, installment_count, userId]
-      );
+      if (is_active !== undefined) {
+        await client.query(
+          `UPDATE dealer_profiles 
+           SET is_active = $1, updated_at = NOW() 
+           WHERE user_id = $2`,
+          [is_active, userId]
+        );
+      }
       
       await client.query('COMMIT');
       res.json({ message: 'Dealer profile updated successfully' });
@@ -71,10 +84,11 @@ const getDealerDashboard = async (req, res) => {
     const userId = req.user.id;
     
     const profileQuery = `
-      SELECT cb.*, d.name as district_name
-      FROM core_body_profiles cb
-      JOIN districts d ON cb.district_id = d.id
-      WHERE cb.user_id = $1
+      SELECT dp.*, sd.name as subdivision_name, d.name as district_name
+      FROM dealer_profiles dp
+      JOIN subdivisions sd ON dp.subdivision_id = sd.id
+      JOIN districts d ON sd.district_id = d.id
+      WHERE dp.user_id = $1
     `;
     
     const profileResult = await pool.query(profileQuery, [userId]);
@@ -85,27 +99,29 @@ const getDealerDashboard = async (req, res) => {
     
     const profile = profileResult.rows[0];
     
-    const annualUtilization = profile.annual_cap ? 
-      ((profile.ytd_earnings / profile.annual_cap) * 100).toFixed(1) : 0;
-    const monthlyUtilization = profile.monthly_cap ? 
-      ((profile.mtd_earnings / profile.monthly_cap) * 100).toFixed(1) : 0;
+    // Inventory stats
+    const inventoryQuery = `
+      SELECT COALESCE(SUM(quantity_on_hand), 0) as total_stock
+      FROM inventory_balances
+      WHERE entity_id = $1 AND entity_type = 'dealer'
+    `;
+    const invResult = await pool.query(inventoryQuery, [userId]);
     
+    // Assigned products
+    const productsQuery = `
+      SELECT p.id, p.name, p.sku, dpm.assigned_at
+      FROM dealer_product_map dpm
+      JOIN products p ON dpm.product_id = p.id
+      WHERE dpm.dealer_id = $1
+    `;
+    const productsResult = await pool.query(productsQuery, [profile.id]);
+
     const stats = {
       profile,
-      earnings: {
-        ytd: profile.ytd_earnings,
-        mtd: profile.mtd_earnings,
-        annual_cap: profile.annual_cap,
-        monthly_cap: profile.monthly_cap,
-        annual_utilization: annualUtilization,
-        monthly_utilization: monthlyUtilization,
-        cap_hit: profile.cap_hit_flag
+      inventory: {
+        total_stock: invResult.rows[0].total_stock
       },
-      investment: {
-        total_amount: profile.investment_amount,
-        installments: profile.installment_count,
-        per_installment: profile.investment_amount / profile.installment_count
-      }
+      assigned_products: productsResult.rows
     };
     
     res.json({ stats });
@@ -115,8 +131,95 @@ const getDealerDashboard = async (req, res) => {
   }
 };
 
+// Assign product to dealer (Admin only)
+const assignProductToDealer = async (req, res) => {
+  try {
+    const { dealer_id, product_id } = req.body;
+    
+    if (!dealer_id || !product_id) {
+      return res.status(400).json({ message: 'Dealer ID and Product ID are required' });
+    }
+
+    // Get dealer's subdivision
+    const dealerRes = await pool.query('SELECT subdivision_id FROM dealer_profiles WHERE id = $1', [dealer_id]);
+    if (dealerRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Dealer not found' });
+    }
+    
+    const subdivision_id = dealerRes.rows[0].subdivision_id;
+
+    // Check if product is already assigned in this subdivision
+    const checkRes = await pool.query(
+      'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND product_id = $2',
+      [subdivision_id, product_id]
+    );
+
+    if (checkRes.rows.length > 0) {
+      return res.status(400).json({ message: 'A dealer is already assigned to this product in this subdivision' });
+    }
+
+    await pool.query(
+      'INSERT INTO dealer_product_map (dealer_id, product_id, subdivision_id) VALUES ($1, $2, $3)',
+      [dealer_id, product_id, subdivision_id]
+    );
+
+    res.json({ message: 'Product assigned to dealer successfully' });
+  } catch (error) {
+    console.error('Assign product to dealer error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Unassign product from dealer (Admin only)
+const unassignProductFromDealer = async (req, res) => {
+  try {
+    const { dealer_id, product_id } = req.body;
+    
+    if (!dealer_id || !product_id) {
+      return res.status(400).json({ message: 'Dealer ID and Product ID are required' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM dealer_product_map WHERE dealer_id = $1 AND product_id = $2',
+      [dealer_id, product_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Assignment not found' });
+    }
+
+    res.json({ message: 'Product unassigned from dealer successfully' });
+  } catch (error) {
+    console.error('Unassign product from dealer error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get products assigned to a specific dealer
+const getDealerAssignedProducts = async (req, res) => {
+  try {
+    const { id } = req.params; // Profile ID
+    
+    const query = `
+      SELECT p.id, p.name, p.sku, dpm.assigned_at
+      FROM dealer_product_map dpm
+      JOIN products p ON dpm.product_id = p.id
+      WHERE dpm.dealer_id = $1
+    `;
+    
+    const result = await pool.query(query, [id]);
+    res.json({ products: result.rows });
+  } catch (error) {
+    console.error('Get dealer assigned products error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getDealerProfile,
   updateDealerProfile,
-  getDealerDashboard
+  getDealerDashboard,
+  assignProductToDealer,
+  unassignProductFromDealer,
+  getDealerAssignedProducts
 };

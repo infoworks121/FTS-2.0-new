@@ -54,21 +54,35 @@ const dealers = [
 ];
 
 import { coreBodyApi } from "@/lib/coreBodyApi";
+import { dealerApi } from "@/lib/dealerApi";
+import { fulfillmentApi, FulfillmentAssignment } from "@/lib/fulfillmentApi";
+import { XCircle, Store, Box } from "lucide-react";
 
 export default function CoreBodyDashboard() {
   const [userName, setUserName] = useState('');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
+  const [roleCode, setRoleCode] = useState<string>('');
+  const [pendingAssignments, setPendingAssignments] = useState<FulfillmentAssignment[]>([]);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setUserName(user.full_name || 'Core Body');
+    setRoleCode(user.role_code || '');
 
     const fetchDash = async () => {
       try {
         setLoading(true);
-        const res = await coreBodyApi.getMyDashboard();
-        setStats(res.stats);
+        if (user.role_code === 'dealer') {
+          const res = await dealerApi.getDealerDashboard();
+          setStats(res.stats);
+          
+          const assignmentsRes = await fulfillmentApi.getAssignments('assigned');
+          setPendingAssignments(assignmentsRes.fulfillments || []);
+        } else {
+          const res = await coreBodyApi.getMyDashboard();
+          setStats(res.stats);
+        }
       } catch (err) {
         console.error("Failed to load dashboard stats", err);
       } finally {
@@ -84,6 +98,7 @@ export default function CoreBodyDashboard() {
   const monthlyCap = stats ? parseFloat(stats.earnings?.monthly_cap || stats.investment?.total_amount || 500000) : 50000;
   
   const isTypeA = stats?.profile?.type === 'A';
+  const isDealer = roleCode === 'dealer';
   
   // Decide which tracker to show
   const activeEarnings = isTypeA ? totalEarnings : monthlyEarnings;
@@ -122,30 +137,57 @@ export default function CoreBodyDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-amber-500" />
-                Earnings vs Cap
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Current</span>
-                  <span className="font-mono font-medium">₹{activeEarnings.toLocaleString('en-IN')}</span>
+
+          {isDealer ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Store className="h-4 w-4 text-emerald-500" />
+                  Local Stock Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-bold font-mono">{stats?.inventory?.total_stock || 0}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Total Units in Subdivision</span>
+                  </div>
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-muted-foreground">Assigned Products</span>
+                      <span className="font-bold">{stats?.assigned_products?.length || 0}</span>
+                    </div>
+                  </div>
                 </div>
-                <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Cap Limit</span>
-                  <span className="font-mono">₹{activeCap.toLocaleString('en-IN')}</span>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-amber-500" />
+                  Earnings vs Cap
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Current</span>
+                    <span className="font-mono font-medium">₹{activeEarnings.toLocaleString('en-IN')}</span>
+                  </div>
+                  <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Cap Limit</span>
+                    <span className="font-mono">₹{activeCap.toLocaleString('en-IN')}</span>
+                  </div>
+                  <Badge variant={stats?.earnings?.cap_hit ? "destructive" : "secondary"} className="w-full justify-center text-xs">
+                     {stats?.earnings?.cap_hit ? "CAP LIMIT EXCEEDED" : `${((activeEarnings / activeCap) * 100).toFixed(1)}% utilized`}
+                  </Badge>
                 </div>
-                <Badge variant={stats?.earnings?.cap_hit ? "destructive" : "secondary"} className="w-full justify-center text-xs">
-                   {stats?.earnings?.cap_hit ? "CAP LIMIT EXCEEDED" : `${((activeEarnings / activeCap) * 100).toFixed(1)}% utilized`}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
+
 
           <Card>
             <CardHeader className="pb-3">
@@ -192,45 +234,88 @@ export default function CoreBodyDashboard() {
 
         {/* KPI Row */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
-          <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
-          <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
-          {["A", "B"].includes(stats?.profile?.type) ? (
-            <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={UserPlus} variant="reserve" />
+          {isDealer ? (
+            <>
+              <KPICard title="Total Orders Handled" value="38" change="+12%" changeType="positive" icon={ShoppingBag} variant="profit" />
+              <KPICard title="Local Stock units" value={String(stats?.inventory?.total_stock || 0)} icon={Box} />
+              <KPICard title="Assigned Products" value={String(stats?.assigned_products?.length || 0)} icon={Store} variant="warning" />
+              <KPICard title="Pending Delivery" value="4" icon={Truck} variant="risk" />
+            </>
           ) : (
-            <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
+            <>
+              <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
+              <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
+              <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
+              {["A", "B"].includes(stats?.profile?.type) ? (
+                <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={UserPlus} variant="reserve" />
+              ) : (
+                <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
+              )}
+            </>
           )}
         </div>
 
         {/* Cap Progress + Chart */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-lg border border-border bg-card p-5 space-y-5">
-            <h3 className="text-sm font-semibold text-card-foreground">Cap & Limits</h3>
-            <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
-            <CapProgressBar current={45} max={50} label="Businessman Slots (Demo)" />
-            <CapProgressBar current={12} max={15} label="Active Dealer Limit (Demo)" />
-            <div className="mt-4 rounded-md bg-muted p-3">
-              <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
-              <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>
+          {isDealer ? (
+            <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+              <h3 className="text-sm font-semibold text-card-foreground">Specialized Products</h3>
+              <div className="space-y-3">
+                {stats?.assigned_products?.length > 0 ? (
+                  stats.assigned_products.map((p: any) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
+                          <Store className="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold">{p.name}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">{p.sku}</div>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-[9px]">ACTIVE</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground text-xs italic">
+                    No products assigned yet.
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 rounded-md bg-muted p-3">
+                <p className="text-xs font-medium text-muted-foreground">Assigned Subdivision</p>
+                <p className="text-sm font-semibold text-foreground mt-1">{stats?.profile?.subdivision_name || "N/A"}</p>
+              </div>
             </div>
-            {["A", "B"].includes(stats?.profile?.type) && (
-              <button 
-                onClick={() => window.location.href='/corebody/referrals/my-referrals'}
-                className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-profit/5 px-4 py-3 text-left transition-colors hover:bg-profit/10"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-md bg-profit/10 p-2">
-                    <UserPlus className="h-4 w-4 text-profit" />
+          ) : (
+            <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+              <h3 className="text-sm font-semibold text-card-foreground">Cap & Limits</h3>
+              <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
+              <CapProgressBar current={45} max={50} label="Businessman Slots (Demo)" />
+              <CapProgressBar current={12} max={15} label="Active Dealer Limit (Demo)" />
+              <div className="mt-4 rounded-md bg-muted p-3">
+                <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
+                <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>
+              </div>
+              {["A", "B"].includes(stats?.profile?.type) && (
+                <button 
+                  onClick={() => window.location.href='/corebody/referrals/my-referrals'}
+                  className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-profit/5 px-4 py-3 text-left transition-colors hover:bg-profit/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-md bg-profit/10 p-2">
+                      <UserPlus className="h-4 w-4 text-profit" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">View Referral Link</p>
+                      <p className="text-xs text-muted-foreground">Share & earn commission</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">View Referral Link</p>
-                    <p className="text-xs text-muted-foreground">Share & earn commission</p>
-                  </div>
-                </div>
-                <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-            )}
-          </div>
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5">
             <h3 className="text-sm font-semibold text-card-foreground mb-4">Weekly Earnings Trend</h3>
@@ -246,17 +331,23 @@ export default function CoreBodyDashboard() {
           </div>
         </div>
 
-        {/* Dealers Table */}
+        {/* Dealers Table / Assigned Orders */}
         <DataTable
-          title="Dealers & Businessmen"
-          columns={[
+          title={isDealer ? "Pending B2B Assignments" : "Dealers & Businessmen"}
+          columns={isDealer ? [
+            { header: "Order #", accessor: "order_number" },
+            { header: "Customer", accessor: "customer_name" },
+            { header: "Product", accessor: "product_name" },
+            { header: "Qty", accessor: (row) => <span className="font-mono">{String(row.quantity)}</span> },
+            { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
+          ] : [
             { header: "Name", accessor: "name" },
             { header: "Zone", accessor: "zone" },
             { header: "Orders", accessor: (row) => <span className="font-mono">{String(row.orders)}</span> },
             { header: "Revenue", accessor: "revenue", className: "font-mono" },
             { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
           ]}
-          data={dealers}
+          data={isDealer ? pendingAssignments : dealers} // Add mock data for dealers if needed or fetch
         />
       </div>
     </DashboardLayout>

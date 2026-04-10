@@ -1,11 +1,11 @@
 const bcrypt = require('bcryptjs');
-const { randomUUID } = require('crypto');
+const crypto = require('crypto');
 const db = require('../config/db');
 const { generateToken } = require('../utils/token');
 const { sendVerificationEmail } = require('../utils/email');
 
 const register = async (req, res) => {
-    const { phone, email, full_name, password, role_code, district, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used } = req.body;
+    const { phone, email, full_name, password, role_code, district_id: body_district_id, subdivision_id, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used, kycDocuments } = req.body;
 
     try {
         // Check if user exists
@@ -21,17 +21,8 @@ const register = async (req, res) => {
         }
         const role_id = roleResult.rows[0].id;
 
-        // Get district_id if district is provided
-        let district_id = null;
-        if (district) {
-            const districtResult = await db.query(
-                'SELECT id FROM districts WHERE LOWER(REPLACE(name, \' \', \'_\')) = LOWER($1)',
-                [district]
-            );
-            if (districtResult.rows.length > 0) {
-                district_id = districtResult.rows[0].id;
-            }
-        }
+        const final_district_id = body_district_id || null;
+        const final_subdivision_id = subdivision_id || null;
 
         // Hash password
         const salt = await bcrypt.genSalt(10);
@@ -49,9 +40,9 @@ const register = async (req, res) => {
 
         // Insert user
         const newUser = await db.query(
-            `INSERT INTO users (phone, email, full_name, password_hash, role_id, referral_code, district_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, phone, email, full_name, role_id`,
-            [phone, email, full_name, password_hash, role_id, final_referral_code, district_id]
+            `INSERT INTO users (phone, email, full_name, password_hash, role_id, referral_code, district_id, subdivision_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, phone, email, full_name, role_id`,
+            [phone, email, full_name, password_hash, role_id, final_referral_code, final_district_id, final_subdivision_id]
         );
 
         const user = newUser.rows[0];
@@ -71,7 +62,7 @@ const register = async (req, res) => {
                 [
                     user.id,
                     role_code === 'core_body_a' ? 'A' : 'B',
-                    district_id,
+                    final_district_id,
                     investment_amount,
                     installment_count || 1,
                 ]
@@ -96,7 +87,7 @@ const register = async (req, res) => {
             const advanceAmount = businessman_type === 'retailer_a' ? (investment_amount || 0) : 0;
             const bpResult = await db.query(
                 'INSERT INTO businessman_profiles (user_id, type, district_id, advance_amount) VALUES ($1, $2, $3, $4) RETURNING id',
-                [user.id, businessman_type, district_id, advanceAmount]
+                [user.id, businessman_type, final_district_id, advanceAmount]
             );
 
             // Insert installment records for retailer_a
@@ -152,6 +143,23 @@ const register = async (req, res) => {
                     `UPDATE referral_links SET total_referrals = total_referrals + 1 WHERE user_id = $1`,
                     [referrerId]
                 );
+            }
+        }
+
+        // --- KYC DOCUMENTS ---
+        if (kycDocuments && kycDocuments.length > 0) {
+            for (const doc of kycDocuments) {
+                if (doc.doc_type && doc.doc_url) {
+                    const doc_number_hash = doc.doc_number ? crypto.createHash('sha256').update(doc.doc_number).digest('hex') : null;
+                    const kycRes = await db.query(
+                        `INSERT INTO kyc_documents (user_id, doc_type, doc_url, doc_number_hash, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
+                        [user.id, doc.doc_type, doc.doc_url, doc_number_hash]
+                    );
+                    await db.query(
+                        'INSERT INTO kyc_audit_log (user_id, doc_id, action, performed_by, new_status, note) VALUES ($1, $2, $3, $4, $5, $6)',
+                        [user.id, kycRes.rows[0].id, 'UPLOAD', user.id, 'pending', 'KYC document uploaded during registration']
+                    );
+                }
             }
         }
 

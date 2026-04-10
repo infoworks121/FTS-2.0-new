@@ -19,8 +19,8 @@ export default function CoreBodyProfile() {
     <DashboardLayout role="corebody" navItems={navItems as any} roleLabel="Core Body Profile">
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-foreground">My Profile</h1>
-          <p className="text-sm text-muted-foreground">Manage your settings, addresses, and installments</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">My Profile</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage your settings, addresses, and installments</p>
         </div>
         <UnifiedProfile variant="tabbed" />
       </div>

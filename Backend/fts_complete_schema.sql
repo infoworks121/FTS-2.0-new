@@ -148,6 +148,14 @@ CREATE TABLE districts (
     UNIQUE(state_id, name)
 );
 
+CREATE TABLE subdivisions (
+    id          SERIAL PRIMARY KEY,
+    district_id INT NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
+    name        VARCHAR(150) NOT NULL,
+    is_active   BOOLEAN DEFAULT TRUE,
+    UNIQUE(district_id, name)
+);
+
 -- Associate users properly
 ALTER TABLE users ADD CONSTRAINT fk_users_district FOREIGN KEY (district_id) REFERENCES districts(id) ON DELETE RESTRICT;
 
@@ -169,7 +177,7 @@ CREATE TABLE pincodes (
 CREATE TABLE district_quota (
     id                  SERIAL PRIMARY KEY,
     district_id         INT UNIQUE NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
-    max_core_body       SMALLINT DEFAULT 20,    -- Only for Type A + B combined, Dealer unlimited
+    max_core_body       SMALLINT DEFAULT 20,    -- For Type A + B combined
     current_count       SMALLINT DEFAULT 0 CHECK (current_count >= 0),  -- Count only Type A + B
     updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -200,7 +208,7 @@ CREATE TABLE admin_profiles (
 CREATE TABLE core_body_profiles (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    type                VARCHAR(10) NOT NULL,   -- 'A','B','Dealer' (A+B limited to 20, Dealer unlimited)
+    type                VARCHAR(10) NOT NULL,   -- 'A','B' (Limited to district quota)
     district_id         INT NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
     investment_amount   NUMERIC(14,2) NOT NULL CHECK (investment_amount >= 0),
     installment_count   SMALLINT DEFAULT 1 CHECK (installment_count >= 1 AND installment_count <= 4),
@@ -235,7 +243,7 @@ DECLARE
     v_current_count INT;
     v_max_allowed INT;
 BEGIN
-    -- Only check quota for Type A and B, skip for Dealer
+    -- Check quota for Type A and B
     IF NEW.type IN ('A', 'B') THEN
         -- Get current count of Type A + B in the district
         SELECT COUNT(*) INTO v_current_count
@@ -264,7 +272,6 @@ BEGIN
             RAISE EXCEPTION 'District quota exceeded: Maximum % Core Body (Type A+B) allowed, currently % active', v_max_allowed, v_current_count;
         END IF;
     END IF;
-    -- Dealer type has no limit, so no check needed
     
     RETURN NEW;
 END;
@@ -275,6 +282,26 @@ CREATE TRIGGER enforce_core_body_quota
 BEFORE INSERT OR UPDATE OF district_id, type, is_active ON core_body_profiles
 FOR EACH ROW
 EXECUTE FUNCTION check_core_body_district_quota();
+
+-- Dealer: Independent subdivision-level product specialists. B2B orders auto-assigns to them.
+CREATE TABLE dealer_profiles (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    subdivision_id      INT NOT NULL REFERENCES subdivisions(id) ON DELETE RESTRICT,
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensures strictly 1 dealer per product per subdivision
+CREATE TABLE dealer_product_map (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    subdivision_id      INT NOT NULL REFERENCES subdivisions(id) ON DELETE RESTRICT,
+    product_id          UUID NOT NULL, -- references products(id), added constraint later
+    dealer_id           UUID NOT NULL REFERENCES dealer_profiles(id) ON DELETE CASCADE,
+    assigned_at         TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(subdivision_id, product_id)
+);
 
 -- Businessman: Sales & distribution layer with 4 types
 -- retailer_b: Entry-level, no investment, referral-based income
@@ -300,7 +327,8 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS approved_by     UUID REFERENCES users(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS approved_at     TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS role_code       VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS district_id     INT REFERENCES districts(id) ON DELETE RESTRICT;
+    ADD COLUMN IF NOT EXISTS district_id     INT REFERENCES districts(id) ON DELETE RESTRICT,
+    ADD COLUMN IF NOT EXISTS subdivision_id  INT REFERENCES subdivisions(id) ON DELETE RESTRICT;
 
 -- ALTER TABLE: Add missing columns to businessman_profiles
 ALTER TABLE businessman_profiles
@@ -444,11 +472,14 @@ CREATE TABLE products (
     thumbnail_url       TEXT,
     image_urls          JSONB,
     tags                TEXT[],
+    is_dealer_routed    BOOLEAN DEFAULT FALSE, -- If TRUE B2B routing goes to subdivision dealer
     is_active           BOOLEAN DEFAULT TRUE,
     created_by          UUID REFERENCES users(id),
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE dealer_product_map ADD CONSTRAINT fk_dpm_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 CREATE TABLE product_variants (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -359,6 +359,7 @@ exports.createProduct = async (req, res) => {
       category_id, name, sku, description, type = 'physical', unit,
       is_subscription = false, // FUTURE IMPLEMENTATION: Currently not active
       thumbnail_url, image_urls = [], tags = [],
+      is_dealer_routed = false, // Added for Dealer Subdivision flow
       
       // Variants (optional)
       variants = [],
@@ -394,12 +395,12 @@ exports.createProduct = async (req, res) => {
     const productResult = await client.query(
       `INSERT INTO products 
        (category_id, name, sku, description, type, unit, is_subscription, 
-        thumbnail_url, image_urls, tags, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+        thumbnail_url, image_urls, tags, is_dealer_routed, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
        RETURNING *`,
       [
         category_id, name, sku, description, type, unit, is_subscription,
-        thumbnail_url, JSON.stringify(image_urls), tags, req.user.id
+        thumbnail_url, JSON.stringify(image_urls), tags, is_dealer_routed, req.user.id
       ]
     );
     

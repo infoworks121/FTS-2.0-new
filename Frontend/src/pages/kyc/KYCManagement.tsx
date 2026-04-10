@@ -23,6 +23,8 @@ export default function KYCManagement() {
   const [docType, setDocType] = useState('');
   const [docUrl, setDocUrl] = useState('');
   const [docNumber, setDocNumber] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     fetchKYCStatus();
@@ -34,6 +36,39 @@ export default function KYCManagement() {
       setDocuments(response.data);
     } catch (error) {
       toast.error('Failed to fetch KYC documents');
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large. Max 5MB allowed.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+          setUploadProgress(percent);
+        }
+      });
+      setDocUrl(response.data.url);
+      toast.success("File uploaded to server");
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Upload failed");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -93,14 +128,29 @@ export default function KYCManagement() {
             </div>
 
             <div>
-              <Label>Document URL</Label>
-              <Input
-                type="url"
-                value={docUrl}
-                onChange={(e) => setDocUrl(e.target.value)}
-                placeholder="https://example.com/document.pdf"
-                required
-              />
+              <Label>Document Image / PDF</Label>
+              <div className="space-y-2">
+                <Input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                  required={!docUrl}
+                />
+                {isUploading && (
+                  <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                )}
+                {docUrl && !isUploading && (
+                  <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    ✓ Ready to submit: {docUrl.split('/').pop()}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>

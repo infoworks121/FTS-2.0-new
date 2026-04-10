@@ -88,6 +88,7 @@ export default function EditProduct() {
     stockQuantity: 0,
     isDigital: false,
     isService: false,
+    is_dealer_routed: false,
     description: "",
     thumbnailUrl: "",
     imageUrls: [],
@@ -112,6 +113,7 @@ export default function EditProduct() {
         stockQuantity: product.stock_quantity || 0,
         isDigital: product.is_digital || false,
         isService: product.is_service || false,
+        is_dealer_routed: product.is_dealer_routed || false,
         description: product.description || "",
         thumbnailUrl: product.thumbnail_url || "",
         imageUrls: Array.isArray(product.image_urls) ? product.image_urls : [],
@@ -660,6 +662,35 @@ export default function EditProduct() {
                      id="stockRequired"
                      checked={formData.stockRequired}
                      onCheckedChange={(checked) => handleInputChange("stockRequired", checked)}
+                     className="h-6 w-6 border-slate-200 bg-white"
+                   />
+                </div>
+              </div>
+
+              <div 
+                className={cn(
+                  "p-6 md:p-8 rounded-3xl border transition-all cursor-pointer group",
+                  formData.is_dealer_routed ? "bg-amber-500 border-amber-600 shadow-2xl shadow-amber-500/20" : "bg-slate-50 border-slate-100"
+                )}
+                onClick={() => handleInputChange("is_dealer_routed", !formData.is_dealer_routed)}
+              >
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-6">
+                      <div className={cn(
+                        "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
+                        formData.is_dealer_routed ? "bg-white text-amber-600" : "bg-white text-slate-200"
+                      )}>
+                         <Tag className="h-7 w-7" />
+                      </div>
+                      <div>
+                         <p className={cn("text-lg font-black tracking-tight", formData.is_dealer_routed ? "text-white" : "text-slate-900")}>Dealer Routed (B2B)</p>
+                         <p className={cn("text-sm font-medium", formData.is_dealer_routed ? "text-amber-100" : "text-slate-400")}>Auto-assign B2B orders to Subdivision Dealer</p>
+                      </div>
+                   </div>
+                   <Checkbox
+                     id="isDealerRouted"
+                     checked={formData.is_dealer_routed}
+                     onCheckedChange={(checked) => handleInputChange("is_dealer_routed", checked)}
                      className="h-6 w-6 border-slate-200 bg-white"
                    />
                 </div>

@@ -14,6 +14,9 @@ import { UserStatus } from "@/types/users";
 import { toast } from "sonner";
 import { coreBodyApi, CoreBodyDetail } from "@/lib/coreBodyApi";
 import { geographyApi, DistrictSummary } from "@/lib/geographyApi";
+import { dealerApi } from "@/lib/dealerApi";
+import { productApi } from "@/lib/productApi";
+import { Product } from "@/types/product";
 
 export default function CoreBodySettings() {
   const { id } = useParams<{ id: string }>();
@@ -35,6 +38,11 @@ export default function CoreBodySettings() {
     monthly_cap: "100000",
     is_sph: false,
   });
+
+  const [assignedProducts, setAssignedProducts] = useState<any[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [isDealer, setIsDealer] = useState(false);
 
   const [profile, setProfile] = useState<CoreBodyDetail | null>(null);
 
@@ -71,6 +79,18 @@ export default function CoreBodySettings() {
           monthly_cap: p.monthly_cap?.toString() || "100000",
           is_sph: p.is_sph || false,
         });
+
+        const isDlr = p.type === 'Dealer' || profileRes.role_code === 'dealer';
+        setIsDealer(isDlr);
+
+        if (isDlr && p.id) {
+          const productsRes = await dealerApi.getAssignedProducts(p.id);
+          setAssignedProducts(productsRes.products || []);
+          
+          // Fetch all dealer-routable products for assignment dropdown
+          const allProductsRes = await productApi.getAll({ limit: 100 });
+          setAvailableProducts((allProductsRes.products || []).filter((prod: Product) => prod.is_dealer_routed));
+        }
       } catch (error) {
         console.error("Error fetching core body data:", error);
         toast.error("Failed to load core body details");
@@ -104,6 +124,31 @@ export default function CoreBodySettings() {
       toast.error("Failed to update settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAssignProduct = async () => {
+    if (!profile?.id || !selectedProductId) return;
+    try {
+      await dealerApi.assignProduct(profile.id, selectedProductId);
+      toast.success("Product assigned to dealer successfully");
+      const updated = await dealerApi.getAssignedProducts(profile.id);
+      setAssignedProducts(updated.products || []);
+      setSelectedProductId("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to assign product");
+    }
+  };
+
+  const handleUnassignProduct = async (productId: string) => {
+    if (!profile?.id) return;
+    try {
+      await dealerApi.unassignProduct(profile.id, productId);
+      toast.success("Product unassigned successfully");
+      const updated = await dealerApi.getAssignedProducts(profile.id);
+      setAssignedProducts(updated.products || []);
+    } catch (error) {
+      toast.error("Failed to unassign product");
     }
   };
 
@@ -213,6 +258,11 @@ export default function CoreBodySettings() {
               <TabsTrigger value="caps" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" /> Earning Caps
               </TabsTrigger>
+              {isDealer && (
+                <TabsTrigger value="products" className="flex items-center gap-2">
+                  <Store className="h-4 w-4" /> Product Portfolio
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="general" className="space-y-4">
@@ -455,6 +505,77 @@ export default function CoreBodySettings() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {isDealer && (
+              <TabsContent value="products" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Assigned Product Portfolio</CardTitle>
+                    <CardDescription>Products this dealer is specialized in and authorized to sell in their subdivision.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex flex-col sm:flex-row gap-4 items-end bg-muted/30 p-4 rounded-xl border border-border/50">
+                      <div className="flex-1 space-y-2">
+                        <Label>Add Product to Dealer</Label>
+                        <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a dealer-routed product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableProducts
+                              .filter(ap => !assignedProducts.some(p => p.id === ap.id))
+                              .map(product => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name} ({product.sku})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleAssignProduct} disabled={!selectedProductId} className="w-full sm:w-auto">
+                        Assign Product
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-foreground">Active Assignments ({assignedProducts.length})</h4>
+                      {assignedProducts.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-3">
+                          {assignedProducts.map(product => (
+                            <div key={product.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-card hover:shadow-md transition-all">
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 bg-primary/5 rounded-lg flex items-center justify-center">
+                                  <Store className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-bold">{product.name}</div>
+                                  <div className="text-[10px] text-muted-foreground font-mono">SKU: {product.sku}</div>
+                                </div>
+                              </div>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                onClick={() => handleUnassignProduct(product.id)}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-12 bg-muted/20 rounded-2xl border border-dashed border-border/50">
+                          <Store className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                          <p className="text-sm text-muted-foreground font-medium">No products assigned yet.</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">Assign dealer-routed products to start auto-assignments.</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

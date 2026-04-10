@@ -10,8 +10,8 @@ router.post('/upload', uploadKYC);
 router.get('/status', getKYCStatus);
 router.get('/audit-log', getKYCAuditLog);
 
-// Only admins or specific roles can review KYC
-router.post('/review', authorize('admin', 'core_body_a'), reviewKYC);
-router.get('/pending', authorize('admin', 'core_body_a'), getAllPendingKYC);
+// Only admins can review KYC
+router.post('/review', authorize('admin'), reviewKYC);
+router.get('/pending', authorize('admin'), getAllPendingKYC);
 
 module.exports = router;

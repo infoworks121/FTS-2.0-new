@@ -88,6 +88,7 @@ export default function AddNewProduct() {
     stockQuantity: editingProduct?.stock_quantity ?? 1,
     isDigital: editingProduct?.is_digital ?? false,
     isService: editingProduct?.is_service ?? false,
+    is_dealer_routed: editingProduct?.is_dealer_routed ?? false,
     description: editingProduct?.description || "",
     thumbnailUrl: editingProduct?.thumbnail_url || "",
     imageUrls: editingProduct?.image_urls || [],
@@ -661,6 +662,14 @@ export default function AddNewProduct() {
                   <div className="flex items-center space-x-2">
                     <Checkbox id="stockRequired" checked={formData.stockRequired} onCheckedChange={(checked) => handleInputChange("stockRequired", checked)} />
                     <Label htmlFor="stockRequired" className="font-medium">Track inventory for this product</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="isDealerRouted" checked={formData.is_dealer_routed} onCheckedChange={(checked) => handleInputChange("is_dealer_routed", checked)} />
+                    <div>
+                      <Label htmlFor="isDealerRouted" className="font-medium">Dealer Routed Product (B2B Auto-assignment)</Label>
+                      <p className="text-[10px] text-muted-foreground">If checked, B2B orders for this product will be auto-assigned to the Subdivision Dealer near the buyer.</p>
+                    </div>
                   </div>
 
                   {formData.stockRequired && (

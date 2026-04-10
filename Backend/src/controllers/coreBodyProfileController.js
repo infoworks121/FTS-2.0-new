@@ -612,6 +612,175 @@ const getDirectoryUserDetail = async (req, res) => {
   }
 };
 
+// District-wise Performance Snapshot (all districts: core bodies + dealers stats + individual users)
+const getDistrictPerformanceSnapshot = async (req, res) => {
+  try {
+    // 1. Core Body A & B aggregates per district
+    const cbQuery = `
+      SELECT
+        d.id AS district_id, d.name AS district_name, cb.type AS cb_type,
+        COUNT(cb.id) AS total_members,
+        COUNT(cb.id) FILTER (WHERE cb.is_active = true) AS active_members,
+        COALESCE(SUM(cb.ytd_earnings), 0) AS total_ytd_earnings,
+        COALESCE(SUM(cb.mtd_earnings), 0) AS total_mtd_earnings,
+        COALESCE(SUM(cb.annual_cap), 0) AS total_annual_cap,
+        COALESCE(SUM(cb.monthly_cap), 0) AS total_monthly_cap,
+        COUNT(cb.id) FILTER (WHERE cb.cap_hit_flag = true) AS cap_hit_count
+      FROM districts d
+      JOIN core_body_profiles cb ON cb.district_id = d.id
+      WHERE cb.type IN ('A', 'B')
+      GROUP BY d.id, d.name, cb.type
+      ORDER BY d.name, cb.type
+    `;
+    const cbResult = await pool.query(cbQuery);
+
+    // 2. Dealer aggregates per district
+    const dealerQuery = `
+      SELECT
+        d.id AS district_id, d.name AS district_name,
+        COUNT(DISTINCT u.id) AS total_dealers,
+        COUNT(DISTINCT u.id) FILTER (WHERE u.is_active = true) AS active_dealers,
+        COALESCE(SUM(o.total_amount), 0) AS total_order_volume,
+        COUNT(o.id) AS total_orders
+      FROM districts d
+      JOIN users u ON u.district_id = d.id
+      JOIN user_roles r ON u.role_id = r.id AND r.role_code = 'dealer'
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      GROUP BY d.id, d.name
+      ORDER BY d.name
+    `;
+    const dealerResult = await pool.query(dealerQuery);
+
+    // 3. Individual Core Body users (A and B)
+    const individualCBQuery = `
+      SELECT
+        u.id, u.full_name AS name, u.email, u.is_active,
+        cb.type, cb.ytd_earnings, cb.mtd_earnings,
+        cb.annual_cap, cb.monthly_cap, cb.cap_hit_flag,
+        cb.investment_amount, cb.activated_at,
+        d.id AS district_id, d.name AS district_name
+      FROM users u
+      JOIN core_body_profiles cb ON cb.user_id = u.id
+      JOIN districts d ON cb.district_id = d.id
+      WHERE cb.type IN ('A', 'B')
+      ORDER BY d.name, cb.type, u.full_name
+    `;
+    const individualCBResult = await pool.query(individualCBQuery);
+
+    // 4. Individual Dealer users
+    const individualDealerQuery = `
+      SELECT
+        u.id, u.full_name AS name, u.email, u.is_active,
+        u.created_at,
+        COUNT(o.id) AS order_count,
+        COALESCE(SUM(o.total_amount), 0) AS order_volume,
+        d.id AS district_id, d.name AS district_name
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id AND r.role_code = 'dealer'
+      LEFT JOIN districts d ON u.district_id = d.id
+      LEFT JOIN orders o ON o.customer_id = u.id AND o.status = 'delivered'
+      GROUP BY u.id, u.full_name, u.email, u.is_active, u.created_at, d.id, d.name
+      ORDER BY d.name, u.full_name
+    `;
+    const individualDealerResult = await pool.query(individualDealerQuery);
+
+    // 5. Build district aggregates map
+    const districtMap = {};
+
+    for (const row of cbResult.rows) {
+      const id = row.district_id;
+      if (!districtMap[id]) {
+        districtMap[id] = {
+          district_id: id, district_name: row.district_name,
+          core_body_a: { total: 0, active: 0, ytd_earnings: 0, annual_cap: 0, cap_hit: 0 },
+          core_body_b: { total: 0, active: 0, mtd_earnings: 0, monthly_cap: 0, cap_hit: 0 },
+          dealers: { total: 0, active: 0, order_volume: 0, order_count: 0 },
+        };
+      }
+      if (row.cb_type === 'A') {
+        districtMap[id].core_body_a = {
+          total: parseInt(row.total_members), active: parseInt(row.active_members),
+          ytd_earnings: parseFloat(row.total_ytd_earnings), annual_cap: parseFloat(row.total_annual_cap),
+          cap_hit: parseInt(row.cap_hit_count),
+        };
+      } else if (row.cb_type === 'B') {
+        districtMap[id].core_body_b = {
+          total: parseInt(row.total_members), active: parseInt(row.active_members),
+          mtd_earnings: parseFloat(row.total_mtd_earnings), monthly_cap: parseFloat(row.total_monthly_cap),
+          cap_hit: parseInt(row.cap_hit_count),
+        };
+      }
+    }
+
+    for (const row of dealerResult.rows) {
+      const id = row.district_id;
+      if (!districtMap[id]) {
+        districtMap[id] = {
+          district_id: id, district_name: row.district_name,
+          core_body_a: { total: 0, active: 0, ytd_earnings: 0, annual_cap: 0, cap_hit: 0 },
+          core_body_b: { total: 0, active: 0, mtd_earnings: 0, monthly_cap: 0, cap_hit: 0 },
+          dealers: { total: 0, active: 0, order_volume: 0, order_count: 0 },
+        };
+      }
+      districtMap[id].dealers = {
+        total: parseInt(row.total_dealers), active: parseInt(row.active_dealers),
+        order_volume: parseFloat(row.total_order_volume), order_count: parseInt(row.total_orders),
+      };
+    }
+
+    const districts = Object.values(districtMap);
+
+    // 6. Format individual users
+    const coreBodyUsers = individualCBResult.rows.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      type: u.type,
+      is_active: u.is_active,
+      district_id: u.district_id,
+      district_name: u.district_name,
+      ytd_earnings: parseFloat(u.ytd_earnings || 0),
+      mtd_earnings: parseFloat(u.mtd_earnings || 0),
+      annual_cap: parseFloat(u.annual_cap || 0),
+      monthly_cap: parseFloat(u.monthly_cap || 0),
+      cap_hit: u.cap_hit_flag,
+      investment_amount: parseFloat(u.investment_amount || 0),
+      activated_at: u.activated_at,
+      cap_pct: u.type === 'A'
+        ? (u.annual_cap > 0 ? Math.min(100, (u.ytd_earnings / u.annual_cap) * 100) : 0)
+        : (u.monthly_cap > 0 ? Math.min(100, (u.mtd_earnings / u.monthly_cap) * 100) : 0),
+    }));
+
+    const dealerUsers = individualDealerResult.rows.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      is_active: u.is_active,
+      district_id: u.district_id,
+      district_name: u.district_name,
+      order_count: parseInt(u.order_count),
+      order_volume: parseFloat(u.order_volume),
+      joined_at: u.created_at,
+    }));
+
+    // 7. Summary KPIs
+    const summary = {
+      total_districts: districts.length,
+      total_core_body_a: districts.reduce((s, d) => s + d.core_body_a.total, 0),
+      total_core_body_b: districts.reduce((s, d) => s + d.core_body_b.total, 0),
+      total_dealers: districts.reduce((s, d) => s + d.dealers.total, 0),
+      total_order_volume: districts.reduce((s, d) => s + d.dealers.order_volume, 0),
+      total_cap_hit: districts.reduce((s, d) => s + d.core_body_a.cap_hit + d.core_body_b.cap_hit, 0),
+    };
+
+    res.json({ districts, coreBodyUsers, dealerUsers, summary });
+  } catch (error) {
+    console.error('District performance snapshot error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
 module.exports = {
   getCoreBodyProfile,
   updateCoreBodyProfile,
@@ -620,5 +789,6 @@ module.exports = {
   getCoreBodyReports,
   getDistrictUsers,
   getDirectoryUsers,
-  getDirectoryUserDetail
-};
+  getDirectoryUserDetail,
+  getDistrictPerformanceSnapshot,
+};

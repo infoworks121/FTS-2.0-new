@@ -84,6 +84,34 @@ exports.createDistrict = async (req, res) => {
 };
 
 // ==========================================
+// SUBDIVISIONS
+// ==========================================
+exports.getSubdivisionsByDistrict = async (req, res) => {
+    try {
+        const { districtId } = req.params;
+        const { rows } = await db.query('SELECT * FROM subdivisions WHERE district_id = $1 AND is_active = true ORDER BY name ASC', [districtId]);
+        res.json(rows);
+    } catch (err) {
+        console.error('Error fetching subdivisions:', err);
+        res.status(500).json({ error: 'Failed to fetch subdivisions' });
+    }
+};
+
+exports.createSubdivision = async (req, res) => {
+    try {
+        const { district_id, name } = req.body;
+        const result = await db.query(
+            'INSERT INTO subdivisions (district_id, name) VALUES ($1, $2) RETURNING *',
+            [district_id, name]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating subdivision:', err);
+        res.status(500).json({ error: 'Failed to create subdivision' });
+    }
+};
+
+// ==========================================
 // CITIES
 // ==========================================
 exports.getCitiesByDistrict = async (req, res) => {

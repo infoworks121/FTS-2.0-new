@@ -63,8 +63,9 @@ exports.createB2BOrder = async (req, res) => {
 
       // Fetch Pricing
       const priceResult = await client.query(
-        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price 
+        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, p.is_dealer_routed 
          FROM product_pricing pp 
+         JOIN products p ON pp.product_id = p.id
          WHERE pp.product_id = $1 AND ($2::uuid IS NULL OR pp.variant_id = $2) AND pp.is_current = true`,
         [product_id, variant_id || null]
       );
@@ -88,65 +89,111 @@ exports.createB2BOrder = async (req, res) => {
         unit_price,
         mrp: pricing.mrp,
         total_price: item_total,
-        unit_profit
+        unit_profit,
+        is_dealer_routed: pricing.is_dealer_routed
       });
     }
 
-    // 4. Sequential Supplier Inventory Validation
-    let finalSupplier = null;
-    for (const supplier of eligibleSuppliers) {
-       let hasFullStock = true;
-       const lockedRows = [];
+    // 4. Per-Item Supplier Inventory Validation and Deduction
+    const itemSuppliers = [];
+    const fulfillers = new Map(); // to group fulfillments
 
-       for (const item of orderItemsData) {
-          let invQuery = `SELECT id, quantity_on_hand, quantity_reserved 
-                          FROM inventory_balances 
-                          WHERE entity_type = $1 AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3)`;
-          const invParams = [supplier.type, item.product_id, item.variant_id];
-          
-          if (supplier.id) {
-             invQuery += ` AND entity_id = $4`;
-             invParams.push(supplier.id);
-          }
-          invQuery += ` FOR UPDATE`;
-
-          const invRes = await client.query(invQuery, invParams);
-
-          if (invRes.rows.length === 0) {
-             hasFullStock = false;
-             break;
-          }
-
-          const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
-          if (available < item.quantity) {
-             hasFullStock = false;
-             break;
-          }
-
-          lockedRows.push({
-             id: invRes.rows[0].id,
-             quantity: item.quantity
-          });
+    for (const item of orderItemsData) {
+       let assignedSupplier = null;
+       
+       // Priority 1: Dealer Routing (If product is dealer routed and user has subdivision)
+       if (item.is_dealer_routed && user.subdivision_id) {
+           const dealerQuery = await client.query(
+               `SELECT dp.user_id as id, dp.id as profile_id 
+                FROM dealer_product_map dpm
+                JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
+                WHERE dpm.subdivision_id = $1 AND dpm.product_id = $2`,
+               [user.subdivision_id, item.product_id]
+           );
+           
+           if (dealerQuery.rows.length > 0) {
+               const dealer = dealerQuery.rows[0];
+               // Check inventory for Dealer
+               const invRes = await client.query(
+                   `SELECT id, quantity_on_hand, quantity_reserved 
+                    FROM inventory_balances 
+                    WHERE entity_type = 'dealer' AND entity_id = $1 AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3) FOR UPDATE`,
+                   [dealer.id, item.product_id, item.variant_id]
+               );
+               
+               if (invRes.rows.length > 0) {
+                   const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+                   if (available >= item.quantity) {
+                       assignedSupplier = { type: 'dealer', id: dealer.id, label: 'Subdivision Dealer', inv_id: invRes.rows[0].id };
+                   }
+               }
+           }
        }
+       
+       // Priority 2: Core Body
+       if (!assignedSupplier) {
+           for (const cb of eligibleSuppliers.filter(s => s.type === 'core_body')) {
+               const invRes = await client.query(
+                   `SELECT id, quantity_on_hand, quantity_reserved 
+                    FROM inventory_balances 
+                    WHERE entity_type = 'core_body' AND entity_id = $1 AND product_id = $2 AND ($3::uuid IS NULL OR variant_id = $3) FOR UPDATE`,
+                   [cb.id, item.product_id, item.variant_id]
+               );
+               if (invRes.rows.length > 0) {
+                   const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+                   if (available >= item.quantity) {
+                       assignedSupplier = { ...cb, inv_id: invRes.rows[0].id };
+                       break;
+                   }
+               }
+           }
+       }
+       
+       // Priority 3: Admin
+       if (!assignedSupplier) {
+           const admin = eligibleSuppliers.find(s => s.type === 'admin');
+           const invRes = await client.query(
+               `SELECT id, quantity_on_hand, quantity_reserved 
+                FROM inventory_balances 
+                WHERE entity_type = 'admin' AND product_id = $1 AND ($2::uuid IS NULL OR variant_id = $2) FOR UPDATE`,
+               [item.product_id, item.variant_id]
+           );
+           if (invRes.rows.length > 0) {
+               const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+               if (available >= item.quantity) {
+                   assignedSupplier = { ...admin, inv_id: invRes.rows[0].id };
+               }
+           }
+       }
+       
+       if (!assignedSupplier) {
+           throw new Error(`Insufficient stock for product ${item.product_id} across all eligible suppliers.`);
+       }
+       
+       // Reserve inventory
+       await client.query(
+           `UPDATE inventory_balances 
+            SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() 
+            WHERE id = $2`,
+           [item.quantity, assignedSupplier.inv_id]
+       );
+       
+       // Add to itemSuppliers
+       itemSuppliers.push({
+           ...item,
+           supplier_type: assignedSupplier.type,
+           supplier_id: assignedSupplier.id,
+           supplier_label: assignedSupplier.label
+       });
 
-       if (hasFullStock) {
-          finalSupplier = supplier;
-          // Commit Reservations
-          for (const lock of lockedRows) {
-             await client.query(
-               `UPDATE inventory_balances 
-                SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() 
-                WHERE id = $2`,
-               [lock.quantity, lock.id]
-             );
-          }
-          break; // Stop supplier loop!
+       // Group fulfillers
+       const fulfillerKey = `${assignedSupplier.type}_${assignedSupplier.id}`;
+       if (!fulfillers.has(fulfillerKey)) {
+           fulfillers.set(fulfillerKey, { type: assignedSupplier.type, id: assignedSupplier.id });
        }
     }
 
-    if (!finalSupplier) {
-       throw new Error('Insufficient stock across eligible suppliers (including Admin fallback).');
-    }
+
 
     const order_number = await generateOrderNumber(client);
     const total_amount = subtotal; // Assuming no tax/delivery for this basic flow
@@ -242,16 +289,18 @@ exports.createB2BOrder = async (req, res) => {
     await client.query(
       `INSERT INTO order_status_log (order_id, new_status, note, performed_by) 
        VALUES ($1, 'pending', $2, $3)`,
-      [newOrder.id, `Order placed by B2B user. Assigned Supplier: ${finalSupplier.label}`, user.id]
+      [newOrder.id, `Order placed by B2B user. Assigned to ${fulfillers.size} suppliers.`, user.id]
     );
 
-    // 5.5 Optional: Insert into fulfillment_assignments if you strictly track B2B fulfills
-    if (finalSupplier.type === 'core_body' && finalSupplier.id) {
-       await client.query(
-         `INSERT INTO fulfillment_assignments (order_id, fulfiller_type, fulfiller_id, status) 
-          VALUES ($1, 'core_body', $2, 'assigned')`,
-         [newOrder.id, finalSupplier.id]
-       );
+    // 5.5 Optional: Insert into fulfillment_assignments
+    for (const [key, fulfiller] of fulfillers.entries()) {
+       if (fulfiller.id) { // Only create explicitly for core_body and dealer, admin doesn't need explicitly recorded fulfillment_assignment usually
+         await client.query(
+           `INSERT INTO fulfillment_assignments (order_id, fulfiller_type, fulfiller_id, status) 
+            VALUES ($1, $2, $3, 'assigned')`,
+           [newOrder.id, fulfiller.type, fulfiller.id]
+         );
+       }
     }
 
     // 6. Record Wallet Transaction

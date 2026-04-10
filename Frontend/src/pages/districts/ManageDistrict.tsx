@@ -142,8 +142,21 @@ export default function ManageDistrict() {
     state: isEditMode ? "Delhi" : "",
     code: isEditMode ? "ND" : "",
     isActive: isEditMode ? true : false,
+    isActive: isEditMode ? true : false,
     notes: isEditMode ? "Primary district in Delhi NCR region" : "",
   });
+
+  const [subdivisions, setSubdivisions] = useState<{id: string, name: string, is_active: boolean}[]>([
+    { id: "1", name: "Connaught Place Region", is_active: true },
+    { id: "2", name: "Karol Bagh Zone", is_active: true }
+  ]);
+  const [newSubdivision, setNewSubdivision] = useState("");
+
+  const handleAddSubdivision = () => {
+    if (!newSubdivision.trim()) return;
+    setSubdivisions([...subdivisions, { id: Date.now().toString(), name: newSubdivision, is_active: true }]);
+    setNewSubdivision("");
+  };
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -284,6 +297,42 @@ export default function ManageDistrict() {
                 />
               </CardContent>
             </Card>
+
+            {/* Subdivisions Management */}
+            {isEditMode && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex justify-between items-center">
+                    Subdivision Distribution Map
+                    <Badge variant="secondary">{subdivisions.length} Active</Badge>
+                  </CardTitle>
+                  <CardDescription>Create subdivisions to assign local Dealers.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Enter new subdivision name..." 
+                      value={newSubdivision}
+                      onChange={(e) => setNewSubdivision(e.target.value)}
+                    />
+                    <Button onClick={handleAddSubdivision} disabled={!newSubdivision.trim()}>
+                      <Plus className="h-4 w-4 mr-2" /> Add
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                    {subdivisions.map(sub => (
+                      <div key={sub.id} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{sub.name}</span>
+                        </div>
+                        <Switch checked={sub.is_active} />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3">

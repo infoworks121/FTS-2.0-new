@@ -99,6 +99,10 @@ export const coreBodyApi = {
     const response = await api.get(`/corebody-profile/directory-users/${id}`);
     return response.data;
   },
+  getDistrictPerformance: async (): Promise<any> => {
+    const response = await api.get('/corebody-profile/district-performance');
+    return response.data;
+  },
 };
 
 export default coreBodyApi;

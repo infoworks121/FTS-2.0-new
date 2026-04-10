@@ -85,12 +85,20 @@ exports.updateFulfillmentStatus = async (req, res) => {
 
         await client.query('BEGIN');
 
-        // Get assignment
+        // Get assignment and join with appropriate profile
         const assignmentResult = await client.query(
-            `SELECT fa.*, sp.businessman_id, bp.user_id 
+            `SELECT fa.*, 
+                    CASE 
+                        WHEN fa.fulfiller_type = 'stock_point' THEN sp_u.id 
+                        WHEN fa.fulfiller_type = 'dealer' THEN d_u.id
+                        ELSE NULL 
+                    END as user_id
              FROM fulfillment_assignments fa
-             JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id
-             JOIN businessman_profiles bp ON sp.businessman_id = bp.id
+             LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_type = 'stock_point'
+             LEFT JOIN businessman_profiles bp ON sp.businessman_id = bp.id
+             LEFT JOIN users sp_u ON bp.user_id = sp_u.id
+             LEFT JOIN dealer_profiles dp ON fa.fulfiller_id = dp.id AND fa.fulfiller_type = 'dealer'
+             LEFT JOIN users d_u ON dp.user_id = d_u.id
              WHERE fa.id = $1`,
             [assignment_id]
         );
@@ -228,13 +236,40 @@ exports.getFulfillments = async (req, res) => {
             FROM fulfillment_assignments fa
             JOIN orders o ON fa.order_id = o.id
             JOIN users u ON o.customer_id = u.id
-            JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id
-            JOIN businessman_profiles bp ON sp.businessman_id = bp.id
-            ${whereClause}
+            LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_type = 'stock_point'
+            LEFT JOIN businessman_profiles bp ON sp.businessman_id = bp.id
+            LEFT JOIN dealer_profiles dp ON fa.fulfiller_id = dp.id AND fa.fulfiller_type = 'dealer'
+            WHERE (fa.fulfiller_type = 'stock_point' AND bp.user_id = $${user.role_code !== 'admin' ? 1 : 1})
+               OR (fa.fulfiller_type = 'dealer' AND dp.user_id = $${user.role_code !== 'admin' ? 1 : 1})
+               ${user.role_code === 'admin' ? '' : 'AND (bp.user_id = $1 OR dp.user_id = $1)'}
+               ${status ? `AND fa.status = $${user.role_code !== 'admin' ? 2 : 1}` : ''}
             ORDER BY fa.assigned_at DESC
         `;
 
-        const result = await db.query(query, params);
+        // Simplified query for clarity and reliability
+        const finalParams = [];
+        let filterStr = '';
+        if (user.role_code !== 'admin') {
+            finalParams.push(user.id);
+            filterStr += ` AND (fa.fulfiller_id IN (SELECT id FROM stock_point_profiles WHERE businessman_id IN (SELECT id FROM businessman_profiles WHERE user_id = $1)) OR fa.fulfiller_id IN (SELECT id FROM dealer_profiles WHERE user_id = $1))`;
+        }
+        if (status) {
+            finalParams.push(status);
+            filterStr += ` AND fa.status = $${finalParams.length}`;
+        }
+
+        const betterQuery = `
+            SELECT fa.*, 
+                   o.order_number, o.total_amount, o.created_at as order_date,
+                   u.full_name as customer_name, u.phone as customer_phone
+            FROM fulfillment_assignments fa
+            JOIN orders o ON fa.order_id = o.id
+            JOIN users u ON o.customer_id = u.id
+            WHERE 1=1 ${filterStr}
+            ORDER BY fa.assigned_at DESC
+        `;
+
+        const result = await db.query(betterQuery, finalParams);
         res.json({ fulfillments: result.rows });
     } catch (error) {
         console.error('Error fetching fulfillments:', error);

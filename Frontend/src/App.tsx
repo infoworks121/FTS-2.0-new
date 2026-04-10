@@ -107,6 +107,7 @@ import CoreBodySettings from "./pages/users/CoreBodySettings";
 import UserApproval from "./pages/users/UserApproval";
 import AdminProfile from "./pages/admin/AdminProfile";
 import CoreBodyProfile from "./pages/corebody/CoreBodyProfile";
+import DistrictPerformanceSnapshot from "./pages/corebody/dashboard/DistrictPerformanceSnapshot";
 import DealerProfile from "./pages/dealer/DealerProfile";
 import StockPointProfile from "./pages/stockpoint/StockPointProfile";
 import { KYCReview } from "./pages/kyc";
@@ -313,6 +314,7 @@ const App = () => {
             <Route path="/corebody/wallet/ledger" element={<EarningsLedger />} />
             <Route path="/corebody/wallet/cap" element={<CapStatus />} />
             <Route path="/corebody/dashboard/earnings-vs-cap" element={<CapStatus />} />
+            <Route path="/corebody/dashboard/district-performance-snapshot" element={<DistrictPerformanceSnapshot />} />
             <Route path="/corebody/wallet/withdrawals" element={<CoreBodyWithdrawalHistory />} />
             <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyWithdrawalRequest />} />
 

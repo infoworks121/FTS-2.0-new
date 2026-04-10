@@ -35,6 +35,7 @@ export interface Product {
   stock_quantity: number;
   is_digital: boolean;
   is_service: boolean;
+  is_dealer_routed: boolean;
   description: string | null;
   thumbnail_url: string | null;
   image_urls: string[] | null;
@@ -62,6 +63,7 @@ export interface ProductFormData {
   stockQuantity: number;
   isDigital: boolean;
   isService: boolean;
+  is_dealer_routed?: boolean;
   description: string;
   thumbnailUrl?: string;
   imageUrls?: string[];
