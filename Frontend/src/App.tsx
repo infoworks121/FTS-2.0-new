@@ -83,7 +83,7 @@ import EarningsReport from "./pages/corebody/reports/EarningsReport";
 import StockMovementReport from "./pages/corebody/reports/StockMovementReport";
 import OrderReport from "./pages/corebody/reports/OrderReport";
 import DealerPerformanceReport from "./pages/corebody/reports/DealerPerformanceReport";
-import { IssueStock, IssuedStockHistory, PendingRequests, StockAdjustment, StockSettings } from "./pages/corebody/stock";
+import { StockAdjustment, StockSettings } from "./pages/corebody/stock";
 import AllDealers from "./pages/corebody/dealers-businessmen/AllDealers";
 import CoreBodyAllBusinessmen from "./pages/corebody/dealers-businessmen/AllBusinessmen";
 import StatusActiveInactive from "./pages/corebody/dealers-businessmen/StatusActiveInactive";
@@ -291,9 +291,6 @@ const App = () => {
             <Route path="/corebody/reports/stock" element={<StockMovementReport />} />
             <Route path="/corebody/reports/orders" element={<OrderReport />} />
             <Route path="/corebody/reports/dealer-performance" element={<DealerPerformanceReport />} />
-            <Route path="/corebody/stock/issue" element={<IssueStock />} />
-            <Route path="/corebody/stock/history" element={<IssuedStockHistory />} />
-            <Route path="/corebody/stock/requests" element={<PendingRequests />} />
             <Route path="/corebody/stock/adjustment" element={<StockAdjustment />} />
             <Route path="/corebody/stock/settings" element={<StockSettings />} />
             <Route path="/corebody/dealers-businessmen/all-dealers" element={<AllDealers />} />

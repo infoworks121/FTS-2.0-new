@@ -185,21 +185,13 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
             : undefined,
           submenu: [
             // Stock Operations
-            {
-              title: "Issue Stock",
-              url: "/corebody/stock/issue-to-businessman",
-              coreBodyAOnly: true,
-            },
+
             {
               title: "Stock Inventory",
               url: "/corebody/stock/current-inventory",
               readOnly: coreBodyType === "B",
             },
-            {
-              title: "Stock Transfers",
-              url: "/corebody/stock/transfer-history",
-              readOnly: coreBodyType === "B",
-            },
+
             {
               title: "Stock Ledger",
               url: "/corebody/stock/ledger",
