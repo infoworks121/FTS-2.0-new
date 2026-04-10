@@ -142,6 +142,8 @@ import CapViolationReports from "./pages/risk/CapViolationReports";
 import ReferralAbuseDetection from "./pages/risk/ReferralAbuseDetection";
 import ActionsAndFreezes from "./pages/risk/ActionsAndFreezes";
 import DemandSignals from "./pages/corebody/stock/DemandSignals";
+import PhysicalTransfer from "./pages/corebody/stock/PhysicalTransfer";
+import StockArrivals from "./pages/dealer/StockArrivals";
 
 // Wallet & Finance Layout
 import { WalletPageLayout } from "./components/finance/WalletPageLayout";
@@ -315,6 +317,8 @@ const App = () => {
             <Route path="/corebody/stock/adjustment" element={<StockAdjustment />} />
             <Route path="/corebody/stock/settings" element={<StockSettings />} />
             <Route path="/corebody/stock/demand-signals" element={<DemandSignals />} />
+            <Route path="/corebody/stock/physical-transfer" element={<PhysicalTransfer />} />
+            <Route path="/dealer/inventory/arrivals" element={<StockArrivals />} />
             <Route path="/corebody/dealers-businessmen/all-dealers" element={<AllDealers />} />
             <Route path="/corebody/dealers-businessmen/all-businessmen" element={<CoreBodyAllBusinessmen />} />
             <Route path="/corebody/dealers-businessmen/status" element={<StatusActiveInactive />} />

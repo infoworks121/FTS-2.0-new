@@ -35,6 +35,7 @@ const sphRoutes = require('./routes/sphRoutes');
 const profitRuleRoutes = require('./routes/profitRuleRoutes');
 const addressRoutes = require('./routes/addressRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const stockAllocationRoutes = require('./routes/stockAllocationRoutes');
 const path = require('path');
 
 const app = express();
@@ -88,6 +89,7 @@ app.use('/api/sph', sphRoutes);
 app.use('/api/admin/profit-rules', profitRuleRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/stock-allocations', stockAllocationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

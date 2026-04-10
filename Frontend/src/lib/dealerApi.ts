@@ -76,8 +76,22 @@ export const dealerApi = {
     return response.data;
   },
 
-  acknowledgeDemandSignal: async (requestId: string, data: any) => {
-    const response = await api.put(`/stock-requests/${requestId}/review`, data);
+  acknowledgeDemandSignal: async (requestId: string, data: { status: string; review_note: string }) => {
+    const response = await api.put(`/stock-requests/review/${requestId}`, data);
+    return response.data;
+  },
+
+  // Physical Stock Transfers
+  sendPhysicalTransfer: async (data: { to_dealer_id: string; product_id: string; quantity: number; note?: string }) => {
+    const response = await api.post('/stock-allocations/transfer', data);
+    return response.data;
+  },
+  getPendingArrivals: async () => {
+    const response = await api.get('/stock-allocations/pending-arrivals');
+    return response.data;
+  },
+  receiveTransfer: async (allocationId: string) => {
+    const response = await api.put(`/stock-allocations/receive/${allocationId}`);
     return response.data;
   }
 };

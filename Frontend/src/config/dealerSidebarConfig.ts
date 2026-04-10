@@ -64,6 +64,11 @@ export const getDealerNavItems = (): DealerNavItem[] => {
           url: "/dealer/inventory/ledger",
           icon: History,
         },
+        {
+          title: "Stock Arrivals",
+          url: "/dealer/inventory/arrivals",
+          icon: Truck,
+        },
       ],
     },
     {
