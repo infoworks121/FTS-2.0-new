@@ -35,7 +35,10 @@ exports.createB2BOrder = async (req, res) => {
 
     // 2. Determine Eligible Suppliers (Local Core Body -> Admin)
     const eligibleSuppliers = [];
-    if (user.role_code === 'businessman' || user.role_code === 'dealer') {
+    
+    // Core Bodies are only eligible suppliers for other Core Bodies (A/B) or specific flows.
+    // As per new Dealer flow, Businessmen/Dealers bypass Core Body fulfillment.
+    if (user.role_code.startsWith('core_body')) {
        if (user.district_id) {
           const coreBodies = await client.query(
              `SELECT u.id, cbp.type 
@@ -101,13 +104,28 @@ exports.createB2BOrder = async (req, res) => {
     for (const item of orderItemsData) {
        let assignedSupplier = null;
        
-       // Priority 1: Dealer Routing (If product is dealer routed and user has subdivision)
+       // Priority 1: Dealer Routing (Hierarchical: Product -> Sub-category -> Parent Category)
        if (item.is_dealer_routed && user.subdivision_id) {
            const dealerQuery = await client.query(
-               `SELECT dp.user_id as id, dp.id as profile_id 
+               `SELECT dp.user_id as id, dp.id as profile_id, dpm.product_id, dpm.category_id
                 FROM dealer_product_map dpm
                 JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
-                WHERE dpm.subdivision_id = $1 AND dpm.product_id = $2`,
+                LEFT JOIN products p ON p.id = $2
+                LEFT JOIN categories c ON c.id = p.category_id
+                WHERE dpm.subdivision_id = $1 
+                  AND (
+                    dpm.product_id = $2 OR 
+                    dpm.category_id = p.category_id OR 
+                    dpm.category_id = c.parent_id
+                  )
+                ORDER BY 
+                  CASE 
+                    WHEN dpm.product_id = $2 THEN 1
+                    WHEN dpm.category_id = p.category_id THEN 2
+                    WHEN dpm.category_id = c.parent_id THEN 3
+                    ELSE 4
+                  END ASC
+                LIMIT 1`,
                [user.subdivision_id, item.product_id]
            );
            
@@ -130,8 +148,8 @@ exports.createB2BOrder = async (req, res) => {
            }
        }
        
-       // Priority 2: Core Body
-       if (!assignedSupplier) {
+       // Priority 2: Core Body (Only if buyer is a Core Body themselves)
+       if (!assignedSupplier && user.role_code.startsWith('core_body')) {
            for (const cb of eligibleSuppliers.filter(s => s.type === 'core_body')) {
                const invRes = await client.query(
                    `SELECT id, quantity_on_hand, quantity_reserved 

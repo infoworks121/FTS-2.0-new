@@ -28,6 +28,7 @@ import {
   Lock,
   Sun,
   Moon,
+  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -45,7 +46,7 @@ import { CartSheet } from "./cart/CartSheet";
 import { walletApi } from "@/lib/walletApi";
 import { adminApi } from "@/lib/adminApi";
 
-export type UserRole = "admin" | "corebody" | "businessman";
+export type UserRole = "admin" | "corebody" | "businessman" | "dealer";
 
 interface NavItem {
   title: string;
@@ -74,12 +75,14 @@ const roleIcons: Record<UserRole, LucideIcon> = {
   admin: Shield,
   corebody: Building2,
   businessman: Briefcase,
+  dealer: Store,
 };
 
 const roleColors: Record<UserRole, string> = {
   admin: "text-blue-400",
   corebody: "text-purple-400",
   businessman: "text-green-400",
+  dealer: "text-emerald-400",
 };
 
 const getIcon = (iconName: string): LucideIcon => {
@@ -329,6 +332,9 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
   const coreBodyType = user.core_body_type;
 
   const getSubRoleLabel = () => {
+    if (userRole === "dealer") {
+      return "SUBDIVISION DEALER";
+    }
     if (userRole === "businessman" && businessmanType) {
       return businessmanType.replace("_", " ").toUpperCase();
     }
@@ -345,6 +351,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
       case "admin": return "/admin/profile";
       case "corebody": return "/corebody/profile";
       case "businessman": return "/businessman/profile";
+      case "dealer": return "/dealer/profile";
       default: return "#";
     }
   };

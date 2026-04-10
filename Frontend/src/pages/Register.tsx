@@ -75,6 +75,7 @@ export default function Register() {
   const [districts, setDistricts] = useState<{id: number, name: string}[]>([]);
   const [subdivisions, setSubdivisions] = useState<{id: number, name: string}[]>([]);
   const [dealerRoutedProducts, setDealerRoutedProducts] = useState<{id: string, name: string, is_dealer_routed: boolean}[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [assignedProductIds, setAssignedProductIds] = useState<string[]>([]);
 
   const [kycDocs, setKycDocs] = useState({
@@ -155,15 +156,45 @@ export default function Register() {
 
   useEffect(() => {
     if (formData.core_body_type === "dealer") {
-      const fetchDealerProducts = async () => {
+      const fetchData = async () => {
         try {
+          // Fetch Categories
+          const catRes = await api.get('/catalog/categories');
+          const rawCats = catRes.data.categories || [];
+          
+          // Process hierarchy for flat display (Show only leaf nodes)
+          const parents = new Set(rawCats.filter((c: any) => c.parent_id).map((c: any) => c.parent_id));
+          const leafCats = rawCats.filter((c: any) => !parents.has(c.id));
+          
+          const processedCats: any[] = [];
+          const catMap = new Map();
+          rawCats.forEach((c: any) => catMap.set(c.id, c));
+          
+          leafCats.forEach((c: any) => {
+            if (c.parent_id) {
+              const parent = catMap.get(c.parent_id);
+              processedCats.push({
+                id: c.id,
+                name: `${parent ? parent.name + ' > ' : ''}${c.name}`,
+              });
+            } else {
+              processedCats.push({
+                id: c.id,
+                name: c.name,
+              });
+            }
+          });
+          
+          setCategories(processedCats.sort((a,b) => a.name.localeCompare(b.name)));
+
+          // Keep product fetch as backup or mixed use if needed, but primary is category now
           const res = await api.get('/products?is_dealer_routed=true');
           setDealerRoutedProducts(res.data.products || []);
         } catch (err) {
-          console.error('Error fetching dealer products:', err);
+          console.error('Error fetching dealer data:', err);
         }
       };
-      fetchDealerProducts();
+      fetchData();
     }
   }, [formData.core_body_type]);
 
@@ -286,7 +317,7 @@ export default function Register() {
           });
           return;
         }
-        if (!formData.product_id) {
+        if (!formData.product_id && !formData.category_id) {
           toast({
             title: "Validation Error",
             description: "Please select a product specialization for Dealer registration",
@@ -360,6 +391,7 @@ export default function Register() {
         district_id: formData.district_id || null,
         subdivision_id: formData.subdivision_id || null,
         product_id: formData.product_id || null, // Included for Dealer role
+        category_id: formData.category_id || null, // Added for Category Specialization
         referral_code_used: formData.referral_code_used || null,
         ...(needsInstallmentModal && {
           investment_amount: totalInvestment,
@@ -496,32 +528,27 @@ export default function Register() {
 
                     {formData.core_body_type === "dealer" && formData.subdivision_id && (
                       <div className="space-y-1.5 col-span-1 md:col-span-2">
-                        <Label htmlFor="product" className="text-[10px] font-bold uppercase text-slate-400">Assigned Product Specialization</Label>
+                        <Label htmlFor="product" className="text-[10px] font-bold uppercase text-slate-400">Assigned Specialization (Category / Sub-category)</Label>
                         <Select 
-                          value={formData.product_id} 
-                          onValueChange={(val) => setFormData(p => ({ ...p, product_id: val }))}
+                          value={formData.category_id || formData.product_id} 
+                          onValueChange={(val) => setFormData(p => ({ ...p, category_id: val, product_id: "" }))}
                         >
                           <SelectTrigger id="product" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
-                            <SelectValue placeholder="Select Product" />
+                            <SelectValue placeholder="Select Specialization" />
                           </SelectTrigger>
                           <SelectContent className="rounded-lg font-medium">
-                            {dealerRoutedProducts.map((p) => {
-                              const isAssigned = assignedProductIds.includes(p.id);
-                              return (
-                                <SelectItem 
-                                  key={p.id} 
-                                  value={p.id} 
-                                  disabled={isAssigned}
-                                  className={isAssigned ? "opacity-50 line-through" : ""}
-                                >
-                                  {p.name} {isAssigned ? "(Already Assigned)" : ""}
-                                </SelectItem>
-                              );
-                            })}
+                            {categories.map((c) => (
+                              <SelectItem 
+                                key={c.id} 
+                                value={c.id.toString()} 
+                              >
+                                {c.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <p className="text-[9px] text-slate-400 font-medium">
-                          Note: You can only register for products that don't have an active dealer in this subdivision.
+                          Note: You can choose a full category or a specific sub-category from the list.
                         </p>
                       </div>
                     )}
@@ -771,7 +798,9 @@ export default function Register() {
                     <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/30 col-span-2 md:col-span-4">
                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Product Specialization</p>
                       <p className="text-sm font-bold text-slate-900">
-                        {dealerRoutedProducts.find(p => p.id === formData.product_id)?.name || 'N/A'}
+                        {dealerRoutedProducts.find(p => p.id === formData.product_id)?.name || 
+                         categories.find(c => c.id.toString() === formData.category_id)?.name || 
+                         'N/A'}
                       </p>
                     </div>
                   )}

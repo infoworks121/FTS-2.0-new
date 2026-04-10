@@ -108,7 +108,17 @@ import UserApproval from "./pages/users/UserApproval";
 import AdminProfile from "./pages/admin/AdminProfile";
 import CoreBodyProfile from "./pages/corebody/CoreBodyProfile";
 import DistrictPerformanceSnapshot from "./pages/corebody/dashboard/DistrictPerformanceSnapshot";
+import DealerDashboard from "./pages/dealer/DealerDashboard";
+import DealerProducts from "./pages/dealer/DealerProducts";
+import DealerInventory from "./pages/dealer/DealerInventory";
+import DealerOrders from "./pages/dealer/DealerOrders";
+import DealerNetwork from "./pages/dealer/DealerNetwork";
+import DealerWallet from "./pages/dealer/DealerWallet";
 import DealerProfile from "./pages/dealer/DealerProfile";
+import DealerInsights from "./pages/dealer/DealerInsights";
+import DealerStockLedger from "./pages/dealer/DealerStockLedger";
+import DealerFulfillmentHistory from "./pages/dealer/DealerFulfillmentHistory";
+import DealerTransactionHistory from "./pages/dealer/DealerTransactionHistory";
 import StockPointProfile from "./pages/stockpoint/StockPointProfile";
 import { KYCReview } from "./pages/kyc";
 import { DashboardLayout } from "./components/DashboardLayout";
@@ -173,6 +183,16 @@ const App = () => {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/profile" element={<AdminProfile />} />
             <Route path="/corebody/profile" element={<CoreBodyProfile />} />
+            <Route path="/dealer" element={<DealerDashboard />} />
+            <Route path="/dealer/products" element={<DealerProducts />} />
+            <Route path="/dealer/products/insights" element={<DealerInsights />} />
+            <Route path="/dealer/inventory" element={<DealerInventory />} />
+            <Route path="/dealer/inventory/ledger" element={<DealerStockLedger />} />
+            <Route path="/dealer/orders" element={<DealerOrders />} />
+            <Route path="/dealer/orders/history" element={<DealerFulfillmentHistory />} />
+            <Route path="/dealer/network" element={<DealerNetwork />} />
+            <Route path="/dealer/wallet" element={<DealerWallet />} />
+            <Route path="/dealer/wallet/history" element={<DealerTransactionHistory />} />
             <Route path="/dealer/profile" element={<DealerProfile />} />
             <Route path="/stockpoint/profile" element={<StockPointProfile />} />
 

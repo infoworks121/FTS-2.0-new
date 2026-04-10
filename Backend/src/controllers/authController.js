@@ -26,24 +26,37 @@ const register = async (req, res) => {
 
         // Custom validation for dealer role
         if (role_code === 'dealer') {
-            if (!final_subdivision_id || !product_id) {
-                return res.status(400).json({ message: 'Subdivision and Product are required for Dealer registration' });
+            const { category_id } = req.body;
+            if (!final_subdivision_id || (!product_id && !category_id)) {
+                return res.status(400).json({ message: 'Subdivision and Specialization (Product or Category) are required for Dealer registration' });
             }
 
-            // Check if product is dealer-routed
-            const prodCheck = await db.query('SELECT is_dealer_routed FROM products WHERE id = $1', [product_id]);
-            if (prodCheck.rows.length === 0 || !prodCheck.rows[0].is_dealer_routed) {
-                return res.status(400).json({ message: 'Selected product is not authorized for dealer routing' });
-            }
+            if (product_id) {
+                // Check if product is dealer-routed
+                const prodCheck = await db.query('SELECT is_dealer_routed FROM products WHERE id = $1', [product_id]);
+                if (prodCheck.rows.length === 0 || !prodCheck.rows[0].is_dealer_routed) {
+                    return res.status(400).json({ message: 'Selected product is not authorized for dealer routing' });
+                }
 
-            // Check if dealer already exists for this (subdivision, product)
-            const assignmentCheck = await db.query(
-                'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND product_id = $2',
-                [final_subdivision_id, product_id]
-            );
+                // Check if dealer already exists for this (subdivision, product)
+                const assignmentCheck = await db.query(
+                    'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND product_id = $2',
+                    [final_subdivision_id, product_id]
+                );
 
-            if (assignmentCheck.rows.length > 0) {
-                return res.status(400).json({ message: 'A dealer is already registered for this product in the selected subdivision' });
+                if (assignmentCheck.rows.length > 0) {
+                    return res.status(400).json({ message: 'A dealer is already registered for this product in the selected subdivision' });
+                }
+            } else if (category_id) {
+                // Check if dealer already exists for this (subdivision, category)
+                const assignmentCheck = await db.query(
+                    'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND category_id = $2',
+                    [final_subdivision_id, category_id]
+                );
+
+                if (assignmentCheck.rows.length > 0) {
+                    return res.status(400).json({ message: 'A dealer is already registered for this category in the selected subdivision' });
+                }
             }
         }
 
@@ -128,6 +141,12 @@ const register = async (req, res) => {
 
         // Create dealer profile if role is dealer
         if (role_code === 'dealer') {
+            const { category_id } = req.body;
+            
+            if (!final_subdivision_id || (!product_id && !category_id)) {
+                return res.status(400).json({ message: 'Subdivision and Specialization (Product or Category) are required for Dealer registration' });
+            }
+
             const dealerResult = await db.query(
                 `INSERT INTO dealer_profiles (user_id, subdivision_id) VALUES ($1, $2) RETURNING id`,
                 [user.id, final_subdivision_id]
@@ -135,11 +154,31 @@ const register = async (req, res) => {
 
             const dealerId = dealerResult.rows[0].id;
 
-            // Map product to dealer
+            // Map product or category to dealer
             await db.query(
-                `INSERT INTO dealer_product_map (dealer_id, product_id, subdivision_id) VALUES ($1, $2, $3)`,
-                [dealerId, product_id, final_subdivision_id]
+                `INSERT INTO dealer_product_map (dealer_id, product_id, category_id, subdivision_id) VALUES ($1, $2, $3, $4)`,
+                [dealerId, product_id || null, category_id || null, final_subdivision_id]
             );
+
+            // AUTO-STOCK ASSIGNMENT logic for products (if specific product was selected)
+            if (product_id) {
+                const quotaRes = await db.query('SELECT current_count FROM district_quota WHERE district_id = $1', [final_district_id]);
+                const initialStock = quotaRes.rows.length > 0 ? parseInt(quotaRes.rows[0].current_count) : 0;
+
+                if (initialStock > 0) {
+                    await db.query(
+                        `INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity_on_hand)
+                         VALUES ('dealer', $1, $2, $3)`,
+                        [user.id, product_id, initialStock]
+                    );
+
+                    await db.query(
+                        `INSERT INTO inventory_ledger (product_id, entity_type, entity_id, transaction_type, quantity, note, created_by)
+                         VALUES ($1, 'dealer', $2, 'auto_allocation', $3, 'Initial stock based on district core body member count', $4)`,
+                        [product_id, user.id, initialStock, user.id]
+                    );
+                }
+            }
         }
 
         // Initialize 'main' wallet for every new user
