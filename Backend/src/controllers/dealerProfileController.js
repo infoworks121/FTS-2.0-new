@@ -379,18 +379,40 @@ const getDealerInsights = async (req, res) => {
 const getDealerInventoryLedger = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // 1. Get Dealer Profile ID
+    const dealerRes = await pool.query('SELECT id FROM dealer_profiles WHERE user_id = $1', [userId]);
+    if (dealerRes.rows.length === 0) return res.status(404).json({ error: "Dealer profile not found" });
+    const dealerId = dealerRes.rows[0].id;
     
     const query = `
-      SELECT il.*, p.name as product_name, p.sku, p.thumbnail_url
-      FROM inventory_ledger il
-      JOIN products p ON il.product_id = p.id
-      WHERE il.entity_id = $1 AND il.entity_type = 'dealer'
-      ORDER BY il.created_at DESC
-      LIMIT 50
+      WITH LedgerPool AS (
+        SELECT 
+          il.*, 
+          p.name as product_name, 
+          p.sku, 
+          p.thumbnail_url,
+          u.full_name as source_name,
+          cbp.type as source_type,
+          SUM(il.quantity) OVER (PARTITION BY il.product_id ORDER BY il.created_at ASC, il.id ASC) as running_balance
+        FROM inventory_ledger il
+        JOIN products p ON il.product_id = p.id
+        LEFT JOIN users u ON il.created_by = u.id
+        LEFT JOIN core_body_profiles cbp ON u.id = cbp.user_id
+        WHERE il.entity_id = $1 AND il.entity_type = 'dealer'
+      )
+      SELECT * FROM LedgerPool 
+      ORDER BY created_at DESC 
+      LIMIT 100;
     `;
     
-    const result = await pool.query(query, [userId]);
-    res.json({ ledger: result.rows });
+    const result = await pool.query(query, [dealerId]);
+    
+    res.json({
+      success: true,
+      ledger: result.rows
+    });
+
   } catch (error) {
     console.error('Get dealer inventory ledger error:', error);
     res.status(500).json({ message: 'Server error' });
