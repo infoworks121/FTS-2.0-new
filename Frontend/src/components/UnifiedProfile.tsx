@@ -280,7 +280,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
 
     const { role_code } = profile;
 
-    if (['core_body_a', 'core_body_b', 'dealer'].includes(role_code)) {
+    if (['core_body_a', 'core_body_b'].includes(role_code)) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
@@ -573,7 +573,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
     );
 
     // Role-specific fields
-    if (['core_body_a', 'core_body_b', 'dealer'].includes(role_code)) {
+    if (['core_body_a', 'core_body_b'].includes(role_code)) {
       fields.push(
         <div key="investment_amount">
           <Label htmlFor="investment_amount">Investment Amount</Label>
@@ -1096,7 +1096,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
                 <TabsTrigger value="security" className="flex items-center gap-2 h-10 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                   <ShieldCheck className="h-4 w-4" /> Security & Addresses
                 </TabsTrigger>
-                {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && (
+                {['core_body_a', 'core_body_b'].includes(profile?.role_code) && (
                   <TabsTrigger value="installments" className="flex items-center gap-2 h-10 px-4 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                     <CreditCard className="h-4 w-4" /> Pay Installments
                   </TabsTrigger>
@@ -1125,7 +1125,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {renderProfileInfoCard()}
-            {['core_body_a', 'core_body_b', 'dealer'].includes(profile?.role_code) && renderInstallmentsSection()}
+            {['core_body_a', 'core_body_b'].includes(profile?.role_code) && renderInstallmentsSection()}
           </div>
           <div className="space-y-6">
             {renderSecurityCard()}

@@ -59,12 +59,18 @@ export default function DealerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Subdivision</CardTitle>
+              <CardTitle className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Territory Overview</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col">
-                <span className="text-xl font-bold">{stats?.profile?.subdivision_name || "North Zone"}</span>
-                <span className="text-[10px] text-muted-foreground mt-1">{stats?.profile?.district_name} District</span>
+              <div className="space-y-3">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Subdivision</span>
+                  <span className="text-lg font-black text-slate-800">{stats?.profile?.subdivision_name || "Loading..."}</span>
+                </div>
+                <div className="flex flex-col border-t border-blue-500/10 pt-2">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">District</span>
+                  <span className="text-sm font-bold text-slate-700">{stats?.profile?.district_name || "N/A"} District</span>
+                </div>
               </div>
             </CardContent>
           </Card>

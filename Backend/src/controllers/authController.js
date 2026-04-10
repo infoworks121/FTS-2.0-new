@@ -1,22 +1,29 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const db = require('../config/db');
+const { pool } = require('../config/db');
 const { generateToken } = require('../utils/token');
 const { sendVerificationEmail } = require('../utils/email');
 
 const register = async (req, res) => {
     const { phone, email, full_name, password, role_code, district_id: body_district_id, subdivision_id, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used, kycDocuments, product_id } = req.body;
 
+    const client = await pool.connect();
+
     try {
+        await client.query('BEGIN');
+
         // Check if user exists
-        const userExists = await db.query('SELECT * FROM users WHERE phone = $1 OR (email = $2 AND email IS NOT NULL)', [phone, email]);
+        const userExists = await client.query('SELECT * FROM users WHERE phone = $1 OR (email = $2 AND email IS NOT NULL)', [phone, email]);
         if (userExists.rows.length > 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'User already exists with this phone or email' });
         }
 
         // Get role_id
-        const roleResult = await db.query('SELECT id FROM user_roles WHERE role_code = $1', [role_code || 'customer']);
+        const roleResult = await client.query('SELECT id FROM user_roles WHERE role_code = $1', [role_code || 'customer']);
         if (roleResult.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'Invalid role code' });
         }
         const role_id = roleResult.rows[0].id;
@@ -28,33 +35,37 @@ const register = async (req, res) => {
         if (role_code === 'dealer') {
             const { category_id } = req.body;
             if (!final_subdivision_id || (!product_id && !category_id)) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'Subdivision and Specialization (Product or Category) are required for Dealer registration' });
             }
 
             if (product_id) {
                 // Check if product is dealer-routed
-                const prodCheck = await db.query('SELECT is_dealer_routed FROM products WHERE id = $1', [product_id]);
+                const prodCheck = await client.query('SELECT is_dealer_routed FROM products WHERE id = $1', [product_id]);
                 if (prodCheck.rows.length === 0 || !prodCheck.rows[0].is_dealer_routed) {
+                    await client.query('ROLLBACK');
                     return res.status(400).json({ message: 'Selected product is not authorized for dealer routing' });
                 }
 
                 // Check if dealer already exists for this (subdivision, product)
-                const assignmentCheck = await db.query(
+                const assignmentCheck = await client.query(
                     'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND product_id = $2',
                     [final_subdivision_id, product_id]
                 );
 
                 if (assignmentCheck.rows.length > 0) {
+                    await client.query('ROLLBACK');
                     return res.status(400).json({ message: 'A dealer is already registered for this product in the selected subdivision' });
                 }
             } else if (category_id) {
                 // Check if dealer already exists for this (subdivision, category)
-                const assignmentCheck = await db.query(
+                const assignmentCheck = await client.query(
                     'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND category_id = $2',
                     [final_subdivision_id, category_id]
                 );
 
                 if (assignmentCheck.rows.length > 0) {
+                    await client.query('ROLLBACK');
                     return res.status(400).json({ message: 'A dealer is already registered for this category in the selected subdivision' });
                 }
             }
@@ -75,9 +86,9 @@ const register = async (req, res) => {
         }
 
         // Insert user
-        const newUser = await db.query(
+        const newUser = await client.query(
             `INSERT INTO users (phone, email, full_name, password_hash, role_id, role_code, referral_code, district_id, subdivision_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, phone, email, full_name, role_id, role_code`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, phone, email, full_name, role_id, role_code`,
             [phone, email, full_name, password_hash, role_id, role_code || 'customer', final_referral_code, final_district_id, final_subdivision_id]
         );
 
@@ -86,13 +97,15 @@ const register = async (req, res) => {
         // Create core_body profile if role is core_body_a or core_body_b
         if ((role_code === 'core_body_a' || role_code === 'core_body_b') && investment_amount) {
             if (role_code === 'core_body_a' && Number(investment_amount) !== 100000) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'Core Body A investment must be exactly ₹100,000.' });
             }
             if (role_code === 'core_body_b' && (Number(investment_amount) < 50000 || Number(investment_amount) > 250000)) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'Core Body B investment must be between ₹50,000 and ₹250,000.' });
             }
 
-            const coreBodyResult = await db.query(
+            const coreBodyResult = await client.query(
                 `INSERT INTO core_body_profiles (user_id, type, district_id, investment_amount, installment_count)
                  VALUES ($1, $2, $3, $4, $5) RETURNING id`,
                 [
@@ -109,7 +122,7 @@ const register = async (req, res) => {
             // Insert installment records
             if (installment_amounts && installment_amounts.length > 0) {
                 for (let i = 0; i < installment_amounts.length; i++) {
-                    await db.query(
+                    await client.query(
                         `INSERT INTO core_body_installments (core_body_id, installment_no, amount, status)
                          VALUES ($1, $2, $3, 'pending')`,
                         [coreBodyId, i + 1, installment_amounts[i]]
@@ -121,7 +134,7 @@ const register = async (req, res) => {
         // Create businessman profile if role is businessman
         if (role_code === 'businessman' && businessman_type) {
             const advanceAmount = businessman_type === 'retailer_a' ? (investment_amount || 0) : 0;
-            const bpResult = await db.query(
+            const bpResult = await client.query(
                 'INSERT INTO businessman_profiles (user_id, type, district_id, advance_amount) VALUES ($1, $2, $3, $4) RETURNING id',
                 [user.id, businessman_type, final_district_id, advanceAmount]
             );
@@ -130,7 +143,7 @@ const register = async (req, res) => {
             if (businessman_type === 'retailer_a' && investment_amount && installment_amounts && installment_amounts.length > 0) {
                 const bpId = bpResult.rows[0].id;
                 for (let i = 0; i < installment_amounts.length; i++) {
-                    await db.query(
+                    await client.query(
                         `INSERT INTO businessman_investments (businessman_id, installment_no, amount, status)
                          VALUES ($1, $2, $3, 'pending')`,
                         [bpId, i + 1, installment_amounts[i]]
@@ -144,35 +157,36 @@ const register = async (req, res) => {
             const { category_id } = req.body;
             
             if (!final_subdivision_id || (!product_id && !category_id)) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'Subdivision and Specialization (Product or Category) are required for Dealer registration' });
             }
 
-            const dealerResult = await db.query(
-                `INSERT INTO dealer_profiles (user_id, subdivision_id) VALUES ($1, $2) RETURNING id`,
-                [user.id, final_subdivision_id]
+            const dealerResult = await client.query(
+                `INSERT INTO dealer_profiles (user_id, subdivision_id, district_id) VALUES ($1, $2, $3) RETURNING id`,
+                [user.id, final_subdivision_id, final_district_id]
             );
 
             const dealerId = dealerResult.rows[0].id;
 
             // Map product or category to dealer
-            await db.query(
+            await client.query(
                 `INSERT INTO dealer_product_map (dealer_id, product_id, category_id, subdivision_id) VALUES ($1, $2, $3, $4)`,
                 [dealerId, product_id || null, category_id || null, final_subdivision_id]
             );
 
             // AUTO-STOCK ASSIGNMENT logic for products (if specific product was selected)
             if (product_id) {
-                const quotaRes = await db.query('SELECT current_count FROM district_quota WHERE district_id = $1', [final_district_id]);
+                const quotaRes = await client.query('SELECT current_count FROM district_quota WHERE district_id = $1', [final_district_id]);
                 const initialStock = quotaRes.rows.length > 0 ? parseInt(quotaRes.rows[0].current_count) : 0;
 
                 if (initialStock > 0) {
-                    await db.query(
+                    await client.query(
                         `INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity_on_hand)
                          VALUES ('dealer', $1, $2, $3)`,
                         [user.id, product_id, initialStock]
                     );
 
-                    await db.query(
+                    await client.query(
                         `INSERT INTO inventory_ledger (product_id, entity_type, entity_id, transaction_type, quantity, note, created_by)
                          VALUES ($1, 'dealer', $2, 'auto_allocation', $3, 'Initial stock based on district core body member count', $4)`,
                         [product_id, user.id, initialStock, user.id]
@@ -182,42 +196,32 @@ const register = async (req, res) => {
         }
 
         // Initialize 'main' wallet for every new user
-        const typeRes = await db.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
+        const typeRes = await client.query(`SELECT id FROM wallet_types WHERE type_code = 'main'`);
         if (typeRes.rows.length > 0) {
-            await db.query(
+            await client.query(
                 `INSERT INTO wallets (user_id, wallet_type_id, balance) VALUES ($1, $2, 0)`,
                 [user.id, typeRes.rows[0].id]
             );
         }
 
-        // --- REFERRAL SYSTEM LOGIC (Eligible for Retailer A only) ---
+        // --- REFERRAL SYSTEM LOGIC ---
         if (final_referral_code) {
-            // 1. Initialize referral_links for the new user
-            await db.query(
+            await client.query(
                 `INSERT INTO referral_links (user_id, referral_code) VALUES ($1, $2)`,
                 [user.id, final_referral_code]
             );
         }
 
-        // 2. Handle referral_code_used (Optional)
         if (referral_code_used) {
-            const referrerResult = await db.query(
-                `SELECT id FROM users WHERE referral_code = $1`,
-                [referral_code_used]
-            );
-
+            const referrerResult = await client.query(`SELECT id FROM users WHERE referral_code = $1`, [referral_code_used]);
             if (referrerResult.rows.length > 0) {
                 const referrerId = referrerResult.rows[0].id;
-
-                // Insert into referral_registrations
-                await db.query(
+                await client.query(
                     `INSERT INTO referral_registrations (referrer_id, referred_id, referral_code_used)
                      VALUES ($1, $2, $3)`,
                     [referrerId, user.id, referral_code_used]
                 );
-
-                // Increment total_referrals count
-                await db.query(
+                await client.query(
                     `UPDATE referral_links SET total_referrals = total_referrals + 1 WHERE user_id = $1`,
                     [referrerId]
                 );
@@ -229,11 +233,11 @@ const register = async (req, res) => {
             for (const doc of kycDocuments) {
                 if (doc.doc_type && doc.doc_url) {
                     const doc_number_hash = doc.doc_number ? crypto.createHash('sha256').update(doc.doc_number).digest('hex') : null;
-                    const kycRes = await db.query(
+                    const kycRes = await client.query(
                         `INSERT INTO kyc_documents (user_id, doc_type, doc_url, doc_number_hash, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
                         [user.id, doc.doc_type, doc.doc_url, doc_number_hash]
                     );
-                    await db.query(
+                    await client.query(
                         'INSERT INTO kyc_audit_log (user_id, doc_id, action, performed_by, new_status, note) VALUES ($1, $2, $3, $4, $5, $6)',
                         [user.id, kycRes.rows[0].id, 'UPLOAD', user.id, 'pending', 'KYC document uploaded during registration']
                     );
@@ -241,16 +245,22 @@ const register = async (req, res) => {
             }
         }
 
-        const token = generateToken({ id: user.id, role_code });
+        await client.query('COMMIT');
+        
+        const token = generateToken({ id: user.id, role_code: role_code || 'customer' });
 
         res.status(201).json({
             message: 'Registration successful. Your account is pending admin approval.',
             user,
             token,
         });
-    } catch (err) {
-        console.error('Registration error:', err);
-        res.status(500).json({ message: 'Server error during registration', error: err.message });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Registration error:', error);
+        res.status(500).json({ message: 'Server error during registration', error: error.message });
+    } finally {
+        client.release();
     }
 };
 
