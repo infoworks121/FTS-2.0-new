@@ -241,6 +241,8 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   };
 
   const getRoleDisplayName = (roleCode) => {
+    if (!roleCode || typeof roleCode !== 'string') return 'User';
+    
     if (roleCode === 'businessman' && (profile as any)?.businessman_type) {
       return (profile as any).businessman_type.replace('_', ' ').toUpperCase();
     }

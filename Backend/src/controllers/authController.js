@@ -40,9 +40,9 @@ const register = async (req, res) => {
 
         // Insert user
         const newUser = await db.query(
-            `INSERT INTO users (phone, email, full_name, password_hash, role_id, referral_code, district_id, subdivision_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, phone, email, full_name, role_id`,
-            [phone, email, full_name, password_hash, role_id, final_referral_code, final_district_id, final_subdivision_id]
+            `INSERT INTO users (phone, email, full_name, password_hash, role_id, role_code, referral_code, district_id, subdivision_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, phone, email, full_name, role_id, role_code`,
+            [phone, email, full_name, password_hash, role_id, role_code || 'customer', final_referral_code, final_district_id, final_subdivision_id]
         );
 
         const user = newUser.rows[0];
