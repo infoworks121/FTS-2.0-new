@@ -1066,7 +1066,13 @@ module.exports = {
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,
+<<<<<<< HEAD
     getPendingBusinessmanInstallments,
     approveBusinessmanInstallment,
     getLowStockAlerts
+=======
+    getLowStockAlerts,
+    getPendingBusinessmanInstallments,
+    approveBusinessmanInstallment
+>>>>>>> af53d87c71a15ace031a20f0fbdd5f7e6df4fdd5
 };

@@ -22,6 +22,16 @@ import { CategoryTree, CategoryListItem } from "@/components/categories";
 import { Category } from "@/types/product";
 import { productApi } from "@/lib/productApi";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { FolderPlus, Loader2 } from "lucide-react";
 
 export default function CategoryList() {
   const navigate = useNavigate();
@@ -31,6 +41,12 @@ export default function CategoryList() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Sub-category creation state
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [parentCategory, setParentCategory] = useState<Category | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   const fetchCategories = async () => {
     setIsLoading(true);
@@ -148,6 +164,42 @@ export default function CategoryList() {
     navigate(`/admin/products?category=${category.id}`);
   };
 
+  const handleCreateSubCategory = (parent: Category) => {
+    setParentCategory(parent);
+    setNewCategoryName("");
+    setIsCreateDialogOpen(true);
+  };
+
+  const submitCreateSubCategory = async () => {
+    if (!newCategoryName.trim() || !parentCategory) return;
+    
+    setIsSubmitting(true);
+    try {
+      await productApi.createCategory({
+        name: newCategoryName.trim(),
+        parent_id: parentCategory.id,
+        is_active: true,
+        sort_order: 0
+      });
+      
+      toast({ 
+        title: "Success", 
+        description: `Sub-category "${newCategoryName}" created under "${parentCategory.name}"` 
+      });
+      
+      setIsCreateDialogOpen(false);
+      fetchCategories(); // Refresh tree
+    } catch (err: any) {
+      toast({ 
+        title: "Error", 
+        description: err.response?.data?.error || "Failed to create sub-category", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">Loading categories...</div>;
   }
@@ -261,6 +313,7 @@ export default function CategoryList() {
               onEdit={handleEditCategory}
               onDelete={handleDeleteCategory}
               onViewProducts={handleViewProducts}
+              onCreateSubCategory={handleCreateSubCategory}
               selectedId={selectedCategory?.id}
             />
             {categories.length === 0 && (
@@ -342,6 +395,58 @@ export default function CategoryList() {
           </CardContent>
         </Card>
       )}
+      {/* Create Sub-category Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="h-5 w-5 text-blue-600" />
+              New Sub Folder
+            </DialogTitle>
+            <DialogDescription>
+              Create a new sub-category inside <strong>{parentCategory?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Category Name</Label>
+              <Input
+                id="name"
+                placeholder="Enter sub-folder name..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitCreateSubCategory();
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsCreateDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={submitCreateSubCategory} 
+              disabled={!newCategoryName.trim() || isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Folder"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
