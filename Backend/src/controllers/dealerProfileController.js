@@ -195,16 +195,36 @@ const unassignProductFromDealer = async (req, res) => {
   }
 };
 
-// Get products assigned to a specific dealer
+// Get products assigned to a specific dealer (authorized products)
 const getDealerAssignedProducts = async (req, res) => {
   try {
     const { id } = req.params; // Profile ID
     
+    // This query finds products directly mapped OR products in specialized categories
+    // It also joins with inventory_balances for the specific dealer (via user_id)
     const query = `
-      SELECT p.id, p.name, p.sku, dpm.assigned_at
+      WITH dealer_info AS (
+        SELECT user_id, id as profile_id FROM dealer_profiles WHERE id = $1
+      )
+      SELECT DISTINCT ON (p.id)
+          p.id, 
+          p.name, 
+          p.sku, 
+          p.thumbnail_url,
+          c.name as category_name,
+          CASE 
+              WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
+              ELSE 'Category Specialized'
+          END as mapping_type,
+          COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
+          dpm.assigned_at
       FROM dealer_product_map dpm
-      JOIN products p ON dpm.product_id = p.id
-      WHERE dpm.dealer_id = $1
+      JOIN dealer_info di ON dpm.dealer_id = di.profile_id
+      LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN inventory_balances ib ON (ib.product_id = p.id AND ib.entity_id = di.user_id AND ib.entity_type = 'dealer')
+      WHERE p.id IS NOT NULL
+      ORDER BY p.id, p.name ASC
     `;
     
     const result = await pool.query(query, [id]);
@@ -215,11 +235,176 @@ const getDealerAssignedProducts = async (req, res) => {
   }
 };
 
+// Get products authorized for the logged-in dealer
+const getMyAuthorizedProducts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      WITH dealer_info AS (
+        SELECT id as profile_id FROM dealer_profiles WHERE user_id = $1
+      )
+      SELECT DISTINCT ON (p.id)
+          p.id, 
+          p.name, 
+          p.sku, 
+          p.thumbnail_url,
+          c.name as category_name,
+          CASE 
+              WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
+              ELSE 'Category Specialized'
+          END as mapping_type,
+          COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
+          dpm.assigned_at
+      FROM dealer_product_map dpm
+      JOIN dealer_info di ON dpm.dealer_id = di.profile_id
+      LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN inventory_balances ib ON (ib.product_id = p.id AND ib.entity_id = $1 AND ib.entity_type = 'dealer')
+      WHERE p.id IS NOT NULL
+      ORDER BY p.id, p.name ASC
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    res.json({ products: result.rows });
+  } catch (error) {
+    console.error('Get my authorized products error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get insights for the logged-in dealer (subdivision specific)
+const getDealerInsights = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get Dealer Profile and Subdivision
+    const profileRes = await pool.query(
+      'SELECT id, subdivision_id FROM dealer_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Dealer profile not found' });
+    }
+
+    const { subdivision_id } = profileRes.rows[0];
+
+    // 2. MTD Sales in the subdivision
+    // Assuming 'orders' table has customer_id and we join with users to get subdivision_id
+    const mtdSalesRes = await pool.query(`
+      SELECT COALESCE(SUM(o.total_amount), 0) as mtd_sales
+      FROM orders o
+      JOIN users u ON o.customer_id = u.id
+      WHERE u.subdivision_id = $1 
+      AND o.created_at >= date_trunc('month', CURRENT_DATE)
+    `, [subdivision_id]);
+
+    // 3. Stock Health Stats
+    // Using the same recursive logic as authorized products
+    const stockStatsRes = await pool.query(`
+      WITH authorized_products AS (
+        SELECT DISTINCT p.id
+        FROM dealer_product_map dpm
+        JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
+        LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+        WHERE dp.user_id = $1 AND p.id IS NOT NULL
+      )
+      SELECT 
+        COUNT(*) as total_skus,
+        COUNT(*) FILTER (WHERE COALESCE(ib.quantity_on_hand, 0) < 5) as low_stock_skus
+      FROM authorized_products ap
+      LEFT JOIN inventory_balances ib ON (ap.id = ib.product_id AND ib.entity_id = $1 AND ib.entity_type = 'dealer')
+    `, [userId]);
+
+    // 4. Pending Orders count in subdivision
+    const pendingOrdersRes = await pool.query(`
+      SELECT COUNT(*) as pending_count
+      FROM orders o
+      JOIN users u ON o.customer_id = u.id
+      WHERE u.subdivision_id = $1 AND o.status = 'pending'
+    `, [subdivision_id]);
+
+    // 5. Sales Trend (Last 15 days)
+    const salesTrendRes = await pool.query(`
+      SELECT 
+        TO_CHAR(date_series, 'DD Mon') as date,
+        COALESCE(count(o.id), 0) as count
+      FROM generate_series(CURRENT_DATE - INTERVAL '14 days', CURRENT_DATE, '1 day') as date_series
+      LEFT JOIN (
+        SELECT o.id, o.created_at
+        FROM orders o
+        JOIN users u ON o.customer_id = u.id
+        WHERE u.subdivision_id = $1
+      ) o ON o.created_at::date = date_series::date
+      GROUP BY date_series
+      ORDER BY date_series
+    `, [subdivision_id]);
+
+    // 6. Category Distribution
+    const categoryDistRes = await pool.query(`
+      WITH authorized_products AS (
+        SELECT DISTINCT p.id, p.category_id
+        FROM dealer_product_map dpm
+        JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
+        LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+        WHERE dp.user_id = $1 AND p.id IS NOT NULL
+      )
+      SELECT c.name, COUNT(ap.id) as value
+      FROM authorized_products ap
+      JOIN categories c ON ap.category_id = c.id
+      GROUP BY c.name
+    `, [userId]);
+
+    res.json({
+      stats: {
+        mtd_sales: mtdSalesRes.rows[0].mtd_sales,
+        total_skus: stockStatsRes.rows[0].total_skus,
+        low_stock_skus: stockStatsRes.rows[0].low_stock_skus,
+        pending_fulfillments: pendingOrdersRes.rows[0].pending_count
+      },
+      trends: {
+        sales: salesTrendRes.rows,
+        categories: categoryDistRes.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('Get dealer insights error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get inventory ledger for the logged-in dealer
+const getDealerInventoryLedger = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      SELECT il.*, p.name as product_name, p.sku, p.thumbnail_url
+      FROM inventory_ledger il
+      JOIN products p ON il.product_id = p.id
+      WHERE il.entity_id = $1 AND il.entity_type = 'dealer'
+      ORDER BY il.created_at DESC
+      LIMIT 50
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    res.json({ ledger: result.rows });
+  } catch (error) {
+    console.error('Get dealer inventory ledger error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getDealerProfile,
   updateDealerProfile,
   getDealerDashboard,
   assignProductToDealer,
   unassignProductFromDealer,
-  getDealerAssignedProducts
+  getDealerAssignedProducts,
+  getMyAuthorizedProducts,
+  getDealerInsights,
+  getDealerInventoryLedger
 };

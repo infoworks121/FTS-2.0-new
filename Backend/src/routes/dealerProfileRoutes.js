@@ -7,13 +7,19 @@ const {
   getDealerDashboard,
   assignProductToDealer,
   unassignProductFromDealer,
-  getDealerAssignedProducts
+  getDealerAssignedProducts,
+  getMyAuthorizedProducts,
+  getDealerInsights,
+  getDealerInventoryLedger
 } = require('../controllers/dealerProfileController');
 const { adminOnly } = require('../middleware/authMiddleware');
 
 router.get('/profile', protect, getDealerProfile);
 router.put('/profile', protect, updateDealerProfile);
 router.get('/dashboard', protect, getDealerDashboard);
+router.get('/my-products', protect, getMyAuthorizedProducts);
+router.get('/insights', protect, getDealerInsights);
+router.get('/inventory-ledger', protect, getDealerInventoryLedger);
 
 // Admin mapping operations
 router.post('/assign-product', protect, adminOnly, assignProductToDealer);

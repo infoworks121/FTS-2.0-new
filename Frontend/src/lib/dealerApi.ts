@@ -48,6 +48,37 @@ export const dealerApi = {
   getAssignedProducts: async (profileId: string) => {
     const response = await api.get(`/dealer-profile/${profileId}/products`);
     return response.data;
+  },
+
+  getMyProducts: async () => {
+    const response = await api.get('/dealer-profile/my-products');
+    return response.data;
+  },
+
+  getDealerInsights: async () => {
+    const response = await api.get('/dealer-profile/insights');
+    return response.data;
+  },
+
+  getInventoryLedger: async () => {
+    const response = await api.get('/dealer-profile/inventory-ledger');
+    return response.data;
+  },
+
+  // Demand Signaling (Stock Requests)
+  sendDemandSignal: async (data: any) => {
+    const response = await api.post('/stock-requests', data);
+    return response.data;
+  },
+
+  getDemandSignals: async (params?: any) => {
+    const response = await api.get('/stock-requests', { params });
+    return response.data;
+  },
+
+  acknowledgeDemandSignal: async (requestId: string, data: any) => {
+    const response = await api.put(`/stock-requests/${requestId}/review`, data);
+    return response.data;
   }
 };
 

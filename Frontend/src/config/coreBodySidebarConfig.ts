@@ -202,6 +202,11 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               url: "/corebody/stock/block-release",
               coreBodyAOnly: true,
             },
+            {
+              title: "Demand Signals",
+              url: "/corebody/stock/demand-signals",
+              badge: { count: 1, variant: "warning", label: "New messages" }
+            },
             // Order Operations
             {
               title: "B2B Orders",
