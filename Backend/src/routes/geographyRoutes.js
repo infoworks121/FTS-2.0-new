@@ -19,6 +19,7 @@ router.get('/states/:stateId/districts', geogController.getDistrictsByState);
 router.post('/districts', geogController.createDistrict);
 // Subdivisions
 router.get('/districts/:districtId/subdivisions', geogController.getSubdivisionsByDistrict);
+router.get('/subdivisions/:subdivisionId/assigned-products', geogController.getSubdivisionAssignedProducts);
 router.post('/subdivisions', geogController.createSubdivision);
 
 // Cities

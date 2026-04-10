@@ -111,6 +111,20 @@ exports.createSubdivision = async (req, res) => {
     }
 };
 
+exports.getSubdivisionAssignedProducts = async (req, res) => {
+    try {
+        const { subdivisionId } = req.params;
+        const { rows } = await db.query(
+            'SELECT product_id FROM dealer_product_map WHERE subdivision_id = $1',
+            [subdivisionId]
+        );
+        res.json(rows.map(r => r.product_id));
+    } catch (err) {
+        console.error('Error fetching assigned products:', err);
+        res.status(500).json({ error: 'Failed to fetch assigned products' });
+    }
+};
+
 // ==========================================
 // CITIES
 // ==========================================

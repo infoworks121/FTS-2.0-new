@@ -5,7 +5,7 @@ const { generateToken } = require('../utils/token');
 const { sendVerificationEmail } = require('../utils/email');
 
 const register = async (req, res) => {
-    const { phone, email, full_name, password, role_code, district_id: body_district_id, subdivision_id, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used, kycDocuments } = req.body;
+    const { phone, email, full_name, password, role_code, district_id: body_district_id, subdivision_id, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used, kycDocuments, product_id } = req.body;
 
     try {
         // Check if user exists
@@ -23,6 +23,29 @@ const register = async (req, res) => {
 
         const final_district_id = body_district_id || null;
         const final_subdivision_id = subdivision_id || null;
+
+        // Custom validation for dealer role
+        if (role_code === 'dealer') {
+            if (!final_subdivision_id || !product_id) {
+                return res.status(400).json({ message: 'Subdivision and Product are required for Dealer registration' });
+            }
+
+            // Check if product is dealer-routed
+            const prodCheck = await db.query('SELECT is_dealer_routed FROM products WHERE id = $1', [product_id]);
+            if (prodCheck.rows.length === 0 || !prodCheck.rows[0].is_dealer_routed) {
+                return res.status(400).json({ message: 'Selected product is not authorized for dealer routing' });
+            }
+
+            // Check if dealer already exists for this (subdivision, product)
+            const assignmentCheck = await db.query(
+                'SELECT id FROM dealer_product_map WHERE subdivision_id = $1 AND product_id = $2',
+                [final_subdivision_id, product_id]
+            );
+
+            if (assignmentCheck.rows.length > 0) {
+                return res.status(400).json({ message: 'A dealer is already registered for this product in the selected subdivision' });
+            }
+        }
 
         // Hash password
         const salt = await bcrypt.genSalt(10);
@@ -101,6 +124,22 @@ const register = async (req, res) => {
                     );
                 }
             }
+        }
+
+        // Create dealer profile if role is dealer
+        if (role_code === 'dealer') {
+            const dealerResult = await db.query(
+                `INSERT INTO dealer_profiles (user_id, subdivision_id) VALUES ($1, $2) RETURNING id`,
+                [user.id, final_subdivision_id]
+            );
+
+            const dealerId = dealerResult.rows[0].id;
+
+            // Map product to dealer
+            await db.query(
+                `INSERT INTO dealer_product_map (dealer_id, product_id, subdivision_id) VALUES ($1, $2, $3)`,
+                [dealerId, product_id, final_subdivision_id]
+            );
         }
 
         // Initialize 'main' wallet for every new user

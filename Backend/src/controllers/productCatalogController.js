@@ -283,7 +283,7 @@ exports.bulkUploadProducts = async (req, res) => {
 
 exports.getProducts = async (req, res) => {
   try {
-    const { category_id, search, type, page = 1, limit = 20 } = req.query;
+    const { category_id, search, type, is_dealer_routed, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
     let whereClause = 'WHERE p.is_active = true';
     const params = [];
@@ -301,6 +301,11 @@ exports.getProducts = async (req, res) => {
     if (type) {
       params.push(type);
       whereClause += ` AND p.type = $${params.length}`;
+    }
+
+    if (is_dealer_routed !== undefined) {
+      params.push(is_dealer_routed === 'true');
+      whereClause += ` AND p.is_dealer_routed = $${params.length}`;
     }
     
     // Get total count

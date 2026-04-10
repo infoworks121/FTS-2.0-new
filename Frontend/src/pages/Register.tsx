@@ -68,11 +68,14 @@ export default function Register() {
     businessman_type: "",
     district_id: "",
     subdivision_id: "",
+    product_id: "",
     referral_code_used: searchParams.get("ref") || "",
   });
 
   const [districts, setDistricts] = useState<{id: number, name: string}[]>([]);
   const [subdivisions, setSubdivisions] = useState<{id: number, name: string}[]>([]);
+  const [dealerRoutedProducts, setDealerRoutedProducts] = useState<{id: string, name: string, is_dealer_routed: boolean}[]>([]);
+  const [assignedProductIds, setAssignedProductIds] = useState<string[]>([]);
 
   const [kycDocs, setKycDocs] = useState({
     identityType: "aadhaar",
@@ -138,9 +141,31 @@ export default function Register() {
     }
   };
 
-  const handleSubdivisionChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, subdivision_id: value }));
+  const handleSubdivisionChange = async (value: string) => {
+    setFormData((prev) => ({ ...prev, subdivision_id: value, product_id: "" }));
+    // Fetch Already Assigned Products in this Subdivision
+    try {
+      const res = await api.get(`/geography/subdivisions/${value}/assigned-products`);
+      setAssignedProductIds(res.data);
+    } catch (err) {
+      console.error('Error fetching assigned products:', err);
+      setAssignedProductIds([]);
+    }
   };
+
+  useEffect(() => {
+    if (formData.core_body_type === "dealer") {
+      const fetchDealerProducts = async () => {
+        try {
+          const res = await api.get('/products?is_dealer_routed=true');
+          setDealerRoutedProducts(res.data.products || []);
+        } catch (err) {
+          console.error('Error fetching dealer products:', err);
+        }
+      };
+      fetchDealerProducts();
+    }
+  }, [formData.core_body_type]);
 
   const isCoreBodyWithInvestment =
     formData.role_code === "core_body" &&
@@ -252,13 +277,23 @@ export default function Register() {
         });
         return;
       }
-      if (formData.core_body_type === "dealer" && !formData.subdivision_id) {
-        toast({
-          title: "Validation Error",
-          description: "Please select a subdivision for Dealer registration",
-          variant: "destructive",
-        });
-        return;
+      if (formData.core_body_type === "dealer") {
+        if (!formData.subdivision_id) {
+          toast({
+            title: "Validation Error",
+            description: "Please select a subdivision for Dealer registration",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (!formData.product_id) {
+          toast({
+            title: "Validation Error",
+            description: "Please select a product specialization for Dealer registration",
+            variant: "destructive",
+          });
+          return;
+        }
       }
     }
 
@@ -324,6 +359,7 @@ export default function Register() {
         businessman_type: formData.businessman_type || null,
         district_id: formData.district_id || null,
         subdivision_id: formData.subdivision_id || null,
+        product_id: formData.product_id || null, // Included for Dealer role
         referral_code_used: formData.referral_code_used || null,
         ...(needsInstallmentModal && {
           investment_amount: totalInvestment,
@@ -455,6 +491,38 @@ export default function Register() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                    )}
+
+                    {formData.core_body_type === "dealer" && formData.subdivision_id && (
+                      <div className="space-y-1.5 col-span-1 md:col-span-2">
+                        <Label htmlFor="product" className="text-[10px] font-bold uppercase text-slate-400">Assigned Product Specialization</Label>
+                        <Select 
+                          value={formData.product_id} 
+                          onValueChange={(val) => setFormData(p => ({ ...p, product_id: val }))}
+                        >
+                          <SelectTrigger id="product" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
+                            <SelectValue placeholder="Select Product" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg font-medium">
+                            {dealerRoutedProducts.map((p) => {
+                              const isAssigned = assignedProductIds.includes(p.id);
+                              return (
+                                <SelectItem 
+                                  key={p.id} 
+                                  value={p.id} 
+                                  disabled={isAssigned}
+                                  className={isAssigned ? "opacity-50 line-through" : ""}
+                                >
+                                  {p.name} {isAssigned ? "(Already Assigned)" : ""}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[9px] text-slate-400 font-medium">
+                          Note: You can only register for products that don't have an active dealer in this subdivision.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -699,6 +767,14 @@ export default function Register() {
                       {formData.subdivision_id && ` / ${subdivisions.find(s => s.id.toString() === formData.subdivision_id)?.name}`}
                     </p>
                   </div>
+                  {formData.core_body_type === "dealer" && (
+                    <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/30 col-span-2 md:col-span-4">
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Product Specialization</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {dealerRoutedProducts.find(p => p.id === formData.product_id)?.name || 'N/A'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-4">
