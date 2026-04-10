@@ -5,13 +5,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { UserPlus, Mail, Lock, Phone, User, X, Eye, EyeOff, FileText, Image as ImageIcon, CreditCard } from "lucide-react";
+import {
+  UserPlus,
+  Mail,
+  Lock,
+  Phone,
+  User,
+  X,
+  Eye,
+  EyeOff,
+  FileText,
+  Image as ImageIcon,
+  CreditCard,
+  Briefcase,
+  MapPin,
+  ShieldCheck,
+  FileCheck,
+  Check,
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  AlertTriangle,
+  Upload,
+  UserCheck
+} from "lucide-react";
 import api from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+
+// Registration Steps Configuration
+const steps = [
+  { id: 1, title: "Basic Details", description: "Account & Info", icon: User },
+  { id: 2, title: "Security", description: "Password & Access", icon: ShieldCheck },
+  { id: 3, title: "KYC Details", description: "Identity Verification", icon: FileCheck },
+  { id: 4, title: "Review", description: "Finalize & Confirm", icon: UserCheck },
+];
 
 export default function Register() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -314,415 +350,597 @@ export default function Register() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 p-6">
-      <div className="w-full max-w-2xl space-y-6">
-        <div className="text-center space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Create Account</h2>
-          <p className="text-slate-500 text-sm">Register to access the FTS platform</p>
-        </div>
-
-        {/* Installment Modal */}
-        {showInstallmentModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-5 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">Investment & Installment</h3>
-                <button onClick={() => setShowInstallmentModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <p className="text-sm text-slate-500">
-                Registering as <span className="font-semibold text-slate-700">
-                  {isRetailerA ? "Retailer A" : formData.core_body_type === "core_body_a" ? "Core Body A" : "Core Body B"}
-                </span>. Enter total investment and set each installment amount.
-              </p>
-
-              <div className="space-y-2">
-                <Label>Total Investment Amount (₹)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 100000"
-                  value={installmentData.investment_amount}
-                  onChange={(e) => {
-                    const newTotal = parseFloat(e.target.value) || 0;
-                    setInstallmentData((prev) => ({ ...prev, investment_amount: e.target.value }));
-                    const count = parseInt(installmentData.installment_count);
-                    if (newTotal > 0) {
-                      const equal = (newTotal / count).toFixed(2);
-                      setCustomAmounts(Array(count).fill(equal));
-                    } else {
-                      setCustomAmounts(Array(count).fill(""));
-                    }
-                  }}
-                  disabled={formData.core_body_type === "core_body_a"}
-                  className="h-11 disabled:bg-gray-100 disabled:opacity-100 disabled:text-gray-700"
-                />
-                {formData.core_body_type === "core_body_a" && (
-                  <p className="text-xs text-slate-500 mt-1">Fixed at ₹1,00,000 for Core Body A</p>
-                )}
-                {formData.core_body_type === "core_body_b" && (
-                  <p className={`text-xs mt-1 ${totalInvestment < 50000 || totalInvestment > 250000 ? "text-red-500 font-medium" : "text-green-600"}`}>
-                    {totalInvestment < 50000 || totalInvestment > 250000 
-                      ? "Amount must be between ₹50,000 and ₹2,50,000" 
-                      : "✓ Valid amount"}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Number of Installments</Label>
-                <Select value={installmentData.installment_count} onValueChange={handleInstallmentCountChange}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 Installment (Full Payment)</SelectItem>
-                    <SelectItem value="2">2 Installments</SelectItem>
-                    <SelectItem value="3">3 Installments</SelectItem>
-                    <SelectItem value="4">4 Installments</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {totalInvestment > 0 && (
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-6">
+            <Card className="border-t-4 border-t-primary shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-slate-50/50 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <Briefcase className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg font-black">Account Type & Region</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Installment Amounts (₹)</Label>
-                    <span className={`text-xs font-medium ${Math.abs(remaining) < 0.01 ? "text-green-600" : "text-red-500"}`}>
-                      {Math.abs(remaining) < 0.01 ? "✓ Balanced" : remaining > 0 ? `₹${remaining} remaining` : `₹${Math.abs(remaining)} over`}
-                    </span>
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-tight">Select Your Role</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "businessman", label: "Businessman", icon: UserPlus },
+                      { value: "core_body", label: "Corebody/Dealer", icon: Briefcase },
+                    ].map((role) => (
+                      <button
+                        key={role.value}
+                        type="button"
+                        onClick={() => handleRoleChange(role.value)}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-300 text-left group",
+                          formData.role_code === role.value
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/5"
+                            : "border-slate-100 bg-white hover:border-slate-200"
+                        )}
+                      >
+                        <div className={cn(
+                          "p-2 rounded-lg shrink-0",
+                          formData.role_code === role.value ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500"
+                        )}>
+                          <role.icon className="h-4 w-4" />
+                        </div>
+                        <span className={cn("text-sm font-black truncate", formData.role_code === role.value ? "text-primary" : "text-slate-900")}>{role.label}</span>
+                      </button>
+                    ))}
                   </div>
+                </div>
 
-                  {customAmounts.map((amt, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-sm text-slate-500 w-24 shrink-0">Installment {i + 1}</span>
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="₹ Amount"
-                        value={amt}
-                        onChange={(e) => handleCustomAmountChange(i, e.target.value)}
-                        className="h-10"
-                      />
+                {formData.role_code && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                    {formData.role_code === "businessman" && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="businessman_type" className="text-[10px] font-bold uppercase text-slate-400">Businessman Type</Label>
+                        <Select value={formData.businessman_type} onValueChange={handleBusinessmanTypeChange}>
+                          <SelectTrigger id="businessman_type" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg font-medium">
+                            <SelectItem value="retailer_a">Retailer A (Investment)</SelectItem>
+                            <SelectItem value="retailer_b">Retailer B (Non-Investment)</SelectItem>
+                            <SelectItem value="businessman">General Businessman</SelectItem>
+                            <SelectItem value="stock_point">Stock Point Partner</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {formData.role_code === "core_body" && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="core_body_type" className="text-[10px] font-bold uppercase text-slate-400">Partner Type</Label>
+                        <Select value={formData.core_body_type} onValueChange={handleCoreBodyTypeChange}>
+                          <SelectTrigger id="core_body_type" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg font-medium">
+                            <SelectItem value="core_body_a">Core Body A (District)</SelectItem>
+                            <SelectItem value="core_body_b">Core Body B (Regional)</SelectItem>
+                            <SelectItem value="dealer">Subdivision Dealer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="district" className="text-[10px] font-bold uppercase text-slate-400">District</Label>
+                      <Select value={formData.district_id} onValueChange={handleDistrictChange}>
+                        <SelectTrigger id="district" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
+                          <SelectValue placeholder="Select district" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg font-medium">
+                          {districts.map((d) => (
+                            <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
 
-                  <div className="bg-slate-50 rounded-xl p-3 flex justify-between text-sm font-semibold text-slate-800">
-                    <span>Total</span>
-                    <span className={customTotal > totalInvestment ? "text-red-500" : "text-slate-800"}>
-                      ₹{customTotal.toLocaleString()} / ₹{totalInvestment.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setShowInstallmentModal(false)}>
-                  Back
-                </Button>
-                <Button
-                  className="flex-1"
-                  disabled={!isCustomValid || isLoading || (formData.core_body_type === "core_body_b" && (totalInvestment < 50000 || totalInvestment > 250000))}
-                  onClick={submitRegistration}
-                >
-                  {isLoading ? "Creating..." : "Confirm & Register"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-
-          {/* Section: Account Type */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Account Type</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="role_code">Register As</Label>
-                <Select value={formData.role_code} onValueChange={handleRoleChange}>
-                  <SelectTrigger id="role_code" className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="businessman">Businessman</SelectItem>
-                    <SelectItem value="core_body">Core Body / Dealer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.role_code === "businessman" && (
-                <div className="space-y-2">
-                  <Label htmlFor="businessman_type">Businessman Type</Label>
-                  <Select value={formData.businessman_type} onValueChange={handleBusinessmanTypeChange}>
-                    <SelectTrigger id="businessman_type" className="h-11">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="retailer_a">Retailer A</SelectItem>
-                      <SelectItem value="retailer_b">Retailer B</SelectItem>
-                      <SelectItem value="businessman">Businessman</SelectItem>
-                      <SelectItem value="stock_point">Stock Point</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {formData.role_code === "core_body" && (
-                <div className="space-y-2">
-                  <Label htmlFor="core_body_type">Core Body Type</Label>
-                  <Select value={formData.core_body_type} onValueChange={handleCoreBodyTypeChange}>
-                    <SelectTrigger id="core_body_type" className="h-11">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="core_body_a">Core Body A</SelectItem>
-                      <SelectItem value="core_body_b">Core Body B</SelectItem>
-                      <SelectItem value="dealer">Dealer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {(formData.role_code === "core_body" || formData.role_code === "businessman") && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="district">District (West Bengal)</Label>
-                  <Select value={formData.district_id} onValueChange={handleDistrictChange}>
-                    <SelectTrigger id="district" className="h-11">
-                      <SelectValue placeholder="Select district" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {districts.map((d) => (
-                        <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(formData.role_code === "businessman" || formData.core_body_type === "dealer") && formData.district_id && (
-                  <div className="space-y-2">
-                    <Label htmlFor="subdivision">Subdivision / Sub-area</Label>
-                    <Select value={formData.subdivision_id} onValueChange={handleSubdivisionChange}>
-                      <SelectTrigger id="subdivision" className="h-11">
-                        <SelectValue placeholder="Select subdivision" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subdivisions.map((s) => (
-                          <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {(formData.role_code === "businessman" || formData.core_body_type === "dealer") && formData.district_id && (
+                      <div className="space-y-1.5 col-span-1 md:col-span-2">
+                        <Label htmlFor="subdivision" className="text-[10px] font-bold uppercase text-slate-400">Subdivision / Area</Label>
+                        <Select value={formData.subdivision_id} onValueChange={handleSubdivisionChange}>
+                          <SelectTrigger id="subdivision" className="h-10 border-slate-200 rounded-lg font-bold text-sm">
+                            <SelectValue placeholder="Select area" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg font-medium">
+                            {subdivisions.map((s) => (
+                              <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-t-4 border-t-blue-500 shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-slate-50/50 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <User className="h-5 w-5 text-blue-500" />
+                  <CardTitle className="text-lg font-black">Personal Details</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="full_name" className="text-[10px] font-bold uppercase text-slate-400">Full Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input id="full_name" name="full_name" required className="pl-10 h-10 border-slate-200 rounded-lg text-sm" placeholder="Full Name" value={formData.full_name} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone" className="text-[10px] font-bold uppercase text-slate-400">Phone</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input id="phone" name="phone" required className="pl-10 h-10 border-slate-200 rounded-lg text-sm" placeholder="Phone Number" value={formData.phone} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-1 md:col-span-2">
+                    <Label htmlFor="email" className="text-[10px] font-bold uppercase text-slate-400">Email Address</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input id="email" name="email" type="email" required className="pl-10 h-10 border-slate-200 rounded-lg text-sm" placeholder="Email Address" value={formData.email} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-1 md:col-span-2">
+                    <Label htmlFor="referral_code_used" className="text-[10px] font-bold uppercase text-slate-400">Referral Code (Optional)</Label>
+                    <div className="relative">
+                      <UserPlus className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input id="referral_code_used" name="referral_code_used" className="pl-10 h-10 border-slate-200 rounded-lg text-sm" placeholder="Referral Code" value={formData.referral_code_used} onChange={handleInputChange} />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        );
 
-          {/* Section: Personal Info */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Personal Information</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="full_name" name="full_name" required className="pl-9 h-11" placeholder="Your full name" value={formData.full_name} onChange={handleInputChange} />
+      case 2:
+        return (
+          <Card className="border-t-4 border-t-indigo-500 shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-3 mb-1">
+                <ShieldCheck className="h-5 w-5 text-indigo-500" />
+                <CardTitle className="text-xl font-black">Security Credentials</CardTitle>
+              </div>
+              <CardDescription className="font-medium">Secure your account with a strong password.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-xs font-bold uppercase text-slate-500">Create Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      id="password" name="password" required
+                      type={showPassword ? "text" : "password"}
+                      className="pl-12 pr-12 h-12 border-slate-200 rounded-xl font-medium" placeholder="At least 8 characters"
+                      value={formData.password} onChange={handleInputChange}
+                    />
+                    <button type="button" onClick={() => setShowPassword((p) => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword" className="text-xs font-bold uppercase text-slate-500">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      id="confirmPassword" name="confirmPassword" required
+                      type={showConfirmPassword ? "text" : "password"}
+                      className="pl-12 pr-12 h-12 border-slate-200 rounded-xl font-medium" placeholder="Repeat password"
+                      value={formData.confirmPassword} onChange={handleInputChange}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword((p) => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="phone" name="phone" required className="pl-9 h-11" placeholder="Phone number" value={formData.phone} onChange={handleInputChange} />
+              {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <div className="p-3 rounded-xl bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" /> Passwords do not match
                 </div>
-              </div>
+              )}
+            </CardContent>
+          </Card>
+        );
 
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="email" name="email" type="email" required className="pl-9 h-11" placeholder="Email address" value={formData.email} onChange={handleInputChange} />
-                </div>
+      case 3:
+        return (
+          <Card className="border-t-4 border-t-emerald-500 shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-3 mb-1">
+                <FileCheck className="h-5 w-5 text-emerald-500" />
+                <CardTitle className="text-xl font-black">KYC Documents</CardTitle>
               </div>
-
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="referral_code_used">Referral Code (Optional)</Label>
-                <div className="relative">
-                  <UserPlus className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="referral_code_used" name="referral_code_used" type="text" className="pl-9 h-11 uppercase" placeholder="e.g. FTS123ABC" value={formData.referral_code_used} onChange={handleInputChange} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: KYC Documents */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              KYC Documents {isKycMandatory ? <span className="text-red-500 font-bold ml-1">(Mandatory)</span> : "(Optional)"}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label>Identity Proof {isKycMandatory && "*"}</Label>
-                <div className="flex gap-2">
+              <CardDescription className="font-medium">
+                {isKycMandatory 
+                  ? "Required for your selected role. Please upload clear document photos." 
+                  : "Optional for basic accounts. You can add these later in settings."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8 pt-8">
+              {/* Identity Proof */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
+                    Identity Proof {isKycMandatory && <span className="text-red-500">*</span>}
+                  </Label>
                   <Select value={kycDocs.identityType} onValueChange={(val) => setKycDocs(p => ({ ...p, identityType: val }))}>
-                    <SelectTrigger className="w-1/3 h-11">
+                    <SelectTrigger className="w-[140px] h-8 text-xs font-bold border-slate-200">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="aadhaar">Aadhaar</SelectItem>
-                      <SelectItem value="voter_id">Voter ID</SelectItem>
+                      <SelectItem value="aadhaar">Aadhaar Card</SelectItem>
+                      <SelectItem value="voter_id">Voter ID Card</SelectItem>
                       <SelectItem value="passport">Passport</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="relative flex-1">
-                    <ImageIcon className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <div className="flex-1 flex flex-col gap-1">
-                      <Input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="pl-9 h-11"
+                </div>
+                
+                <div className={cn(
+                  "relative group rounded-2xl border-2 border-dashed transition-all duration-300 p-8 flex flex-col items-center justify-center gap-3",
+                  kycDocs.identityUrl ? "border-emerald-200 bg-emerald-50/30" : "border-slate-200 hover:border-emerald-500/50 bg-slate-50/50"
+                )}>
+                  {kycDocs.identityUrl ? (
+                    <>
+                      <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <Check className="h-8 w-8" />
+                      </div>
+                      <p className="text-sm font-bold text-emerald-700">Identity Document Uploaded</p>
+                      <Button variant="ghost" size="sm" className="text-red-500 font-bold" onClick={() => setKycDocs(p => ({ ...p, identityUrl: "" }))}>Change File</Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 rounded-full bg-white text-slate-400 flex items-center justify-center shadow-sm border border-slate-100">
+                        {uploading['identityUrl'] ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <Upload className="h-8 w-8" />}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-slate-700">Click to upload photo or PDF</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">MAX SIZE 5MB</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf" 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
                         onChange={(e) => handleFileUpload(e, 'identityUrl')}
-                        required={isKycMandatory && !kycDocs.identityUrl}
                         disabled={uploading['identityUrl']}
                       />
-                      {uploading['identityUrl'] && (
-                        <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary transition-all duration-300" 
-                            style={{ width: `${uploadProgress['identityUrl']}%` }}
-                          />
-                        </div>
-                      )}
-                      {kycDocs.identityUrl && !uploading['identityUrl'] && (
-                        <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
-                      )}
+                    </>
+                  )}
+                  {uploading['identityUrl'] && (
+                    <div className="absolute inset-x-8 bottom-4">
+                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress['identityUrl']}%` }} />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>PAN Card {isKycMandatory && "*"}</Label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <div className="flex flex-col gap-1">
-                    <Input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="pl-9 h-11"
-                      onChange={(e) => handleFileUpload(e, 'panUrl')}
-                      required={isKycMandatory && !kycDocs.panUrl}
-                      disabled={uploading['panUrl']}
-                    />
-                    {uploading['panUrl'] && (
-                      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-300" 
-                          style={{ width: `${uploadProgress['panUrl']}%` }}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                {/* PAN Card Upload */}
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold uppercase text-slate-500">PAN Card {isKycMandatory && "*"}</Label>
+                  <div className={cn(
+                    "relative p-6 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center gap-2",
+                    kycDocs.panUrl ? "border-emerald-200 bg-emerald-50/30 text-emerald-600" : "border-slate-200 hover:border-emerald-500/50 bg-slate-50/50"
+                  )}>
+                    {kycDocs.panUrl ? <Check className="h-5 w-5" /> : uploading['panUrl'] ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <ImageIcon className="h-5 w-5 text-slate-400" />}
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{kycDocs.panUrl ? "Uploaded" : uploading['panUrl'] ? `${uploadProgress['panUrl']}%` : "PAN Photo"}</span>
+                    {!kycDocs.panUrl && (
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileUpload(e, 'panUrl')} disabled={uploading['panUrl']} />
+                    )}
+                    {kycDocs.panUrl && <button className="text-[8px] font-black text-red-500 uppercase mt-1" onClick={() => setKycDocs(p => ({ ...p, panUrl: "" }))}>Clear</button>}
+                  </div>
+                </div>
+
+                {/* Bank Account Upload */}
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold uppercase text-slate-500">Bank Passbook (1st Page) {isKycMandatory && "*"}</Label>
+                  <div className={cn(
+                    "relative p-6 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center gap-2",
+                    kycDocs.bankUrl ? "border-emerald-200 bg-emerald-50/30 text-emerald-600" : "border-slate-200 hover:border-emerald-500/50 bg-slate-50/50"
+                  )}>
+                    {kycDocs.bankUrl ? <Check className="h-5 w-5" /> : uploading['bankUrl'] ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <CreditCard className="h-5 w-5 text-slate-400" />}
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{kycDocs.bankUrl ? "Uploaded" : uploading['bankUrl'] ? `${uploadProgress['bankUrl']}%` : "Bank Proof"}</span>
+                    {!kycDocs.bankUrl && (
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileUpload(e, 'bankUrl')} disabled={uploading['bankUrl']} />
+                    )}
+                    {kycDocs.bankUrl && <button className="text-[8px] font-black text-red-500 uppercase mt-1" onClick={() => setKycDocs(p => ({ ...p, bankUrl: "" }))}>Clear</button>}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-6">
+            <Card className="border-t-4 border-t-orange-500 shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden">
+               <CardHeader className="bg-slate-50/50 pb-6 border-b border-slate-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <UserCheck className="h-5 w-5 text-orange-500" />
+                  <CardTitle className="text-xl font-black">Final Review</CardTitle>
+                </div>
+                <CardDescription className="font-medium">Please confirm your account configuration before submitting.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-8 space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/30">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Role</p>
+                    <p className="text-sm font-bold text-slate-900 capitalize">{formData.role_code?.replace('_', ' ')}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/30">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Type</p>
+                    <p className="text-sm font-bold text-slate-900 capitalize">{formData.businessman_type || formData.core_body_type || 'Customer'}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/30 col-span-2">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Operating Area</p>
+                    <p className="text-sm font-bold text-slate-900 line-clamp-1">
+                      {districts.find(d => d.id.toString() === formData.district_id)?.name || 'N/A'}
+                      {formData.subdivision_id && ` / ${subdivisions.find(s => s.id.toString() === formData.subdivision_id)?.name}`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Check className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 mb-1">Ready to create your account</p>
+                    <p className="text-xs text-slate-500 font-medium">By clicking "Create Account", you agree to our terms and conditions for {formData.role_code} registration.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Investment Section integration if required */}
+            {needsInstallmentModal && (
+              <Card className="border-t-4 border-t-blue-600 shadow-xl shadow-slate-200/50 border-0 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+                 <CardHeader className="bg-blue-50/30 pb-6 border-b border-blue-100/50">
+                    <div className="flex items-center gap-3 mb-1">
+                      <CreditCard className="h-5 w-5 text-blue-600" />
+                      <CardTitle className="text-xl font-black">Investment Settings</CardTitle>
+                    </div>
+                    <CardDescription className="text-blue-700 font-bold">
+                      Required for {isRetailerA ? "Retailer A" : formData.core_body_type === "core_body_a" ? "Core Body A" : "Core Body B"}.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-8 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-slate-500">Total Investment Amount (₹)</Label>
+                        <Input
+                          type="number"
+                          placeholder="E.g. 1,00,000"
+                          value={installmentData.investment_amount}
+                          onChange={(e) => {
+                            const newTotal = parseFloat(e.target.value) || 0;
+                            setInstallmentData((prev) => ({ ...prev, investment_amount: e.target.value }));
+                            const count = parseInt(installmentData.installment_count);
+                            if (newTotal > 0) {
+                              const equal = (newTotal / count).toFixed(2);
+                              setCustomAmounts(Array(count).fill(equal));
+                            } else {
+                              setCustomAmounts(Array(count).fill(""));
+                            }
+                          }}
+                          disabled={formData.core_body_type === "core_body_a"}
+                          className="h-12 border-slate-200 rounded-xl font-black text-xl disabled:bg-slate-100/50 text-blue-600 disabled:text-slate-600"
                         />
+                        {formData.core_body_type === "core_body_a" && <p className="text-[10px] text-slate-400 font-bold uppercase">Fixed for Core Body A</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase text-slate-500">Installment Count</Label>
+                        <Select value={installmentData.installment_count} onValueChange={handleInstallmentCountChange}>
+                          <SelectTrigger className="h-12 border-slate-200 rounded-xl font-bold">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="font-bold">
+                           <SelectItem value="1">Full Payment (1)</SelectItem>
+                           <SelectItem value="2">2 Installments</SelectItem>
+                           <SelectItem value="3">3 Installments</SelectItem>
+                           <SelectItem value="4">4 Installments</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {totalInvestment > 0 && (
+                      <div className="pt-4 space-y-4 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Breakdown</Label>
+                          <span className={cn("text-xs font-black uppercase px-2 py-1 rounded-full", Math.abs(remaining) < 0.01 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                            {Math.abs(remaining) < 0.01 ? "Balanced" : remaining > 0 ? `₹${remaining} more needed` : `₹${Math.abs(remaining)} extra`}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {customAmounts.map((amt, i) => (
+                            <div key={i} className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                              <span className="text-[10px] font-black text-slate-400 w-8">#{i+1}</span>
+                              <Input 
+                                type="number" 
+                                value={amt} 
+                                onChange={(e) => handleCustomAmountChange(i, e.target.value)}
+                                className="h-8 border-none bg-transparent font-bold focus-visible:ring-0 px-0"
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    {kycDocs.panUrl && !uploading['panUrl'] && (
-                      <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Bank Account (1st Page) {isKycMandatory && "*"}</Label>
-                <div className="relative">
-                  <CreditCard className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <div className="flex flex-col gap-1">
-                    <Input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="pl-9 h-11"
-                      onChange={(e) => handleFileUpload(e, 'bankUrl')}
-                      required={isKycMandatory && !kycDocs.bankUrl}
-                      disabled={uploading['bankUrl']}
-                    />
-                    {uploading['bankUrl'] && (
-                      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-300" 
-                          style={{ width: `${uploadProgress['bankUrl']}%` }}
-                        />
-                      </div>
-                    )}
-                    {kycDocs.bankUrl && !uploading['bankUrl'] && (
-                      <p className="text-[10px] text-green-600 font-medium">✓ File uploaded successfully</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Password */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Security</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="password" name="password" required
-                    type={showPassword ? "text" : "password"}
-                    className="pl-9 pr-10 h-11" placeholder="Create password"
-                    value={formData.password} onChange={handleInputChange}
-                  />
-                  <button type="button" onClick={() => setShowPassword((p) => !p)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="confirmPassword" name="confirmPassword" required
-                    type={showConfirmPassword ? "text" : "password"}
-                    className="pl-9 pr-10 h-11" placeholder="Confirm password"
-                    value={formData.confirmPassword} onChange={handleInputChange}
-                  />
-                  <button type="button" onClick={() => setShowConfirmPassword((p) => !p)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={isLoading}>
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Creating Account...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <UserPlus className="w-5 h-5" />
-                <span>Create Account</span>
-              </div>
+                  </CardContent>
+              </Card>
             )}
-          </Button>
-        </form>
+          </div>
+        );
 
-        <div className="text-center">
-          <p className="text-sm text-slate-500">
+      default:
+        return null;
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1:
+        // Role & Location Validation
+        const isRoleValid = formData.role_code === "businessman" 
+          ? !!formData.businessman_type && !!formData.district_id 
+          : formData.role_code === "core_body" 
+            ? !!formData.core_body_type && !!formData.district_id && (formData.core_body_type !== "dealer" || !!formData.subdivision_id)
+            : !!formData.role_code;
+        
+        // Personal Details Validation
+        const isPersonalValid = !!formData.full_name && !!formData.phone && !!formData.email;
+        
+        return isRoleValid && isPersonalValid;
+      case 2:
+        return !!formData.password && !!formData.confirmPassword && (formData.password === formData.confirmPassword);
+      case 3:
+        if (isKycMandatory) {
+          return !!kycDocs.identityUrl && !!kycDocs.panUrl && !!kycDocs.bankUrl;
+        }
+        return true;
+      case 4:
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 pb-24">
+      <div className="max-w-4xl mx-auto px-6 pt-10 pb-20 space-y-8">
+        <div className="text-center space-y-2 mb-10">
+          <h2 className="text-4xl font-black tracking-tight text-slate-900">Join FTS Platform</h2>
+          <p className="text-slate-500 font-medium">Create your professional account in a few simple steps</p>
+        </div>
+
+        {/* Stepper Navigation */}
+        <div className="flex items-center justify-between bg-white/60 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
+          {steps.map((step, idx) => (
+            <div key={step.id} className="flex items-center group shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300",
+                  currentStep >= step.id 
+                    ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                    : "border-slate-200 text-slate-400 bg-white"
+                )}>
+                  {currentStep > step.id ? <Check className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <p className={cn("text-xs font-bold leading-none mb-1", currentStep >= step.id ? "text-slate-900" : "text-slate-400")}>{step.title}</p>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">{step.description}</p>
+                </div>
+              </div>
+              {idx < steps.length - 1 && (
+                <div className={cn(
+                  "w-8 md:w-12 h-[2px] mx-4 rounded-full transition-colors duration-500",
+                  currentStep > step.id ? "bg-primary" : "bg-slate-200"
+                )} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Step Content */}
+        <div className="mt-8">
+          {renderStepContent()}
+        </div>
+
+        <div className="text-center pt-10">
+          <p className="text-sm text-slate-500 font-medium">
             Already have an account?{" "}
-            <a href="/login" className="font-semibold text-primary hover:text-primary-700">Sign In</a>
+            <a href="/login" className="font-bold text-primary hover:underline transition-all">Sign In</a>
           </p>
+        </div>
+      </div>
+
+      {/* Navigation Footer */}
+      <div className="fixed bottom-0 left-0 right-0 border-t bg-white/80 backdrop-blur-lg z-50 py-4 px-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <Button 
+            type="button" 
+            variant="ghost" 
+            onClick={handleBack} 
+            disabled={currentStep === 1}
+            className="font-bold gap-2 text-slate-600"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <div className="flex items-center gap-3">
+             <Button 
+              variant="outline" 
+              type="button" 
+              onClick={() => navigate("/login")}
+              className="font-bold border-slate-200"
+            >
+              Cancel
+            </Button>
+             
+             {currentStep < 4 ? (
+               <Button 
+                type="button" 
+                onClick={handleNext} 
+                disabled={!canProceed()}
+                className="font-bold gap-2 px-8 shadow-lg shadow-primary/20"
+              >
+                Next Step <ArrowRight className="h-4 w-4" />
+              </Button>
+             ) : (
+               <Button 
+                type="button" 
+                onClick={handleSubmit} 
+                disabled={!canProceed() || isLoading} 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-10 shadow-xl shadow-primary/30"
+              >
+                 {isLoading ? (
+                   <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                    Creating Account...
+                   </>
+                 ) : (
+                   <>
+                    <UserCheck className="h-4 w-4 mr-2" /> 
+                    Create Account
+                   </>
+                 )}
+               </Button>
+             )}
+          </div>
         </div>
       </div>
     </div>
