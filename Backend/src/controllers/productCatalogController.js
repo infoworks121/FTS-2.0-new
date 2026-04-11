@@ -333,13 +333,14 @@ exports.getProducts = async (req, res) => {
              pp.mrp,
              pp.base_price,
              pp.selling_price,
-             pp.bulk_price
+             pp.bulk_price,
+             pp.min_order_quantity
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN product_variants pv ON p.id = pv.product_id AND pv.is_active = true
       LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
       ${whereClause}
-      GROUP BY p.id, c.name, pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price
+      GROUP BY p.id, c.name, pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, pp.min_order_quantity
       ORDER BY p.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
@@ -370,7 +371,7 @@ exports.createProduct = async (req, res) => {
       variants = [],
       
       // Pricing Info
-      mrp, base_price, selling_price, admin_margin_pct, bulk_price,
+      mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity,
       
       // Profit Distribution (B2B/B2C)
       profit_channel = 'B2C', // 'B2B' or 'B2C'
@@ -434,12 +435,12 @@ exports.createProduct = async (req, res) => {
           await client.query(
             `INSERT INTO product_pricing 
              (product_id, variant_id, mrp, base_price, selling_price, 
-              admin_margin_pct, bulk_price, is_current, created_by) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+              admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
             [
               productId, variantId, variant.mrp, variant.base_price,
               variant.selling_price || 0, variant.admin_margin_pct || 0,
-              variant.bulk_price || null, req.user.id
+              variant.bulk_price || null, variant.min_order_quantity || 1, req.user.id
             ]
           );
         }
@@ -471,11 +472,11 @@ exports.createProduct = async (req, res) => {
     await client.query(
       `INSERT INTO product_pricing 
        (product_id, variant_id, mrp, base_price, selling_price, 
-        admin_margin_pct, bulk_price, is_current, created_by) 
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, true, $7)`,
+        admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true, $8)`,
       [
         productId, mrp, base_price, selling_price, 
-        admin_margin_pct || 0, bulk_price || null, req.user.id
+        admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, req.user.id
       ]
     );
 
@@ -550,7 +551,7 @@ exports.getProductVariants = async (req, res) => {
     
     const result = await db.query(`
       SELECT pv.*, 
-             pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price
+             pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, pp.min_order_quantity
       FROM product_variants pv
       LEFT JOIN product_pricing pp ON pv.id = pp.variant_id AND pp.is_current = true
       WHERE pv.product_id = $1 AND pv.is_active = true
@@ -569,7 +570,7 @@ exports.createProductVariant = async (req, res) => {
     const { product_id } = req.params;
     const { 
       variant_name, sku_suffix, attributes = {},
-      mrp, base_price, selling_price, admin_margin_pct, bulk_price 
+      mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity 
     } = req.body;
 
     if (!variant_name) {
@@ -593,11 +594,11 @@ exports.createProductVariant = async (req, res) => {
       await client.query(
         `INSERT INTO product_pricing 
          (product_id, variant_id, mrp, base_price, selling_price, 
-          admin_margin_pct, bulk_price, is_current, created_by) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+          admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
         [
           product_id, variant.id, mrp, base_price, selling_price,
-          admin_margin_pct || 0, bulk_price || null, req.user.id
+          admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, req.user.id
         ]
       );
     }
@@ -624,7 +625,7 @@ exports.createProductVariant = async (req, res) => {
 exports.updateProductPricing = async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { product_id, variant_id, mrp, base_price, selling_price, admin_margin_pct, bulk_price, reason } = req.body;
+    const { product_id, variant_id, mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity, reason } = req.body;
 
     if (!product_id || !mrp || !base_price || !selling_price) {
       return res.status(400).json({ 
@@ -656,20 +657,20 @@ exports.updateProductPricing = async (req, res) => {
       await client.query(
         `UPDATE product_pricing SET 
          mrp = $1, base_price = $2, selling_price = $3, 
-         admin_margin_pct = $4, bulk_price = $5
-         WHERE id = $6`,
-        [mrp, base_price, selling_price, admin_margin_pct || 0, bulk_price || null, current.id]
+         admin_margin_pct = $4, bulk_price = $5, min_order_quantity = $6
+         WHERE id = $7`,
+        [mrp, base_price, selling_price, admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, current.id]
       );
     } else {
       // Create new pricing
       await client.query(
         `INSERT INTO product_pricing 
          (product_id, variant_id, mrp, base_price, selling_price, 
-          admin_margin_pct, bulk_price, is_current, created_by) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+          admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
         [
           product_id, variant_id || null, mrp, base_price, selling_price,
-          admin_margin_pct || 0, bulk_price || null, req.user.id
+          admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, req.user.id
         ]
       );
     }

@@ -389,8 +389,10 @@ CREATE TABLE IF NOT EXISTS retailer_profiles (
 -- 6. Performance: sla_score decreases on breach, deactivate if score < threshold (e.g., 50)
 CREATE TABLE stock_point_profiles (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    businessman_id          UUID UNIQUE NOT NULL REFERENCES businessman_profiles(id) ON DELETE RESTRICT,
+    user_id                 UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    businessman_id          UUID UNIQUE REFERENCES businessman_profiles(id) ON DELETE SET NULL,
     district_id             INT NOT NULL REFERENCES districts(id) ON DELETE RESTRICT, -- For nearest stock point selection
+    subdivision_id          INT REFERENCES subdivisions(id) ON DELETE RESTRICT,
     min_inventory_value     NUMERIC(14,2) DEFAULT 0 CHECK (min_inventory_value >= 0), -- Minimum inventory value to maintain
     sla_score               NUMERIC(5,2) DEFAULT 100.00 CHECK (sla_score BETWEEN 0 AND 100), -- Performance score, deduct on SLA breach
     is_active               BOOLEAN DEFAULT TRUE, -- Deactivate if sla_score too low or inventory issues
@@ -405,7 +407,8 @@ CREATE TABLE stock_point_profiles (
 -- ALTER TABLE: Add missing columns to stock_point_profiles
 ALTER TABLE stock_point_profiles
     ADD COLUMN IF NOT EXISTS warehouse_address   TEXT,
-    ADD COLUMN IF NOT EXISTS storage_capacity    NUMERIC(14,2) DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS storage_capacity    NUMERIC(14,2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS subdivision_id     INT REFERENCES subdivisions(id) ON DELETE RESTRICT;
 
 CREATE TABLE customer_profiles (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),

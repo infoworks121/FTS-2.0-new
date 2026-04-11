@@ -66,7 +66,7 @@ exports.createB2BOrder = async (req, res) => {
 
       // Fetch Pricing
       const priceResult = await client.query(
-        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, p.is_dealer_routed 
+        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, pp.min_order_quantity, p.name as product_name, p.is_dealer_routed 
          FROM product_pricing pp 
          JOIN products p ON pp.product_id = p.id
          WHERE pp.product_id = $1 AND ($2::uuid IS NULL OR pp.variant_id = $2) AND pp.is_current = true`,
@@ -78,6 +78,13 @@ exports.createB2BOrder = async (req, res) => {
       }
 
       const pricing = priceResult.rows[0];
+
+      // Validate Minimum Order Quantity
+      const minQty = parseInt(pricing.min_order_quantity || 1);
+      if (quantity < minQty) {
+        throw new Error(`Minimum order quantity for ${pricing.product_name} is ${minQty}. You requested ${quantity}.`);
+      }
+
       const unit_price = pricing.bulk_price ? parseFloat(pricing.bulk_price) : parseFloat(pricing.selling_price);
       const item_total = unit_price * quantity;
       const unit_profit = unit_price - parseFloat(pricing.base_price);

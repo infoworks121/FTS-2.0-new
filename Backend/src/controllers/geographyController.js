@@ -41,6 +41,16 @@ exports.getStatesByCountry = async (req, res) => {
     }
 };
 
+exports.getStates = async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT * FROM states WHERE is_active = true ORDER BY name ASC');
+        res.json(rows);
+    } catch (err) {
+        console.error('Error fetching all states:', err);
+        res.status(500).json({ error: 'Failed to fetch states' });
+    }
+};
+
 exports.createState = async (req, res) => {
     try {
         const { country_id, name, code } = req.body;
@@ -69,17 +79,96 @@ exports.getDistrictsByState = async (req, res) => {
     }
 };
 
+exports.getDistrict = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rows } = await db.query(`
+            SELECT d.*, dq.max_core_body 
+            FROM districts d 
+            LEFT JOIN district_quota dq ON d.id = dq.district_id 
+            WHERE d.id = $1
+        `, [id]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'District not found' });
+        }
+        res.json(rows[0]);
+    } catch (err) {
+        console.error('Error fetching district:', err);
+        res.status(500).json({ error: 'Failed to fetch district' });
+    }
+};
+
 exports.createDistrict = async (req, res) => {
     try {
-        const { state_id, name } = req.body;
+        const { state_id, name, code, max_core_body, is_active } = req.body;
+        
+        // Start transaction
+        await db.query('BEGIN');
+        
         const result = await db.query(
-            'INSERT INTO districts (state_id, name) VALUES ($1, $2) RETURNING *',
-            [state_id, name]
+            'INSERT INTO districts (state_id, name, code, is_active) VALUES ($1, $2, $3, $4) RETURNING *',
+            [state_id, name, code, is_active !== undefined ? is_active : true]
         );
+        
+        const districtId = result.rows[0].id;
+        
+        // Create quota entry
+        await db.query(
+            'INSERT INTO district_quota (district_id, max_core_body, current_count) VALUES ($1, $2, 0)',
+            [districtId, max_core_body || 20]
+        );
+        
+        await db.query('COMMIT');
         res.status(201).json(result.rows[0]);
     } catch (err) {
+        await db.query('ROLLBACK');
         console.error('Error creating district:', err);
         res.status(500).json({ error: 'Failed to create district' });
+    }
+};
+
+exports.updateDistrict = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, code, is_active, max_core_body, state_id } = req.body;
+        
+        await db.query('BEGIN');
+        
+        const result = await db.query(
+            `UPDATE districts 
+             SET name = $1, code = $2, is_active = $3, state_id = COALESCE($4, state_id), updated_at = NOW() 
+             WHERE id = $5 RETURNING *`,
+            [name, code, is_active, state_id, id]
+        );
+        
+        if (result.rows.length === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({ error: 'District not found' });
+        }
+        
+        // Update quota if provided
+        if (max_core_body !== undefined) {
+            const check = await db.query('SELECT * FROM district_quota WHERE district_id = $1', [id]);
+            if (check.rows.length === 0) {
+                await db.query(
+                    'INSERT INTO district_quota (district_id, max_core_body, current_count) VALUES ($1, $2, 0)',
+                    [id, max_core_body]
+                );
+            } else {
+                await db.query(
+                    'UPDATE district_quota SET max_core_body = $1, updated_at = NOW() WHERE district_id = $2',
+                    [max_core_body, id]
+                );
+            }
+        }
+        
+        await db.query('COMMIT');
+        res.json(result.rows[0]);
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error('Error updating district:', err);
+        res.status(500).json({ error: 'Failed to update district' });
     }
 };
 
@@ -246,6 +335,7 @@ exports.getDistrictsSummary = async (req, res) => {
             SELECT 
                 d.id, 
                 d.name, 
+                d.code,
                 s.name as state_name,
                 COALESCE(dq.max_core_body, 20) as max_limit,
                 COALESCE(dq.current_count, 0) as current_count,
@@ -257,7 +347,6 @@ exports.getDistrictsSummary = async (req, res) => {
             FROM districts d
             JOIN states s ON d.state_id = s.id
             LEFT JOIN district_quota dq ON d.id = dq.district_id
-            WHERE d.is_active = true
             ORDER BY d.name ASC
         `;
         
@@ -285,5 +374,175 @@ exports.getDistrictsSummary = async (req, res) => {
     } catch (err) {
         console.error('Error fetching district summary:', err);
         res.status(500).json({ error: 'Failed to fetch district summary' });
+    }
+};
+exports.getDistrictPerformance = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // 1. Basic District Info
+        const districtRes = await db.query(`
+            SELECT d.*, s.name as state_name, dq.max_core_body, COALESCE(dq.current_count, 0) as current_count
+            FROM districts d
+            JOIN states s ON d.state_id = s.id
+            LEFT JOIN district_quota dq ON d.id = dq.district_id
+            WHERE d.id = $1
+        `, [id]);
+        
+        if (districtRes.rows.length === 0) {
+            return res.status(404).json({ error: 'District not found' });
+        }
+        
+        const district = districtRes.rows[0];
+        
+        // 2. Core Body Counts
+        const cbCountsRes = await db.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE type = 'A') as count_a,
+                COUNT(*) FILTER (WHERE type = 'B') as count_b
+            FROM core_body_profiles
+            WHERE district_id = $1 AND is_active = true
+        `, [id]);
+        
+        const counts = cbCountsRes.rows[0];
+        
+        // 3. Overall Order Stats
+        const orderStatsRes = await db.query(`
+            SELECT 
+                COUNT(*) as total_orders,
+                COALESCE(SUM(total_amount), 0) as total_revenue
+            FROM orders
+            WHERE district_id = $1
+        `, [id]);
+        
+        const stats = orderStatsRes.rows[0];
+        
+        // 4. Monthly Trends (Last 6 Months)
+        const trendsRes = await db.query(`
+            WITH months AS (
+                SELECT generate_series(
+                    date_trunc('month', NOW() - INTERVAL '5 months'),
+                    date_trunc('month', NOW()),
+                    '1 month'::interval
+                ) as month
+            )
+            SELECT 
+                to_char(m.month, 'Mon') as month_label,
+                COALESCE(SUM(o.total_amount) FILTER (WHERE o.order_type = 'B2B'), 0) as b2b_revenue,
+                COALESCE(SUM(o.total_amount) FILTER (WHERE o.order_type = 'B2C'), 0) as b2c_revenue,
+                COUNT(o.id) as order_count
+            FROM months m
+            LEFT JOIN orders o ON date_trunc('month', o.created_at) = m.month AND o.district_id = $1
+            GROUP BY m.month
+            ORDER BY m.month ASC
+        `, [id]);
+        
+        // 5. Core Body List
+        const cbListRes = await db.query(`
+            SELECT 
+                cbp.id,
+                u.full_name as name,
+                cbp.type,
+                cbp.investment_amount as investment,
+                cbp.ytd_earnings as earnings,
+                cbp.is_active,
+                cbp.last_transaction_at as last_active
+            FROM core_body_profiles cbp
+            JOIN users u ON cbp.user_id = u.id
+            WHERE cbp.district_id = $1
+            ORDER BY cbp.type ASC, u.full_name ASC
+        `, [id]);
+        
+        // Response
+        res.json({
+            districtInfo: {
+                id: district.id,
+                name: district.name,
+                state: district.state_name,
+                coreBodyCountA: parseInt(counts.count_a),
+                coreBodyCountB: parseInt(counts.count_b),
+                maxLimit: district.max_core_body || 20,
+                totalOrders: parseInt(stats.total_orders),
+                totalRevenue: parseFloat(stats.total_revenue),
+                status: district.is_active ? 'active' : 'inactive'
+            },
+            revenueTrend: trendsRes.rows.map(r => ({
+                month: r.month_label,
+                b2b: parseFloat(r.b2b_revenue),
+                b2c: parseFloat(r.b2c_revenue)
+            })),
+            ordersTrend: trendsRes.rows.map(r => ({
+                month: r.month_label,
+                orders: parseInt(r.order_count)
+            })),
+            coreBodies: cbListRes.rows.map(r => ({
+                id: `CB-${r.id.toString().padStart(4, '0')}`,
+                name: r.name,
+                type: r.type,
+                investment: parseFloat(r.investment),
+                earnings: parseFloat(r.earnings),
+                status: r.is_active ? 'active' : 'inactive',
+                lastActive: r.last_active ? new Date(r.last_active).toISOString().split('T')[0] : 'Never'
+            }))
+        });
+        
+    } catch (err) {
+        console.error('Error fetching district performance:', err);
+        res.status(500).json({ error: 'Failed to fetch district performance data' });
+    }
+};
+
+exports.getDistrictDealers = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const query = `
+            SELECT 
+                s.id as subdivision_id,
+                s.name as subdivision_name,
+                dp.id as dealer_id,
+                u.id as user_id,
+                u.full_name as dealer_name,
+                u.phone as dealer_phone,
+                dp.is_active,
+                (SELECT COUNT(*) FROM dealer_product_map dpm WHERE dpm.dealer_id = dp.id) as product_specialization_count
+            FROM subdivisions s
+            LEFT JOIN dealer_profiles dp ON s.id = dp.subdivision_id
+            LEFT JOIN users u ON dp.user_id = u.id
+            WHERE s.district_id = $1
+            ORDER BY s.name ASC, u.full_name ASC
+        `;
+        
+        const { rows } = await db.query(query, [id]);
+        
+        // Group by subdivision
+        const subdivisionMap = {};
+        
+        rows.forEach(row => {
+            if (!subdivisionMap[row.subdivision_id]) {
+                subdivisionMap[row.subdivision_id] = {
+                    id: row.subdivision_id,
+                    name: row.subdivision_name,
+                    dealers: []
+                };
+            }
+            
+            if (row.dealer_id) {
+                subdivisionMap[row.subdivision_id].dealers.push({
+                    id: row.dealer_id,
+                    userId: row.user_id,
+                    name: row.dealer_name,
+                    phone: row.dealer_phone,
+                    status: row.is_active ? 'active' : 'inactive',
+                    productCount: parseInt(row.product_specialization_count)
+                });
+            }
+        });
+        
+        res.json(Object.values(subdivisionMap));
+    } catch (err) {
+// ...
+        console.error('Error fetching district dealers:', err);
+        res.status(500).json({ error: 'Failed to fetch subdivision-wise dealer data' });
     }
 };

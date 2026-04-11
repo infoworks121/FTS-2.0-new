@@ -318,6 +318,34 @@ const getDashboardStats = async (req, res) => {
         }
         break;
         
+      case 'stock_point':
+        const stockPointStatsQuery = `
+          SELECT sp.*,
+                 (SELECT COUNT(*) FROM market_listings WHERE seller_id = $1 AND is_active = true) as listing_count,
+                 (SELECT COALESCE(SUM(quantity_on_hand * selling_price), 0) 
+                  FROM inventory_balances ib 
+                  JOIN product_pricing pp ON ib.product_id = pp.product_id 
+                  WHERE ib.entity_id = $1 AND ib.entity_type = 'stock_point' AND pp.is_current = true) as stock_value
+          FROM stock_point_profiles sp
+          WHERE sp.user_id = $1
+        `;
+        const stockPointStats = await pool.query(stockPointStatsQuery, [userId]);
+        if (stockPointStats.rows.length > 0) {
+          const profile = stockPointStats.rows[0];
+          stats = {
+            fulfillment: {
+              active_listings: parseInt(profile.listing_count) || 0,
+              sla_score: profile.sla_score,
+              is_active: profile.is_active
+            },
+            inventory: {
+              value: parseFloat(profile.stock_value) || 0,
+              min_required: profile.min_inventory_value
+            }
+          };
+        }
+        break;
+
       case 'admin':
         const adminStatsQuery = `
           SELECT 

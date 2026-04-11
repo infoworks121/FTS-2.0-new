@@ -252,6 +252,8 @@ const getCoreBodyById = async (req, res) => {
         const profileResult = await db.query(`
             SELECT 
                 u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url, u.is_sph,
+                u.is_approved, u.is_active as user_active,
+                r.role_code,
                 cb.id as profile_id, cb.type, cb.is_active,
                 cb.investment_amount, cb.installment_count,
                 cb.annual_cap, cb.monthly_cap,
@@ -260,8 +262,9 @@ const getCoreBodyById = async (req, res) => {
                 d.name as district, d.id as district_id,
                 s.name as state
             FROM users u
-            JOIN core_body_profiles cb ON u.id = cb.user_id
-            LEFT JOIN districts d ON cb.district_id = d.id
+            JOIN user_roles r ON u.role_id = r.id
+            LEFT JOIN core_body_profiles cb ON u.id = cb.user_id
+            LEFT JOIN districts d ON cb.district_id = d.id OR u.district_id = d.id
             LEFT JOIN states s ON d.state_id = s.id
             WHERE u.id = $1
         `, [id]);
@@ -572,7 +575,7 @@ const getAllUsers = async (req, res) => {
         let query = `
             SELECT 
                 u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url,
-                u.is_approved, u.is_sph, u.created_at,
+                u.is_approved, u.is_sph, u.is_active, u.created_at,
                 r.role_code as role, r.role_label as role_name,
                 bp.type as business_type,
                 CASE 
@@ -647,6 +650,23 @@ const updateUserSPHStatus = async (req, res) => {
         res.json({ message: `User SPH status updated successfully` });
     } catch (err) {
         console.error('Update user SPH status error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const updateUserActiveStatus = async (req, res) => {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    try {
+        await db.query(
+            'UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2',
+            [is_active, id]
+        );
+
+        res.json({ message: `User account ${is_active ? 'activated' : 'deactivated'} successfully` });
+    } catch (err) {
+        console.error('Update user active status error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -1063,6 +1083,7 @@ module.exports = {
     updateCoreBodySettings,
     getAllUsers,
     updateUserSPHStatus,
+    updateUserActiveStatus,
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,

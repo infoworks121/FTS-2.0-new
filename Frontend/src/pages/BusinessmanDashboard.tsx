@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getBusinessmanSidebarNavItems } from "@/config/businessmanSidebarConfig";
 import {
   ShoppingCart, Package, Wallet, TrendingUp, Users,
-  ArrowUpRight, Clock, IndianRupee
+  ArrowUpRight, Clock, IndianRupee, ShieldCheck, ClipboardList
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useLocation } from "react-router-dom";
@@ -43,7 +43,7 @@ import BusinessmanProfile from "./businessman/BusinessmanProfile";
 // Marketplace Pages
 import B2CManager from "./sph/B2CManager";
 import CatalogPicker from "./sph/CatalogPicker";
-import AddCustomProduct from "./sph/AddCustomProduct";
+import AddNewProduct from "./products/AddNewProduct";
 
 const dailyEarnings = [
   { day: "Mon", amount: 2400 },
@@ -94,6 +94,15 @@ function DashboardHome({ user }: { user: any }) {
           <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
         </div>
         <div className="flex gap-2">
+          {user?.is_sph && (
+            <Button 
+              size="sm" 
+              className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+              onClick={() => window.location.href = "/businessman/b2c-manager/listings"}
+            >
+              <ClipboardList className="h-3.5 w-3.5" /> Market Listing
+            </Button>
+          )}
           <Button size="sm" className="gap-1.5 bg-profit text-profit-foreground hover:bg-profit/90">
             <ShoppingCart className="h-3.5 w-3.5" /> New Purchase
           </Button>
@@ -105,11 +114,22 @@ function DashboardHome({ user }: { user: any }) {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard title="Today's Earnings" value="₹4,200" change="+₹800" changeType="positive" icon={TrendingUp} variant="profit" />
-        <KPICard title="Wallet Balance" value={isLoading ? "Loading..." : formatCurrency(balance || 0)} icon={Wallet} variant="trust" subtitle="Available for withdrawal" />
-        <KPICard title="Active Orders" value="4" icon={Package} variant="cap" />
-        {user?.businessman_type === 'retailer_a' && (
-          <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={Users} variant="reserve" />
+        {user?.is_sph ? (
+          <>
+            <KPICard title="Market Listings" value="12" icon={ShoppingCart} variant="profit" subtitle="Active on B2C" />
+            <KPICard title="SLA Score" value="98%" icon={ShieldCheck} variant="trust" subtitle="Fulfillment rank" />
+            <KPICard title="Orders Value" value="₹1.2L" icon={TrendingUp} variant="reserve" />
+            <KPICard title="Overall Wallet" value={isLoading ? "Loading..." : formatCurrency(balance || 0)} icon={Wallet} variant="cap" />
+          </>
+        ) : (
+          <>
+            <KPICard title="Today's Earnings" value="₹4,200" change="+₹800" changeType="positive" icon={TrendingUp} variant="profit" />
+            <KPICard title="Wallet Balance" value={isLoading ? "Loading..." : formatCurrency(balance || 0)} icon={Wallet} variant="trust" subtitle="Available for withdrawal" />
+            <KPICard title="Active Orders" value="4" icon={Package} variant="cap" />
+            {user?.businessman_type === 'retailer_a' && (
+              <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={Users} variant="reserve" />
+            )}
+          </>
         )}
       </div>
 
@@ -121,6 +141,7 @@ function DashboardHome({ user }: { user: any }) {
             { label: "Place Bulk Order", icon: Package, desc: "Negotiate & order in bulk" },
             { label: "Request Withdrawal", icon: ArrowUpRight, desc: "Min ₹500 • Instant" },
             { label: "Track Shipments", icon: Clock, desc: "4 active deliveries" },
+            ...(user?.is_sph ? [{ label: "Browse Global Catalog", icon: ShoppingCart, desc: "Find new products to sell" }] : []),
             ...(user?.businessman_type === 'retailer_a' ? [{ label: "View Referral Link", icon: Users, desc: "Share & earn commission" }] : []),
           ].map((action) => (
             <button
@@ -272,7 +293,7 @@ export default function BusinessmanDashboard() {
       case "/businessman/b2c-manager/browse":
         return <CatalogPicker />;
       case "/businessman/b2c-manager/add-custom":
-        return <AddCustomProduct />;
+        return <AddNewProduct />;
 
       default:
         return <DashboardHome user={user} />;

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import CoreBodyDashboard, { navItems as coreBodyNavItems } from "./pages/CoreBodyDashboard";
 import BusinessmanDashboard from "./pages/BusinessmanDashboard";
+import SPHDashboard from "./pages/SPHDashboard";
 import MyReferralsPage from "./pages/businessman/referrals/MyReferralsPage";
 import ReferralEarningsPage from "./pages/businessman/referrals/ReferralEarningsPage";
 import ReferralHistoryPage from "./pages/businessman/referrals/ReferralHistoryPage";
@@ -123,10 +124,7 @@ import StockPointProfile from "./pages/stockpoint/StockPointProfile";
 import { KYCReview } from "./pages/kyc";
 import { DashboardLayout } from "./components/DashboardLayout";
 
-// Core Body Directory Detailed Views
-import CoreBodyMemberDetails from "./pages/corebody/dealers-businessmen/CoreBodyMemberDetails";
-import DealerDetails from "./pages/corebody/dealers-businessmen/DealerDetails";
-import BusinessmanDetails from "./pages/corebody/dealers-businessmen/BusinessmanDetails";
+import UnifiedMemberProfile from "./pages/shared/UnifiedMemberProfile";
 
 // Finance & Wallet Pages
 import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
@@ -144,6 +142,9 @@ import ActionsAndFreezes from "./pages/risk/ActionsAndFreezes";
 import DemandSignals from "./pages/corebody/stock/DemandSignals";
 import PhysicalTransfer from "./pages/corebody/stock/PhysicalTransfer";
 import StockArrivals from "./pages/dealer/StockArrivals";
+
+// District & Core Body Layout
+import { DistrictsLayout } from "./components/districts/DistrictsLayout";
 
 // Wallet & Finance Layout
 import { WalletPageLayout } from "./components/finance/WalletPageLayout";
@@ -238,12 +239,12 @@ const App = () => {
             <Route path="/admin/categories/commission" element={<ProductsPageLayout><CategoryCommissionRules /></ProductsPageLayout>} />
 
             {/* District & Core Body Routes */}
-            <Route path="/admin/districts" element={<AllDistricts />} />
-            <Route path="/admin/districts/manage" element={<ManageDistrict />} />
-            <Route path="/admin/districts/performance" element={<DistrictPerformance />} />
-            <Route path="/admin/corebody" element={<CoreBodyList />} />
-            <Route path="/admin/corebody/a" element={<CoreBodyAManagement />} />
-            <Route path="/admin/corebody/b" element={<CoreBodyBManagement />} />
+            <Route path="/admin/districts" element={<DistrictsLayout><AllDistricts /></DistrictsLayout>} />
+            <Route path="/admin/districts/manage" element={<DistrictsLayout><ManageDistrict /></DistrictsLayout>} />
+            <Route path="/admin/districts/performance" element={<DistrictsLayout><DistrictPerformance /></DistrictsLayout>} />
+            <Route path="/admin/corebody" element={<DistrictsLayout><CoreBodyList /></DistrictsLayout>} />
+            <Route path="/admin/corebody/a" element={<DistrictsLayout><CoreBodyAManagement /></DistrictsLayout>} />
+            <Route path="/admin/corebody/b" element={<DistrictsLayout><CoreBodyBManagement /></DistrictsLayout>} />
 
             {/* Referral Management */}
             <Route path="/admin/referral/network" element={<UsersLayout><ReferralNetwork /></UsersLayout>} />
@@ -261,6 +262,7 @@ const App = () => {
             <Route path="/admin/users/bulk" element={<UsersLayout><BulkUsers /></UsersLayout>} />
             <Route path="/admin/users/stockpoints" element={<UsersLayout><StockPointList /></UsersLayout>} />
             <Route path="/admin/users/roles" element={<UsersLayout><RolePermissions /></UsersLayout>} />
+            <Route path="/admin/users/profile/:id" element={<UnifiedMemberProfile />} />
             <Route path="/admin/users/features" element={<UsersLayout><FeatureAccessControl /></UsersLayout>} />
             <Route path="/admin/kyc/review" element={<UsersLayout><KYCReview /></UsersLayout>} />
 
@@ -323,9 +325,9 @@ const App = () => {
             <Route path="/corebody/dealers-businessmen/all-businessmen" element={<CoreBodyAllBusinessmen />} />
             <Route path="/corebody/dealers-businessmen/status" element={<StatusActiveInactive />} />
             <Route path="/corebody/dealers-businessmen/all-users" element={<CoreBodyAllUsers />} />
-            <Route path="/corebody/directory/corebody/:id" element={<CoreBodyMemberDetails />} />
-            <Route path="/corebody/directory/dealers/:id" element={<DealerDetails />} />
-            <Route path="/corebody/directory/businessmen/:id" element={<BusinessmanDetails />} />
+            <Route path="/corebody/directory/corebody/:id" element={<UnifiedMemberProfile />} />
+            <Route path="/corebody/directory/dealers/:id" element={<UnifiedMemberProfile />} />
+            <Route path="/corebody/directory/businessmen/:id" element={<UnifiedMemberProfile />} />
             <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<PerformanceSnapshot />} />
             <Route path="/corebody/orders/active" element={<ActiveOrders />} />
             <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
@@ -348,6 +350,7 @@ const App = () => {
             <Route path="/corebody/referrals/history" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><ReferralHistoryPage /></DashboardLayout>} />
 
             {/* Other Routes */}
+            <Route path="/stockpoint/*" element={<SPHDashboard />} />
             <Route path="/businessman/*" element={<BusinessmanDashboard />} />
             <Route path="*" element={<NotFound />} />
                   </Routes>

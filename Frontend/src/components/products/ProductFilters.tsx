@@ -39,6 +39,7 @@ export interface ProductFilterState {
   minPrice: string;
   maxPrice: string;
   minMargin: string;
+  channel: "all" | "B2B" | "B2C";
 }
 
 const defaultFilters: ProductFilterState = {
@@ -49,6 +50,7 @@ const defaultFilters: ProductFilterState = {
   minPrice: "",
   maxPrice: "",
   minMargin: "",
+  channel: "all",
 };
 
 export function ProductFilters({ 
@@ -66,7 +68,8 @@ export function ProductFilters({
       filters.status !== "all" ||
       filters.minPrice !== "" ||
       filters.maxPrice !== "" ||
-      filters.minMargin !== ""
+      filters.minMargin !== "" ||
+      filters.channel !== "all"
     );
   };
 
@@ -82,6 +85,7 @@ export function ProductFilters({
     if (newFilters.minPrice !== "") count++;
     if (newFilters.maxPrice !== "") count++;
     if (newFilters.minMargin !== "") count++;
+    if (newFilters.channel !== "all") count++;
     setActiveFilterCount(count);
     
     onFilterChange?.(newFilters);
@@ -233,6 +237,21 @@ export function ProductFilters({
                 className="w-full"
               />
             </div>
+            
+            {/* Channel Filter */}
+            <Select
+              value={filters.channel}
+              onValueChange={(value: "all" | "B2B" | "B2C") => handleFilterChange("channel", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Channels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Channels</SelectItem>
+                <SelectItem value="B2C">B2C Retail</SelectItem>
+                <SelectItem value="B2B">B2B Wholesale</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardContent>

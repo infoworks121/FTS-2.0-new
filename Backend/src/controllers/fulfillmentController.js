@@ -94,9 +94,8 @@ exports.updateFulfillmentStatus = async (req, res) => {
                         ELSE NULL 
                     END as user_id
              FROM fulfillment_assignments fa
-             LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_type = 'stock_point'
-             LEFT JOIN businessman_profiles bp ON sp.businessman_id = bp.id
-             LEFT JOIN users sp_u ON bp.user_id = sp_u.id
+             LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_id IS NOT NULL AND fa.fulfiller_type = 'stock_point'
+             LEFT JOIN users sp_u ON sp.user_id = sp_u.id
              LEFT JOIN dealer_profiles dp ON fa.fulfiller_id = dp.id AND fa.fulfiller_type = 'dealer'
              LEFT JOIN users d_u ON dp.user_id = d_u.id
              WHERE fa.id = $1`,

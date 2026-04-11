@@ -29,6 +29,9 @@ export default function AuthCallback() {
         case "businessman":
           navigate("/businessman");
           break;
+        case "stock_point":
+          navigate("/stockpoint");
+          break;
         case "customer":
           navigate("/");
           break;

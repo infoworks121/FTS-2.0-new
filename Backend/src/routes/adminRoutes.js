@@ -22,6 +22,7 @@ router.get('/users/businessmen/:id', protect, adminOnly, adminController.getBusi
 router.put('/users/businessmen/:id/settings', protect, adminOnly, adminController.updateBusinessmanSettings);
 router.get('/users', protect, adminOnly, adminController.getAllUsers);
 router.patch('/users/:id/is-sph', protect, adminOnly, adminController.updateUserSPHStatus);
+router.patch('/users/:id/is-active', protect, adminOnly, adminController.updateUserActiveStatus);
 
 // Alerts & Dashboards
 router.get('/low-stock-alerts', protect, adminController.getLowStockAlerts);

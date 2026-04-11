@@ -12,6 +12,7 @@ export interface ProductVariant {
   basePrice?: number;
   sellingPrice?: number;
   bulkPrice?: number;
+  minOrderQuantity?: number;
   isActive?: boolean;
 }
 
@@ -27,6 +28,7 @@ export interface Product {
   base_price: number;
   selling_price: number;
   bulk_price: number | null;
+  min_order_quantity: number;
   admin_margin_pct: number;
   profit_channel: "B2B" | "B2C";
   margin_percent: number;
@@ -56,6 +58,7 @@ export interface ProductFormData {
   basePrice: number;
   sellingPrice: number;
   bulkPrice?: number;
+  minOrderQuantity?: number;
   adminMarginPct?: number;
   profitChannel: "B2B" | "B2C";
   minMarginPercent: number;
@@ -77,6 +80,7 @@ export interface ProductPricingUpdate {
   basePrice: number;
   sellingPrice: number;
   bulkPrice?: number;
+  minOrderQuantity?: number;
   adminMarginPct?: number;  
   minMarginPercent: number;
 }

@@ -27,7 +27,8 @@ import {
   Loader2,
   AlertTriangle,
   Upload,
-  UserCheck
+  UserCheck,
+  Package
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -127,7 +128,11 @@ export default function Register() {
   }, [formData.core_body_type]);
 
   const handleBusinessmanTypeChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, businessman_type: value }));
+    if (value === "stock_point") {
+      setFormData((prev) => ({ ...prev, role_code: "stock_point", businessman_type: "stock_point" }));
+    } else {
+      setFormData((prev) => ({ ...prev, role_code: "businessman", businessman_type: value }));
+    }
   };
 
   const handleDistrictChange = async (value: string) => {
@@ -278,8 +283,8 @@ export default function Register() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
       toast({
@@ -350,9 +355,25 @@ export default function Register() {
       }
     }
 
-    // Show installment modal for Core Body A/B or Retailer A
-    if (needsInstallmentModal) {
-      setShowInstallmentModal(true);
+    // Investment Validation for CBS B
+    if (formData.core_body_type === "core_body_b") {
+      if (totalInvestment < 50000 || totalInvestment > 250000) {
+        toast({
+          title: "Invalid Investment",
+          description: "Core Body B requires investment between ₹50,000 and ₹2,50,000",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Ensure balanced installments if investment is required
+    if (needsInstallmentModal && !isCustomValid) {
+       toast({
+        title: "Investment Not Balanced",
+        description: `Please ensure the total installments match the investment amount. Difference: ₹${remaining}`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -360,19 +381,7 @@ export default function Register() {
   };
 
   const submitRegistration = async () => {
-    if (formData.core_body_type === "core_body_b") {
-      if (totalInvestment < 50000 || totalInvestment > 250000) {
-        toast({
-          title: "Invalid Investment",
-          description: "Core Body B investment must be between ₹50,000 and ₹250,000.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     setIsLoading(true);
-    setShowInstallmentModal(false);
 
     const kycDocuments = [];
     if (kycDocs.identityUrl) kycDocuments.push({ doc_type: kycDocs.identityType, doc_url: kycDocs.identityUrl, doc_number: kycDocs.identityNumber });
@@ -433,7 +442,7 @@ export default function Register() {
               <CardContent className="space-y-6 pt-6">
                 <div className="space-y-3">
                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-tight">Select Your Role</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { value: "businessman", label: "Businessman", icon: UserPlus },
                       { value: "core_body", label: "Corebody/Dealer", icon: Briefcase },
@@ -444,18 +453,18 @@ export default function Register() {
                         onClick={() => handleRoleChange(role.value)}
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-300 text-left group",
-                          formData.role_code === role.value
+                          (formData.role_code === role.value || (role.value === "businessman" && formData.role_code === "stock_point"))
                             ? "border-primary bg-primary/5 ring-2 ring-primary/5"
                             : "border-slate-100 bg-white hover:border-slate-200"
                         )}
                       >
                         <div className={cn(
                           "p-2 rounded-lg shrink-0",
-                          formData.role_code === role.value ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500"
+                          (formData.role_code === role.value || (role.value === "businessman" && formData.role_code === "stock_point")) ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500"
                         )}>
                           <role.icon className="h-4 w-4" />
                         </div>
-                        <span className={cn("text-sm font-black truncate", formData.role_code === role.value ? "text-primary" : "text-slate-900")}>{role.label}</span>
+                        <span className={cn("text-sm font-black truncate", (formData.role_code === role.value || (role.value === "businessman" && formData.role_code === "stock_point")) ? "text-primary" : "text-slate-900")}>{role.label}</span>
                       </button>
                     ))}
                   </div>
@@ -463,7 +472,7 @@ export default function Register() {
 
                 {formData.role_code && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                    {formData.role_code === "businessman" && (
+                    {(formData.role_code === "businessman" || formData.role_code === "stock_point") && (
                       <div className="space-y-1.5">
                         <Label htmlFor="businessman_type" className="text-[10px] font-bold uppercase text-slate-400">Businessman Type</Label>
                         <Select value={formData.businessman_type} onValueChange={handleBusinessmanTypeChange}>
@@ -473,10 +482,18 @@ export default function Register() {
                           <SelectContent className="rounded-lg font-medium">
                             <SelectItem value="retailer_a">Retailer A (Investment)</SelectItem>
                             <SelectItem value="retailer_b">Retailer B (Non-Investment)</SelectItem>
-                            <SelectItem value="businessman">General Businessman</SelectItem>
                             <SelectItem value="stock_point">Stock Point Partner</SelectItem>
+                            <SelectItem value="businessman">General Businessman</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                    )}
+
+                    {formData.role_code === "stock_point" && (
+                      <div className="col-span-1 md:col-span-2">
+                         <div className="p-3 rounded-xl bg-yellow-50 border border-yellow-100 text-yellow-800 text-xs font-medium">
+                            Stock Point Partners are responsible for local fulfillment and B2C marketplace operations in a specific district/subdivision.
+                         </div>
                       </div>
                     )}
 
@@ -510,7 +527,7 @@ export default function Register() {
                       </Select>
                     </div>
 
-                    {(formData.role_code === "businessman" || formData.core_body_type === "dealer") && formData.district_id && (
+                    {(formData.role_code === "businessman" || formData.role_code === "stock_point" || formData.core_body_type === "dealer") && formData.district_id && (
                       <div className="space-y-1.5 col-span-1 md:col-span-2">
                         <Label htmlFor="subdivision" className="text-[10px] font-bold uppercase text-slate-400">Subdivision / Area</Label>
                         <Select value={formData.subdivision_id} onValueChange={handleSubdivisionChange}>
@@ -939,6 +956,10 @@ export default function Register() {
         }
         return true;
       case 4:
+        // Final review should also validate balanced investment if needed
+        if (needsInstallmentModal) {
+          return isCustomValid;
+        }
         return true;
       default:
         return false;

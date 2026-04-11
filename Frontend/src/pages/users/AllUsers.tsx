@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Users, Activity, Download, Settings, ShieldCheck, User as UserIcon, Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Users, Activity, Download, Settings, ShieldCheck, User as UserIcon, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +30,7 @@ interface UserRow {
   business_type?: string;
   status: UserStatus;
   is_sph: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -42,12 +43,15 @@ interface KPIs {
 
 export default function AllUsers() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const initialSearch = params.get("search") || "";
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [kpis, setKpis] = useState<KPIs>({ total: 0, active: 0, pending: 0, sph_active: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -100,6 +104,31 @@ export default function AllUsers() {
       // Optimistic update
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_sph: !currentStatus } : u));
       toast.success(`SPH status ${!currentStatus ? 'enabled' : 'disabled'} for user`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleToggleActive = async (userId: string, currentStatus: boolean) => {
+    setTogglingId(userId);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/admin/users/${userId}/is-active`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+
+      if (!res.ok) throw new Error("Failed to update account status");
+
+      // Optimistic update
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentStatus } : u));
+      toast.success(`User account ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -179,6 +208,7 @@ export default function AllUsers() {
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground pl-6">User Name</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Role / Designation</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Verification</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground text-center">Account Status</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground text-center">SPH Status</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground text-right pr-6">Operations</TableHead>
               </TableRow>
@@ -186,7 +216,7 @@ export default function AllUsers() {
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">No matching users found in the directory</TableCell>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">No matching users found in the directory</TableCell>
                 </TableRow>
               ) : users.map((u) => (
                 <TableRow key={u.id} className="border-border hover:bg-muted/20 group h-16">
@@ -215,6 +245,19 @@ export default function AllUsers() {
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center gap-1">
                       <Switch 
+                        checked={u.is_active} 
+                        disabled={togglingId === u.id}
+                        onCheckedChange={() => handleToggleActive(u.id, u.is_active)}
+                        className="data-[state=checked]:bg-emerald-500"
+                      />
+                      <span className={`text-[9px] font-bold uppercase ${u.is_active ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {u.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <Switch 
                         checked={u.is_sph} 
                         disabled={togglingId === u.id}
                         onCheckedChange={() => handleToggleSPH(u.id, u.is_sph)}
@@ -226,6 +269,15 @@ export default function AllUsers() {
                   </TableCell>
                   <TableCell className="pr-6">
                     <div className="flex items-center justify-end gap-1">
+
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50"
+                        onClick={() => navigate(`/admin/users/profile/${u.id}`)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
 
                       <Button 
                         variant="ghost" 

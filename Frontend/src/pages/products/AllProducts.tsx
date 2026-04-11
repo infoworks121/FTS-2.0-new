@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plus,
   Download,
@@ -43,6 +43,7 @@ const PAGE_SIZE = 20;
 
 export default function AllProducts() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,8 +61,17 @@ export default function AllProducts() {
     minPrice: "",
     maxPrice: "",
     minMargin: "",
+    channel: "all",
   });
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  
+  // Set initial filters from URL params
+  useEffect(() => {
+    const channelParam = searchParams.get("channel") as "B2B" | "B2C" | null;
+    if (channelParam && (channelParam === "B2B" || channelParam === "B2C")) {
+      setFilters(prev => ({ ...prev, channel: channelParam }));
+    }
+  }, [searchParams]);
 
   // Load categories once
   useEffect(() => {
@@ -86,6 +96,7 @@ export default function AllProducts() {
         min_price: currentFilters.minPrice || undefined,
         max_price: currentFilters.maxPrice || undefined,
         min_margin: currentFilters.minMargin || undefined,
+        profit_channel: currentFilters.channel !== "all" ? currentFilters.channel : undefined,
         page: currentPage,
         limit: PAGE_SIZE,
       });
