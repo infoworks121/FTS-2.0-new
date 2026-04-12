@@ -239,37 +239,21 @@ exports.getFulfillments = async (req, res) => {
             LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_type = 'stock_point'
             LEFT JOIN businessman_profiles bp ON sp.businessman_id = bp.id
             LEFT JOIN dealer_profiles dp ON fa.fulfiller_id = dp.id AND fa.fulfiller_type = 'dealer'
-            WHERE (fa.fulfiller_type = 'stock_point' AND bp.user_id = $${user.role_code !== 'admin' ? 1 : 1})
-               OR (fa.fulfiller_type = 'dealer' AND dp.user_id = $${user.role_code !== 'admin' ? 1 : 1})
-               ${user.role_code === 'admin' ? '' : 'AND (bp.user_id = $1 OR dp.user_id = $1)'}
-               ${status ? `AND fa.status = $${user.role_code !== 'admin' ? 2 : 1}` : ''}
+            LEFT JOIN core_body_profiles cbp ON fa.fulfiller_id = cbp.id AND fa.fulfiller_type = 'core_body'
+            WHERE 
+                (fa.fulfiller_type = 'stock_point' AND (bp.user_id = $1 OR $userRole = 'admin'))
+             OR (fa.fulfiller_type = 'dealer' AND (dp.user_id = $1 OR $userRole = 'admin'))
+             OR (fa.fulfiller_type = 'core_body' AND (cbp.user_id = $1 OR $userRole = 'admin'))
+             OR (fa.fulfiller_type = 'admin' AND (fa.fulfiller_id = $1 OR $userRole = 'admin'))
+            ${status ? `AND fa.status = $${params.length + 1}` : ''}
             ORDER BY fa.assigned_at DESC
         `;
 
-        // Simplified query for clarity and reliability
-        const finalParams = [];
-        let filterStr = '';
-        if (user.role_code !== 'admin') {
-            finalParams.push(user.id);
-            filterStr += ` AND (fa.fulfiller_id IN (SELECT id FROM stock_point_profiles WHERE businessman_id IN (SELECT id FROM businessman_profiles WHERE user_id = $1)) OR fa.fulfiller_id IN (SELECT id FROM dealer_profiles WHERE user_id = $1))`;
-        }
-        if (status) {
-            finalParams.push(status);
-            filterStr += ` AND fa.status = $${finalParams.length}`;
-        }
+        // Note: Using a template-style replacement for $userRole for clarity
+        const finalQuery = query.replace(/\$userRole/g, `'${user.role_code}'`);
+        if (status) params.push(status);
 
-        const betterQuery = `
-            SELECT fa.*, 
-                   o.order_number, o.total_amount, o.created_at as order_date,
-                   u.full_name as customer_name, u.phone as customer_phone
-            FROM fulfillment_assignments fa
-            JOIN orders o ON fa.order_id = o.id
-            JOIN users u ON o.customer_id = u.id
-            WHERE 1=1 ${filterStr}
-            ORDER BY fa.assigned_at DESC
-        `;
-
-        const result = await db.query(betterQuery, finalParams);
+        const result = await db.query(finalQuery, params);
         res.json({ fulfillments: result.rows });
     } catch (error) {
         console.error('Error fetching fulfillments:', error);

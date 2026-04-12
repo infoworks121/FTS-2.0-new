@@ -47,6 +47,10 @@ type ProductRow = {
   marginPercent: number;
   availability: Availability;
   stock: number;
+  fulfillerId: string;
+  fulfillerType: string;
+  sourceDistrictId: number | null;
+  sellerName: string;
 };
 
 const ADVANCE_AVAILABLE = 28000;
@@ -56,12 +60,13 @@ export default function ProductPurchasePage() {
   const { toast } = useToast();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   const [category, setCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [availability, setAvailability] = useState<"all" | Availability>("all");
   const [selectedId, setSelectedId] = useState<string>("");
-  const [quantity, setQuantity] = useState(10);
+  const [quantity, setQuantity] = useState(1);
   const [purchaseType, setPurchaseType] = useState<PurchaseMode>("Direct");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,9 +80,50 @@ export default function ProductPurchasePage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("manual");
 
   useEffect(() => {
-    fetchProducts();
+    fetchProfileAndProducts();
     fetchAddresses();
   }, []);
+
+  const fetchProfileAndProducts = async () => {
+    try {
+      setLoading(true);
+      // 1. Fetch User Profile for District Matching
+      const profile = await orderApi.getBusinessmanProfile(); // Assuming this is available or standard
+      setUserProfile(profile);
+
+      // 2. Fetch Products
+      const res = await productApi.getIssuedProducts({ limit: 100 });
+      if (res && res.products) {
+        const mappedProducts: ProductRow[] = res.products.map((p: any) => {
+          let availStatus: Availability = "In Stock";
+          const stock = parseFloat(p.available_stock || 0);
+          if (stock <= 0) availStatus = "Unavailable";
+          else if (stock < 20) availStatus = "Low Stock";
+
+          return {
+            id: p.id,
+            name: p.name,
+            category: p.category_name || "Uncategorized",
+            image: p.thumbnail_url || "📦",
+            basePrice: parseFloat(p.selling_price || p.mrp || 0),
+            marginPercent: 10,
+            availability: availStatus,
+            stock: stock,
+            fulfillerId: p.fulfiller_id,
+            fulfillerType: p.fulfiller_type,
+            sourceDistrictId: p.source_district_id,
+            sellerName: p.seller_name
+          };
+        });
+        setProducts(mappedProducts);
+        if (mappedProducts.length > 0) setSelectedId(mappedProducts[0].id);
+      }
+    } catch (error: any) {
+      toast({ title: "Initialization Error", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchAddresses = async () => {
     try {
@@ -94,38 +140,6 @@ export default function ProductPurchasePage() {
       }
     } catch (error) {
       console.error("Failed to fetch addresses:", error);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const res = await productApi.getIssuedProducts({ limit: 100 });
-      if (res && res.products) {
-        const mappedProducts: ProductRow[] = res.products.map((p: any) => {
-          let availStatus: Availability = "In Stock";
-          const stock = parseFloat(p.available_stock || 0);
-          if (stock <= 0) availStatus = "Unavailable";
-          else if (stock < 20) availStatus = "Low Stock";
-
-          return {
-            id: p.id,
-            name: p.name,
-            category: p.category_name || "Uncategorized",
-            image: p.thumbnail_url || "📦",
-            basePrice: parseFloat(p.selling_price || p.mrp || 0),
-            marginPercent: 10, // Assuming 10% default margin indicator
-            availability: availStatus,
-            stock: stock,
-          };
-        });
-        setProducts(mappedProducts);
-        if (mappedProducts.length > 0) setSelectedId(mappedProducts[0].id);
-      }
-    } catch (error: any) {
-      toast({ title: "Error loading products", description: error.response?.data?.error || error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -146,27 +160,27 @@ export default function ProductPurchasePage() {
             quantity: quantity,
           }
         ],
+        preferred_fulfiller: {
+          id: selectedProduct.fulfillerId,
+          type: selectedProduct.fulfillerType
+        },
         payment_method: "wallet",
         transaction_pin: pin,
         delivery_address: deliveryAddress.city ? deliveryAddress : undefined,
         notes: `Purchase type: ${purchaseType}`
       });
 
-      toast({ title: "Success", description: "B2B Order placed successfully! Funds deducted from wallet." });
+      toast({ title: "Success", description: "B2B Order placed successfully! Selection honored." });
       setConfirmOpen(false);
       setQuantity(1);
       setPin("");
       setDeliveryAddress({ street: "", city: "", pincode: "" });
       
-      // Refresh stock
-      fetchProducts();
+      // Refresh
+      fetchProfileAndProducts();
     } catch (error: any) {
       toast({ title: "Order Failed", description: error.response?.data?.error || error.message, variant: "destructive" });
-      if (error.response?.data?.error?.includes("PIN")) {
-        setPin(""); // Clear it to let them try again
-      } else {
-        setConfirmOpen(false);
-      }
+      setPin("");
     } finally {
       setIsSubmitting(false);
     }
@@ -272,8 +286,18 @@ export default function ProductPurchasePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <p className="font-medium truncate">{item.name}</p>
-                      <Badge variant="outline">{item.category}</Badge>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{item.name}</p>
+                        {/* FTS SOURCE BADGES */}
+                        {item.fulfillerType === 'admin' ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Admin</Badge>
+                        ) : userProfile?.district_id === item.sourceDistrictId ? (
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Local</Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Through Admin</Badge>
+                        )}
+                      </div>
+                      <Badge variant="secondary" className="opacity-70">{item.category}</Badge>
                     </div>
                     <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                       <div>

@@ -11,12 +11,10 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Fetch Order Details & Items
+    // 1. Fetch Order Details (Lock for update)
     const orderResult = await client.query(`
-      SELECT o.id, o.order_type, o.status, o.total_profit, o.customer_id, o.district_id,
-             (CASE WHEN o.order_type = 'B2C' THEN fa.fulfiller_id ELSE NULL END) as stock_point_id
+      SELECT o.id, o.order_type, o.status, o.total_profit, o.customer_id, o.district_id
       FROM orders o
-      LEFT JOIN fulfillment_assignments fa ON fa.order_id = o.id AND fa.fulfiller_type = 'stock_point'
       WHERE o.id = $1 FOR UPDATE
     `, [orderId]);
 
@@ -25,6 +23,17 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
     }
 
     const order = orderResult.rows[0];
+
+    // 1.1 Fetch Stock Point info separately if B2C
+    if (order.order_type === 'B2C') {
+        const faResult = await client.query(`
+            SELECT fulfiller_id 
+            FROM fulfillment_assignments 
+            WHERE order_id = $1 AND fulfiller_type = 'stock_point'
+            LIMIT 1
+        `, [orderId]);
+        order.stock_point_id = faResult.rows[0]?.fulfiller_id || null;
+    }
 
     // Check if profit already distributed
     const existingLog = await client.query(
@@ -179,6 +188,11 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
 
       // Log Company Pool & Reserve
       // --- Proportional Core Body Distribution ---
+      const coreBodyShareRatio = parseFloat(rule.core_body_pool_pct === "70" ? 0.7 : 0.7); // Fallback to 70% if naming implies it
+      // Actually we use the sub-split of the pool amount. 
+      // User says: local fulfillment -> 70% core bodies. Admin fulfillment -> 70% admin.
+      // poolAmount = the total portion dedicated to this specific split.
+      
       let coreBodyShare = (poolAmount * 70) / 100;
       let reserveShare = (poolAmount * 30) / 100;
 
@@ -186,83 +200,91 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
       const totalQtyRes = await client.query(`SELECT SUM(quantity) as total FROM order_items WHERE order_id = $1`, [orderId]);
       const totalOrderQty = parseFloat(totalQtyRes.rows[0].total || 1);
 
-      // 2. Fetch all fulfillment assignments and group by district
+      // 2. Fetch all fulfillment assignments and group by Fulfiller + District
       const assignmentsRes = await client.query(
-          `SELECT source_district_id, items FROM fulfillment_assignments WHERE order_id = $1 AND status = 'delivered'`,
+          `SELECT fulfiller_type, source_district_id, items FROM fulfillment_assignments WHERE order_id = $1 AND status = 'delivered'`,
           [orderId]
       );
       
-      const districtSharesMap = new Map(); // DistrictID -> Quantity
+      const fulfillerSharesMap = new Map(); // Key: 'admin' or DistrictID -> Quantity
       
       if (assignmentsRes.rows.length > 0) {
           for (const fa of assignmentsRes.rows) {
-              const dId = fa.source_district_id || targetDistrictId; // Fallback to order district
+              const dId = fa.source_district_id || order.district_id; 
               const items = fa.items || [];
               const faQty = items.reduce((sum, i) => sum + parseFloat(i.quantity || 0), 0);
-              districtSharesMap.set(dId, (districtSharesMap.get(dId) || 0) + faQty);
+              
+              const key = fa.fulfiller_type === 'admin' ? 'admin' : dId;
+              fulfillerSharesMap.set(key, (fulfillerSharesMap.get(key) || 0) + faQty);
           }
       } else {
-          // If no assignments found (legacy or special case), assign whole profit to target district
-          districtSharesMap.set(targetDistrictId, totalOrderQty);
+          // If no assignments found, assign to order's district
+          fulfillerSharesMap.set(order.district_id, totalOrderQty);
       }
 
-      // 3. Distribute profit to each district's Core Body pool based on their quantity share
+      // 3. Distribute profit based on fulfiller bucket
       let totalDistributedToCoreBodies = 0;
+      const superAdminId = process.env.SUPER_ADMIN_USER_ID || '4ac1c3c7-39fb-4d93-97f6-2a74965776e2';
 
-      for (const [dId, dQty] of districtSharesMap.entries()) {
-          const districtRatio = dQty / totalOrderQty;
-          const districtPoolAmount = coreBodyShare * districtRatio;
+      for (const [key, dQty] of fulfillerSharesMap.entries()) {
+          const shareRatio = dQty / totalOrderQty;
+          const shareAmount = coreBodyShare * shareRatio;
 
-          if (districtPoolAmount <= 0 || !dId) continue;
+          if (shareAmount <= 0) continue;
 
-          const coreBodiesRes = await client.query(
-            `SELECT cb.id, cb.user_id, cb.type, cb.investment_amount, cb.annual_cap, cb.monthly_cap, cb.ytd_earnings, cb.mtd_earnings 
-             FROM core_body_profiles cb 
-             WHERE cb.district_id = $1 AND cb.is_active = true AND cb.type IN ('A', 'B') FOR UPDATE`,
-            [dId]
-          );
-
-          const cbMembers = coreBodiesRes.rows;
-          if (cbMembers.length > 0) {
-            const perMemberShare = districtPoolAmount / cbMembers.length;
-
-            for (const cb of cbMembers) {
-               let awardedAmount = perMemberShare;
-               let currentYtd = parseFloat(cb.ytd_earnings || 0);
-               let currentMtd = parseFloat(cb.mtd_earnings || 0);
-               let capHit = false;
-
-               // Cap check logic (Simplified for clarity here)
-               if (cb.type === 'A' && (currentYtd + perMemberShare) > parseFloat(cb.annual_cap || 2500000)) {
-                   awardedAmount = Math.max(0, parseFloat(cb.annual_cap || 2500000) - currentYtd);
-                   capHit = true;
-               } else if (cb.type === 'B' && (currentMtd + perMemberShare) > parseFloat(cb.monthly_cap || cb.investment_amount || 0)) {
-                   awardedAmount = Math.max(0, parseFloat(cb.monthly_cap || cb.investment_amount || 0) - currentMtd);
-                   capHit = true;
-               }
-
-               if (awardedAmount > 0) {
-                  await walletService.creditWallet(
-                     cb.user_id, 'main', awardedAmount, 'Inter_District_Share', orderId, 
-                     `Proportional share (${(districtRatio*100).toFixed(1)}%) from order ${orderId}`, client
-                  );
-                  totalDistributedToCoreBodies += awardedAmount;
-               }
-
-               await client.query(
-                  `UPDATE core_body_profiles SET ytd_earnings = ytd_earnings + $1, mtd_earnings = mtd_earnings + $1, updated_at = NOW() WHERE id = $2`,
-                  [awardedAmount, cb.id]
-               );
-            }
+          if (key === 'admin') {
+              // CASE: Admin Fulfillment Retention
+              // The 70% share goes directly to Super Admin wallet
+              await walletService.creditWallet(
+                 superAdminId, 'main', shareAmount, 'Admin_Fulfillment_Retention', orderId, 
+                 `Retention share (${(shareRatio*100).toFixed(1)}%) for central hub fulfillment of order ${order.order_number}`, client
+              );
           } else {
-             // No core bodies in this contributing district -> share goes to reserve
-             reserveShare += districtPoolAmount;
+              // CASE: District Fulfillment
+              const coreBodiesRes = await client.query(
+                `SELECT cb.id, cb.user_id, cb.type, cb.investment_amount, cb.annual_cap, cb.monthly_cap, cb.ytd_earnings, cb.mtd_earnings 
+                 FROM core_body_profiles cb 
+                 WHERE cb.district_id = $1 AND cb.is_active = true AND cb.type IN ('A', 'B') FOR UPDATE`,
+                [key]
+              );
+
+              const cbMembers = coreBodiesRes.rows;
+              if (cbMembers.length > 0) {
+                const perMemberShare = shareAmount / cbMembers.length;
+
+                for (const cb of cbMembers) {
+                   let awardedAmount = perMemberShare;
+                   let currentYtd = parseFloat(cb.ytd_earnings || 0);
+                   let currentMtd = parseFloat(cb.mtd_earnings || 0);
+
+                   // Simplistic Cap check 
+                   if (cb.type === 'A' && (currentYtd + perMemberShare) > parseFloat(cb.annual_cap || 2500000)) {
+                       awardedAmount = Math.max(0, parseFloat(cb.annual_cap || 2500000) - currentYtd);
+                   } else if (cb.type === 'B' && (currentMtd + perMemberShare) > parseFloat(cb.monthly_cap || cb.investment_amount || 0)) {
+                       awardedAmount = Math.max(0, parseFloat(cb.monthly_cap || cb.investment_amount || 0) - currentMtd);
+                   }
+
+                   if (awardedAmount > 0) {
+                      await walletService.creditWallet(
+                         cb.user_id, 'main', awardedAmount, 'Inter_District_Share', orderId, 
+                         `Proportional share (${(shareRatio*100).toFixed(1)}%) from district order ${order.order_number}`, client
+                      );
+                      totalDistributedToCoreBodies += awardedAmount;
+
+                      await client.query(
+                         `UPDATE core_body_profiles SET ytd_earnings = ytd_earnings + $1, mtd_earnings = mtd_earnings + $1, updated_at = NOW() WHERE id = $2`,
+                         [awardedAmount, cb.id]
+                      );
+                   }
+                }
+              } else {
+                 // No core bodies in this district -> share goes to reserve
+                 reserveShare += shareAmount;
+              }
           }
       }
       
-      coreBodyShare = totalDistributedToCoreBodies;
-
-      // Log Reserve Fund (including overflowing standard share, plus base 30% share)
+      // Log Reserve Fund
       await client.query(
         `INSERT INTO reserve_fund_log (source_type, source_ref_id, credit_amount, balance_after, note)
          VALUES ('B2B_Order', $1, $2, 
@@ -272,14 +294,11 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
       );
 
       // --- CREDIT SYSTEM WALLETS ---
-      const adminResult = await client.query(`SELECT user_id FROM admin_profiles LIMIT 1`);
-      if (adminResult.rows.length > 0) {
-        const adminUserId = adminResult.rows[0].user_id;
-
+      if (superAdminId) {
         // Credit Admin Fund
-        await walletService.creditWallet(adminUserId, 'trust', trustAmount, 'B2B_Trust', orderId, 'B2B Trust Fund Share', client);
-        await walletService.creditWallet(adminUserId, 'reserve', reserveShare, 'B2B_Reserve', orderId, 'B2B Reserve Fund Share', client);
-        await walletService.creditWallet(adminUserId, 'main', adminAmount, 'B2B_Admin', orderId, 'B2B Admin Fee', client);
+        await walletService.creditWallet(superAdminId, 'trust', trustAmount, 'B2B_Trust', orderId, 'B2B Trust Fund Share', client);
+        await walletService.creditWallet(superAdminId, 'reserve', reserveShare, 'B2B_Reserve', orderId, 'B2B Reserve Fund Share', client);
+        await walletService.creditWallet(superAdminId, 'main', adminAmount, 'B2B_Admin', orderId, 'B2B Admin Fee', client);
       }
 
     } else if (order.order_type === 'B2C') {

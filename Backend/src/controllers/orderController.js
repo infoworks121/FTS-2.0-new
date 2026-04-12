@@ -57,7 +57,10 @@ exports.createB2BOrder = async (req, res) => {
     eligibleSuppliers.push({ type: 'admin', id: null, label: 'Admin (Central)' });
 
     // 3. Process Items and Fetch Pricing
+    const { preferred_fulfiller } = req.body; // { id: string, type: 'admin'|'dealer'|'stock_point' }
+
     for (const item of items) {
+      // ... (existing pricing logic remains same)
       const { product_id, variant_id, quantity } = item;
       
       if (!product_id || !quantity || quantity <= 0) {
@@ -66,7 +69,7 @@ exports.createB2BOrder = async (req, res) => {
 
       // Fetch Pricing
       const priceResult = await client.query(
-        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, p.is_dealer_routed 
+        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, p.is_dealer_routed, p.name as product_name
          FROM product_pricing pp 
          JOIN products p ON pp.product_id = p.id
          WHERE pp.product_id = $1 AND ($2::uuid IS NULL OR pp.variant_id = $2) AND pp.is_current = true`,
@@ -93,67 +96,108 @@ exports.createB2BOrder = async (req, res) => {
         mrp: pricing.mrp,
         total_price: item_total,
         unit_profit,
-        is_dealer_routed: pricing.is_dealer_routed
+        is_dealer_routed: pricing.is_dealer_routed,
+        product_name: pricing.product_name
       });
     }
 
-    // 4. Per-Item Supplier Inventory Validation and Deduction (Split Logic)
+    // 4. Per-Item Supplier Inventory Validation and Deduction
     const assignmentsMap = new Map(); // Key: 'type_id', Value: { type, id, items: [] }
 
     for (const item of orderItemsData) {
         let requestedQty = parseFloat(item.quantity);
-        let dealerQty = 0;
-        let adminQty = requestedQty;
+        let handled = false;
 
-        // P1: Check Local Dealer for partial or full fulfillment
-        if (item.is_dealer_routed && user.subdivision_id) {
-            const dealerQuery = await client.query(
-                `SELECT dp.id as profile_id, dp.district_id
-                 FROM dealer_product_map dpm
-                 JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
-                 WHERE dpm.subdivision_id = $1 AND dpm.product_id = $2
-                 LIMIT 1`,
-                [user.subdivision_id, item.product_id]
+        // --- Case A: Strict/Preferred Fulfiller Selection (Marketplace Choice) ---
+        if (preferred_fulfiller && preferred_fulfiller.id) {
+            const invRes = await client.query(
+                `SELECT id, quantity_on_hand, quantity_reserved, entity_type, entity_id
+                 FROM inventory_balances 
+                 WHERE entity_type = $1 AND entity_id = $2 AND product_id = $3 FOR UPDATE`,
+                [preferred_fulfiller.type, preferred_fulfiller.id, item.product_id]
             );
 
-            if (dealerQuery.rows.length > 0) {
-                const dealer = dealerQuery.rows[0];
-                const invRes = await client.query(
-                    `SELECT id, quantity_on_hand, quantity_reserved 
-                     FROM inventory_balances 
-                     WHERE entity_type = 'dealer' AND entity_id = $1 AND product_id = $2 FOR UPDATE`,
-                    [dealer.profile_id, item.product_id]
+            if (invRes.rows.length > 0) {
+                const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+                if (available < requestedQty) {
+                    throw new Error(`Insufficient stock for ${item.product_name} at the selected fulfiller. Available: ${available}`);
+                }
+
+                // Reserve Stock
+                await client.query(
+                    `UPDATE inventory_balances SET quantity_reserved = quantity_reserved + $1 WHERE id = $2`,
+                    [requestedQty, invRes.rows[0].id]
                 );
 
-                if (invRes.rows.length > 0) {
-                    const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
-                    dealerQty = Math.min(requestedQty, available);
-                    adminQty = requestedQty - dealerQty;
+                // Fetch fulfiller district
+                const fulfillerUserRes = await client.query(`SELECT district_id FROM users WHERE id = $1`, [preferred_fulfiller.id]);
+                const fDistrictId = fulfillerUserRes.rows[0]?.district_id || null;
 
-                    if (dealerQty > 0) {
-                        // Reserve Dealer Stock
-                        await client.query(
-                            `UPDATE inventory_balances SET quantity_reserved = quantity_reserved + $1 WHERE id = $2`,
-                            [dealerQty, invRes.rows[0].id]
-                        );
-
-                        const key = `dealer_${dealer.profile_id}`;
-                        if (!assignmentsMap.has(key)) {
-                            assignmentsMap.set(key, { type: 'dealer', id: dealer.profile_id, district_id: dealer.district_id, items: [] });
-                        }
-                        assignmentsMap.get(key).items.push({ product_id: item.product_id, quantity: dealerQty, product_name: item.product_name });
-                    }
+                const key = `${preferred_fulfiller.type}_${preferred_fulfiller.id}`;
+                if (!assignmentsMap.has(key)) {
+                    assignmentsMap.set(key, { type: preferred_fulfiller.type, id: preferred_fulfiller.id, district_id: fDistrictId, items: [] });
                 }
+                assignmentsMap.get(key).items.push({ product_id: item.product_id, quantity: requestedQty, product_name: item.product_name });
+                handled = true;
+            } else {
+                throw new Error(`Selected fulfiller does not carry stock for ${item.product_name}`);
             }
         }
 
-        // P2: Remaining goes to Admin (Shortage)
-        if (adminQty > 0) {
-            const key = 'admin_null';
-            if (!assignmentsMap.has(key)) {
-                assignmentsMap.set(key, { type: 'admin', id: null, district_id: null, items: [], is_shortage: true });
+        // --- Case B: Automatic Routing (Legacy/No selection) ---
+        if (!handled) {
+            let dealerQty = 0;
+            let adminQty = requestedQty;
+
+            // P1: Check Local Dealer
+            if (item.is_dealer_routed && user.subdivision_id) {
+                const dealerQuery = await client.query(
+                    `SELECT dp.id as profile_id, dp.district_id
+                     FROM dealer_product_map dpm
+                     JOIN dealer_profiles dp ON dpm.dealer_id = dp.id
+                     WHERE dpm.subdivision_id = $1 AND dpm.product_id = $2
+                     LIMIT 1`,
+                    [user.subdivision_id, item.product_id]
+                );
+
+                if (dealerQuery.rows.length > 0) {
+                    const dealer = dealerQuery.rows[0];
+                    const invRes = await client.query(
+                        `SELECT id, quantity_on_hand, quantity_reserved 
+                         FROM inventory_balances 
+                         WHERE entity_type = 'dealer' AND entity_id = $1 AND product_id = $2 FOR UPDATE`,
+                        [dealer.profile_id, item.product_id]
+                    );
+
+                    if (invRes.rows.length > 0) {
+                        const available = parseFloat(invRes.rows[0].quantity_on_hand) - parseFloat(invRes.rows[0].quantity_reserved);
+                        dealerQty = Math.min(requestedQty, available);
+                        adminQty = requestedQty - dealerQty;
+
+                        if (dealerQty > 0) {
+                            await client.query(
+                                `UPDATE inventory_balances SET quantity_reserved = quantity_reserved + $1 WHERE id = $2`,
+                                [dealerQty, invRes.rows[0].id]
+                            );
+                            const key = `dealer_${dealer.profile_id}`;
+                            if (!assignmentsMap.has(key)) {
+                                assignmentsMap.set(key, { type: 'dealer', id: dealer.profile_id, district_id: dealer.district_id, items: [] });
+                            }
+                            assignmentsMap.get(key).items.push({ product_id: item.product_id, quantity: dealerQty, product_name: item.product_name });
+                        }
+                    }
+                }
             }
-            assignmentsMap.get(key).items.push({ product_id: item.product_id, quantity: adminQty, product_name: item.product_name });
+
+            // P2: Fallback to Admin
+            if (adminQty > 0) {
+                const superAdminId = process.env.SUPER_ADMIN_USER_ID || '4ac1c3c7-39fb-4d93-97f6-2a74965776e2';
+                const key = `admin_${superAdminId}`;
+                if (!assignmentsMap.has(key)) {
+                    assignmentsMap.set(key, { type: 'admin', id: superAdminId, district_id: null, items: [], is_shortage: true });
+                }
+                assignmentsMap.get(key).items.push({ product_id: item.product_id, quantity: adminQty, product_name: item.product_name });
+            }
         }
     }
 
