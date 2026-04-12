@@ -276,3 +276,49 @@ exports.getFulfillments = async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 };
+
+// Get all shortages (for Admin Shortage Dashboard)
+exports.getShortageAssignments = async (req, res) => {
+    try {
+        const query = `
+            SELECT fa.*, 
+                   o.order_number, 
+                   u.full_name as dealer_name,
+                   d.subdivision_id
+            FROM fulfillment_assignments fa
+            JOIN orders o ON fa.order_id = o.id
+            JOIN dealer_profiles d ON fa.fulfiller_id = d.id
+            JOIN users u ON d.user_id = u.id
+            WHERE fa.is_shortage_fulfillment = true AND fa.status = 'assigned'
+            ORDER BY fa.assigned_at DESC
+        `;
+        const result = await db.query(query);
+        res.json({ shortages: result.rows });
+    } catch (error) {
+        console.error('Error fetching shortages:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Get Core Bodies that have stock for a specific product (Across all districts)
+exports.getCoreBodyInventory = async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const query = `
+            SELECT ib.quantity, ib.entity_id,
+                   u.full_name as cb_name,
+                   d.name as district_name
+            FROM inventory_balances ib
+            JOIN core_body_profiles cbp ON ib.entity_id = cbp.id
+            JOIN users u ON cbp.user_id = u.id
+            JOIN districts d ON cbp.district_id = d.id
+            WHERE ib.entity_type = 'core_body' AND ib.product_id = $1 AND ib.quantity > 0
+            ORDER BY ib.quantity DESC
+        `;
+        const result = await db.query(query, [productId]);
+        res.json({ inventory: result.rows });
+    } catch (error) {
+        console.error('Error fetching CB inventory:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};

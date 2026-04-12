@@ -174,6 +174,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
     submenu: [
       { title: "All Orders", url: "/admin/orders" },
+      { title: "Shortage Resolution", url: "/admin/stock/shortages" },
       { title: "B2B Orders", url: "/admin/orders/b2b" },
       { title: "B2C Orders", url: "/admin/orders/b2c" },
       { title: "Bulk Orders", url: "/admin/orders/bulk" },

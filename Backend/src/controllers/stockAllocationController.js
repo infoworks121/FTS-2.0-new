@@ -138,11 +138,13 @@ const stockAllocationController = {
             const dealerId = dealerRes.rows[0]?.id;
 
             const res_arrivals = await pool.query(
-                `SELECT sa.*, p.name as product_name, p.thumbnail_url, u.full_name as sender_name
+                `SELECT sa.*, p.name as product_name, p.thumbnail_url, u.full_name as sender_name,
+                        o.order_number as linked_order_number
                  FROM stock_allocations sa
                  JOIN products p ON sa.product_id = p.id
                  JOIN core_body_profiles cbp ON sa.from_entity_id = cbp.id
                  JOIN users u ON cbp.user_id = u.id
+                 LEFT JOIN orders o ON sa.order_id = o.id
                  WHERE sa.to_entity_id = $1 AND sa.status = 'dispatched'
                  ORDER BY sa.dispatched_at DESC`,
                 [dealerId]
@@ -150,6 +152,53 @@ const stockAllocationController = {
             res.json({ arrivals: res_arrivals.rows });
         } catch (error) {
             res.status(500).json({ error: "Failed to fetch arrivals" });
+        }
+    },
+
+    // Admin requesting a Core Body to send stock to a Dealer (Inter-district)
+    requestDirectedDispatch: async (req, res) => {
+        const { from_core_body_id, to_dealer_id, product_id, quantity, order_id, note } = req.body;
+        if (req.user.role_code !== 'admin') {
+            return res.status(403).json({ error: "Only Admin can direct dispatches" });
+        }
+
+        try {
+            const allocationId = uuidv4();
+            await pool.query(
+                `INSERT INTO stock_allocations (
+                    id, product_id, from_entity_type, from_entity_id, 
+                    to_entity_type, to_entity_id, quantity, status, 
+                    order_id, note, is_admin_directed
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_cb_dispatch', $8, $9, true)`,
+                [allocationId, product_id, 'core_body', from_core_body_id, 'dealer', to_dealer_id, quantity, order_id, note]
+            );
+
+            res.status(201).json({ message: "Dispatch request sent to Core Body", allocation_id: allocationId });
+        } catch (error) {
+            console.error("Directed dispatch error:", error);
+            res.status(500).json({ error: "Failed to request directed dispatch" });
+        }
+    },
+
+    // Core Body fetching dispatches directed to them by Admin
+    getDirectedRequests: async (req, res) => {
+        try {
+            const coreBodyRes = await pool.query('SELECT id FROM core_body_profiles WHERE user_id = $1', [req.user.id]);
+            const cbId = coreBodyRes.rows[0]?.id;
+
+            const requests = await pool.query(
+                `SELECT sa.*, p.name as product_name, d.full_name as dealer_name, d_p.subdivision_id
+                 FROM stock_allocations sa
+                 JOIN products p ON sa.product_id = p.id
+                 JOIN dealer_profiles d_p ON sa.to_entity_id = d_p.id
+                 JOIN users d ON d_p.user_id = d.id
+                 WHERE sa.from_entity_id = $1 AND sa.status = 'pending_cb_dispatch'
+                 ORDER BY sa.created_at DESC`,
+                [cbId]
+            );
+            res.json({ requests: requests.rows });
+        } catch (error) {
+            res.status(500).json({ error: "Failed to fetch directed requests" });
         }
     }
 };

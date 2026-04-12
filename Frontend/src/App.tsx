@@ -143,6 +143,8 @@ import ReferralAbuseDetection from "./pages/risk/ReferralAbuseDetection";
 import ActionsAndFreezes from "./pages/risk/ActionsAndFreezes";
 import DemandSignals from "./pages/corebody/stock/DemandSignals";
 import PhysicalTransfer from "./pages/corebody/stock/PhysicalTransfer";
+import DirectedTasks from "./pages/corebody/stock/DirectedTasks";
+import ShortageFulfillment from "./pages/admin/stock/ShortageFulfillment";
 import StockArrivals from "./pages/dealer/StockArrivals";
 
 // Wallet & Finance Layout
@@ -226,6 +228,8 @@ const App = () => {
             <Route path="/admin/products/pricing" element={<ProductsPageLayout><ProductPricing /></ProductsPageLayout>} />
             <Route path="/admin/products/status" element={<ProductsPageLayout><ProductStatus /></ProductsPageLayout>} />
             <Route path="/admin/products/:id" element={<ProductsPageLayout><ProductDetails /></ProductsPageLayout>} />
+            <Route path="/admin/stock/shortages" element={<ShortageFulfillment />} />
+            <Route path="/corebody/stock/directed-tasks" element={<DirectedTasks />} />
 
             <Route path="/products-issued" element={<IssuedProducts />} />
             
