@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
+import { useState, useEffect } from "react";
 import { KPICard } from "@/components/KPICard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -9,169 +8,94 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CapacityBar, CoreBodyTypeBadge, StatCard } from "@/components/districts";
-import { useTheme } from "@/hooks/useTheme";
+import { useToast } from "@/components/ui/use-toast";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Package,
-  Percent,
-  MapPin,
   Users,
-  Wallet,
   ShoppingCart,
-  ShieldAlert,
-  FileText,
-  Settings,
-  TrendingUp,
   DollarSign,
-  Building2,
-  AlertTriangle,
-  BarChart3,
   ArrowLeft,
   Download,
   Calendar,
-  TrendingDown,
-  UsersRound,
-  Warehouse,
-  Receipt,
   ShieldCheck,
+  Loader2,
+  AlertTriangle,
+  Building2,
+  Phone,
+  PackageCheck,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
-
-// Sample data
-const districtInfo = {
-  id: "1",
-  name: "North Delhi",
-  state: "Delhi",
-  coreBodyCountA: 8,
-  coreBodyCountB: 12,
-  maxLimit: 20,
-  totalOrders: 2456,
-  totalRevenue: 45678000,
-  status: "active" as const,
-};
-
-// Revenue trend data
-const revenueData = [
-  { month: "Jul", b2b: 1200000, b2c: 800000 },
-  { month: "Aug", b2b: 1450000, b2c: 950000 },
-  { month: "Sep", b2b: 1680000, b2c: 1100000 },
-  { month: "Oct", b2b: 1820000, b2c: 1280000 },
-  { month: "Nov", b2b: 2100000, b2c: 1450000 },
-  { month: "Dec", b2b: 2450000, b2c: 1620000 },
-];
-
-// Orders trend data
-const ordersData = [
-  { month: "Jul", orders: 320 },
-  { month: "Aug", orders: 380 },
-  { month: "Sep", orders: 420 },
-  { month: "Oct", orders: 456 },
-  { month: "Nov", orders: 512 },
-  { month: "Dec", orders: 568 },
-];
-
-// Core body list for this district
-const coreBodyList = [
-  { id: "CB001", name: "ABC Traders", type: "A" as const, investment: 100000, earnings: 1850000, status: "active" as const, lastActive: "2026-02-18" },
-  { id: "CB002", name: "XYZ Enterprises", type: "A" as const, investment: 100000, earnings: 2120000, status: "active" as const, lastActive: "2026-02-19" },
-  { id: "CB003", name: "City Store", type: "B" as const, investment: 50000, earnings: 420000, status: "active" as const, lastActive: "2026-02-17" },
-  { id: "CB004", name: "Metro Goods", type: "B" as const, investment: 50000, earnings: 380000, status: "inactive" as const, lastActive: "2025-12-10" },
-  { id: "CB005", name: "Urban Supplies", type: "A" as const, investment: 100000, earnings: 1650000, status: "active" as const, lastActive: "2026-02-18" },
-];
-
-// Navigation items
-const navItems: NavItem[] = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Products & Categories", icon: Package, submenu: [
-    { title: "All Products", url: "/admin/products", icon: Package },
-    { title: "Add New Product", url: "/admin/products/new", icon: Package },
-    { title: "Product Pricing & Margin", url: "/admin/products/pricing", icon: DollarSign },
-    { title: "Product Status", url: "/admin/products/status", icon: TrendingUp },
-    { title: "Category List", url: "/admin/categories", icon: FileText },
-    { title: "Add / Edit Category", url: "/admin/categories/manage", icon: FileText },
-    { title: "Category Commission Rules", url: "/admin/categories/commission", icon: Percent },
-    { title: "Services & Digital Products", url: "/admin/services", icon: ShoppingCart },
-  ]},
-  { title: "Commission & Profit Engine", icon: Percent, warning: true, submenu: [
-    { title: "B2B Commission Structure", url: "/admin/commission/b2b", icon: Building2 },
-    { title: "B2C Commission Structure", url: "/admin/commission/b2c", icon: Users },
-    { title: "Referral Percentage Rules", url: "/admin/commission/referral", icon: UsersRound },
-    { title: "Profit Distribution", url: "/admin/commission/profit", icon: DollarSign },
-    { title: "Trust Fund Rules", url: "/admin/commission/trust", icon: ShieldCheck },
-    { title: "Company Share Rules", url: "/admin/commission/company", icon: Building2 },
-    { title: "Core Body Share Rules", url: "/admin/commission/corebody", icon: Users },
-    { title: "Stock Point Share Rules", url: "/admin/commission/stockpoint", icon: Warehouse },
-  ]},
-  { title: "District & Core Body", icon: MapPin, submenu: [
-    { title: "All Districts", url: "/admin/districts", icon: MapPin },
-    // { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
-    { title: "District Performance", url: "/admin/districts/performance", icon: BarChart3 },
-    { title: "Core Body List", url: "/admin/corebody", icon: Users },
-    // { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
-    // { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
-  ]},
-  { title: "Users & Roles", icon: Users, submenu: [
-    { title: "All Businessmen", url: "/admin/users/businessmen", icon: Users },
-    // { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
-    // { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
-    // { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
-    { title: "Stock Point List", url: "/admin/users/stockpoints", icon: Warehouse },
-    { title: "Role Permissions", url: "/admin/users/roles", icon: ShieldCheck },
-    { title: "Feature Access Control", url: "/admin/users/features", icon: Settings },
-  ]},
-  { title: "Wallets & Finance", icon: Wallet, warning: true, submenu: [
-    { title: "Main Wallet", url: "/admin/wallet/main", icon: DollarSign },
-    { title: "Referral Wallet", url: "/admin/wallet/referral", icon: UsersRound },
-    { title: "Trust Wallet", url: "/admin/wallet/trust", icon: ShieldCheck },
-    { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve", icon: Warehouse },
-    { title: "Withdrawal Requests", url: "/admin/wallet/withdrawals", icon: DollarSign },
-    { title: "Pending Approvals", url: "/admin/wallet/approvals", icon: AlertTriangle },
-    { title: "Approved / Rejected History", url: "/admin/wallet/history", icon: FileText },
-    { title: "TDS Configuration", url: "/admin/finance/tds", icon: Percent },
-    { title: "Processing Fee Rules", url: "/admin/finance/fees", icon: DollarSign },
-  ]},
-  { title: "Orders & Transactions", icon: ShoppingCart, submenu: [
-    { title: "All Orders", url: "/admin/orders", icon: ShoppingCart },
-    { title: "B2B Orders", url: "/admin/orders/b2b", icon: Building2 },
-    { title: "B2C Orders", url: "/admin/orders/b2c", icon: Users },
-    { title: "Bulk Orders", url: "/admin/orders/bulk", icon: Package },
-    { title: "Order Returns & Refunds", url: "/admin/orders/refunds", icon: Receipt },
-    { title: "Transaction Logs", url: "/admin/transactions", icon: FileText },
-    { title: "Ledger View", url: "/admin/ledger", icon: FileText },
-  ]},
-  { title: "Risk, Fraud & Compliance", icon: ShieldAlert, warning: true, submenu: [
-    { title: "Suspicious Transactions", url: "/admin/fraud/transactions", icon: AlertTriangle },
-    { title: "Fake Orders", url: "/admin/fraud/orders", icon: ShoppingCart },
-    { title: "Duplicate Accounts", url: "/admin/fraud/accounts", icon: Users },
-    { title: "Device Tracking Flags", url: "/admin/fraud/devices", icon: AlertTriangle },
-    { title: "PAN / Aadhaar Verification", url: "/admin/compliance/kyc", icon: ShieldCheck },
-    { title: "Cap Violation Reports", url: "/admin/compliance/cap", icon: AlertTriangle },
-    { title: "Referral Abuse Detection", url: "/admin/compliance/referral", icon: Users },
-    { title: "Actions & Freezes", url: "/admin/fraud/actions", icon: ShieldAlert },
-  ]},
-  { title: "Audit & System Logs", icon: FileText, submenu: [
-    { title: "Admin Activity Logs", url: "/admin/audit/admin", icon: FileText },
-    { title: "Financial Audit Logs", url: "/admin/audit/financial", icon: DollarSign },
-    { title: "Rule Change History", url: "/admin/audit/rules", icon: FileText },
-    { title: "Login & Access Logs", url: "/admin/audit/login", icon: ShieldCheck },
-  ]},
-  { title: "Settings", icon: Settings, submenu: [
-    { title: "Platform Settings", url: "/admin/settings/platform", icon: Settings },
-    { title: "Notification Rules", url: "/admin/settings/notifications", icon: AlertTriangle },
-    { title: "API & Integration", url: "/admin/settings/api", icon: Settings },
-    { title: "Language & Localization", url: "/admin/settings/language", icon: Settings },
-    { title: "Maintenance Mode", url: "/admin/settings/maintenance", icon: Settings },
-  ]},
-];
-
-// Colors for charts
-const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+import geographyApi, { DistrictPerformanceResponse, SubdivisionDealers } from "@/lib/geographyApi";
 
 export default function DistrictPerformance() {
-  const { theme } = useTheme();
   const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const districtId = searchParams.get("id");
+  
+  const [data, setData] = useState<DistrictPerformanceResponse | null>(null);
+  const [dealers, setDealers] = useState<SubdivisionDealers[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState("6m");
+
+  useEffect(() => {
+    async function loadPerformance() {
+      if (!districtId) {
+        setError("District ID is required");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const [perfData, dealerData] = await Promise.all([
+          geographyApi.getDistrictPerformance(districtId),
+          geographyApi.getDistrictDealers(districtId)
+        ]);
+        setData(perfData);
+        setDealers(dealerData);
+        setError(null);
+      } catch (err: any) {
+        console.error("Failed to load district performance:", err);
+        setError("Failed to load district performance data");
+        toast({
+          title: "Error",
+          description: "Could not fetch performance data for this district.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPerformance();
+  }, [districtId, toast]);
+
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">Loading Performance Metrics...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center space-y-4 text-center">
+        <div className="p-3 rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle className="h-10 w-10" />
+        </div>
+        <h2 className="text-xl font-bold">Something went wrong</h2>
+        <p className="text-muted-foreground max-w-md">{error || "Data not available"}</p>
+        <Button variant="outline" asChild>
+          <Link to="/admin/districts">Go Back to Districts</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const { districtInfo, revenueTrend, ordersTrend, coreBodies } = data;
 
   // Table columns for Core Bodies
   interface CoreBodyRow {
@@ -184,7 +108,7 @@ export default function DistrictPerformance() {
     lastActive: string;
   }
 
-  const columns = [
+  const cbColumns = [
     {
       header: "Core Body",
       accessor: (row: CoreBodyRow) => (
@@ -230,14 +154,13 @@ export default function DistrictPerformance() {
   ];
 
   // Calculate totals
-  const totalB2B = revenueData.reduce((acc, d) => acc + d.b2b, 0);
-  const totalB2C = revenueData.reduce((acc, d) => acc + d.b2c, 0);
+  const totalB2B = revenueTrend.reduce((acc, d) => acc + d.b2b, 0);
+  const totalB2C = revenueTrend.reduce((acc, d) => acc + d.b2c, 0);
   const totalRevenue = totalB2B + totalB2C;
   const trustFundContrib = totalRevenue * 0.10; // 10% trust fund
 
   return (
-    <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -252,7 +175,7 @@ export default function DistrictPerformance() {
                 <StatusBadge status={districtInfo.status} />
               </div>
               <p className="text-sm text-muted-foreground">
-                {districtInfo.state} • {districtInfo.id}
+                {districtInfo.state} • District ID: {districtInfo.id}
               </p>
             </div>
           </div>
@@ -281,17 +204,13 @@ export default function DistrictPerformance() {
           <KPICard
             title="Total Revenue"
             value={`₹${(totalRevenue / 100000).toFixed(2)}L`}
-            change="+18.5%"
-            changeType="positive"
             icon={DollarSign}
             variant="profit"
-            subtitle="YTD Performance"
+            subtitle="Current Window"
           />
           <KPICard
             title="Total Orders"
             value={(districtInfo.totalOrders ?? 0).toLocaleString()}
-            change="+12.3%"
-            changeType="positive"
             icon={ShoppingCart}
             variant="default"
             subtitle="All time"
@@ -299,17 +218,13 @@ export default function DistrictPerformance() {
           <KPICard
             title="Active Core Bodies"
             value={(districtInfo.coreBodyCountA + districtInfo.coreBodyCountB).toString()}
-            change="+2"
-            changeType="positive"
             icon={Users}
             variant="cap"
-            subtitle="Type A: 8, Type B: 12"
+            subtitle={`Type A: ${districtInfo.coreBodyCountA}, Type B: ${districtInfo.coreBodyCountB}`}
           />
           <KPICard
             title="Trust Fund Contrib."
             value={`₹${(trustFundContrib / 100000).toFixed(2)}L`}
-            change="+15.2%"
-            changeType="positive"
             icon={ShieldCheck}
             variant="trust"
             subtitle="10% of revenue"
@@ -322,7 +237,8 @@ export default function DistrictPerformance() {
             <TabsTrigger value="revenue">Revenue Analysis</TabsTrigger>
             <TabsTrigger value="orders">Orders Trend</TabsTrigger>
             <TabsTrigger value="corebodies">Core Bodies</TabsTrigger>
-            <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+            <TabsTrigger value="dealers">Dealers (Subdivision)</TabsTrigger>
+            <TabsTrigger value="heatmap">Weekly Snapshot</TabsTrigger>
           </TabsList>
 
           {/* Revenue Tab */}
@@ -336,7 +252,7 @@ export default function DistrictPerformance() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={revenueData}>
+                    <AreaChart data={revenueTrend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                       <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${(v/1000)}K`} />
@@ -366,8 +282,8 @@ export default function DistrictPerformance() {
                     <PieChart>
                       <Pie
                         data={[
-                          { name: "B2B", value: totalB2B },
-                          { name: "B2C", value: totalB2C },
+                          { name: "B2B", value: Math.max(0.1, totalB2B) },
+                          { name: "B2C", value: Math.max(0.1, totalB2C) },
                         ]}
                         cx="50%"
                         cy="50%"
@@ -382,14 +298,20 @@ export default function DistrictPerformance() {
                       <Tooltip formatter={(value: number) => `₹${(value ?? 0).toLocaleString()}`} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex justify-center gap-4 mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-purple-500" />
-                      <span className="text-xs">B2B: ₹{(totalB2B/100000).toFixed(2)}L</span>
+                  <div className="flex flex-col gap-2 mt-4">
+                    <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-purple-500" />
+                        <span>B2B Volume</span>
+                      </div>
+                      <span className="font-semibold">₹{(totalB2B/100000).toFixed(2)}L</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-blue-500" />
-                      <span className="text-xs">B2C: ₹{(totalB2C/100000).toFixed(2)}L</span>
+                    <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-blue-500" />
+                        <span>B2C Volume</span>
+                      </div>
+                      <span className="font-semibold">₹{(totalB2C/100000).toFixed(2)}L</span>
                     </div>
                   </div>
                 </CardContent>
@@ -402,11 +324,11 @@ export default function DistrictPerformance() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Orders Trend</CardTitle>
-                <CardDescription>Monthly order volume</CardDescription>
+                <CardDescription>Monthly order volume fluctuation</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={ordersData}>
+                  <BarChart data={ordersTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -430,93 +352,109 @@ export default function DistrictPerformance() {
               {/* Capacity Card */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Core Body Capacity</CardTitle>
+                  <CardTitle className="text-base">Distribution Capacity</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <CapacityBar 
-                    used={districtInfo.coreBodyCountA + districtInfo.coreBodyCountB} 
-                    max={districtInfo.maxLimit}
-                    size="lg"
-                  />
-                  <div className="mt-4 space-y-2">
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Type A</span>
-                      <span className="font-mono font-semibold">{districtInfo.coreBodyCountA}</span>
+                      <span className="text-muted-foreground uppercase text-[10px] font-bold">Total Utilization</span>
+                      <span className="font-mono font-bold">{districtInfo.coreBodyCountA + districtInfo.coreBodyCountB} / {districtInfo.maxLimit}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Type B</span>
-                      <span className="font-mono font-semibold">{districtInfo.coreBodyCountB}</span>
+                    <CapacityBar 
+                      used={districtInfo.coreBodyCountA + districtInfo.coreBodyCountB} 
+                      max={districtInfo.maxLimit}
+                      size="lg"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg border bg-card">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Type A</p>
+                      <p className="text-2xl font-bold">{districtInfo.coreBodyCountA}</p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-card">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Type B</p>
+                      <p className="text-2xl font-bold">{districtInfo.coreBodyCountB}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Alerts */}
+              {/* List */}
               <Card className="lg:col-span-3">
                 <CardHeader>
-                  <CardTitle className="text-base">Core Bodies in District</CardTitle>
-                  <CardDescription>List of all registered Core Bodies</CardDescription>
+                  <CardTitle className="text-base">Active Force Map</CardTitle>
+                  <CardDescription>Registered Core Bodies in {districtInfo.name}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <DataTable columns={columns as any} data={coreBodyList as any} />
+                  <DataTable columns={cbColumns as any} data={coreBodies as any} />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Heatmap Tab */}
-          <TabsContent value="heatmap" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">District Performance Heatmap</CardTitle>
-                <CardDescription>Comparative analysis across months</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-7 gap-2">
-                  {["Metric", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((header, i) => (
-                    <div key={i} className={i === 0 ? "text-left font-semibold" : "text-center text-xs text-muted-foreground"}>
-                      {header}
-                    </div>
-                  ))}
-                  {[
-                    { label: "Revenue", data: [2000000, 2400000, 2780000, 3100000, 3550000, 4070000], max: 5000000 },
-                    { label: "Orders", data: [320, 380, 420, 456, 512, 568], max: 600 },
-                    { label: "Core Bodies", data: [15, 16, 17, 18, 19, 20], max: 20 },
-                    { label: "Avg Order Value", data: [6250, 6315, 6619, 6798, 6933, 7165], max: 8000 },
-                  ].map((row, ri) => (
-                    <div key={`row-group-${ri}`} className="contents">
-                      <div className="font-medium text-sm py-2">{row.label}</div>
-                      {row.data.map((val, ci) => {
-                        const intensity = val / row.max;
-                        return (
-                          <div 
-                            key={`${ri}-${ci}`}
-                            className="text-center py-2 rounded text-xs font-mono"
-                            style={{ 
-                              backgroundColor: `rgba(34, 197, 94, ${intensity})`,
-                              color: intensity > 0.5 ? 'white' : 'inherit'
-                            }}
-                          >
-                            {row.label.includes("Value") ? `₹${((val ?? 0)/1000).toFixed(1)}K` : (val ?? 0).toLocaleString()}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Dealers Tab */}
+          <TabsContent value="dealers" className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+               {dealers.map((sub) => (
+                 <Card key={sub.id} className="overflow-hidden">
+                   <CardHeader className="bg-muted/30 py-4">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-lg">{sub.name}</CardTitle>
+                        </div>
+                        <Badge variant="outline" className="bg-background">
+                          {sub.dealers.length} Dealers assigned
+                        </Badge>
+                     </div>
+                   </CardHeader>
+                   <CardContent className="p-0">
+                     {sub.dealers.length > 0 ? (
+                       <div className="divide-y">
+                         {sub.dealers.map((dealer) => (
+                           <div key={dealer.id} className="p-4 flex items-center justify-between hover:bg-muted/10 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <Users className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <p className="font-semibold">{dealer.name}</p>
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {dealer.phone}</span>
+                                    <span className="flex items-center gap-1"><PackageCheck className="h-3 w-3" /> {dealer.productCount} Specializations</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <StatusBadge status={dealer.status} />
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link to={`/admin/users/corebody/${dealer.userId}/settings`}>View Profile</Link>
+                                </Button>
+                              </div>
+                           </div>
+                         ))}
+                       </div>
+                     ) : (
+                       <div className="p-8 text-center text-muted-foreground">
+                         <Users className="h-10 w-10 mx-auto opacity-20 mb-2" />
+                         <p>No dealers assigned to this subdivision</p>
+                       </div>
+                     )}
+                   </CardContent>
+                 </Card>
+               ))}
+            </div>
           </TabsContent>
         </Tabs>
 
         {/* Bottom Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard title="B2B Revenue" value={`₹${(totalB2B/100000).toFixed(1)}L`} trend="up" trendValue="+18%" />
-          <StatCard title="B2C Revenue" value={`₹${(totalB2C/100000).toFixed(1)}L`} trend="up" trendValue="+21%" />
-          <StatCard title="Avg Order Value" value="₹6,893" trend="up" trendValue="+5%" />
-          <StatCard title="Inactive Alerts" value="1" subtitle="Reactivation needed" />
+          <StatCard title="B2B Share" value={totalRevenue > 0 ? `${((totalB2B/totalRevenue)*100).toFixed(0)}%` : "0%"} trend="up" trendValue={totalB2B.toLocaleString()} />
+          <StatCard title="B2C Share" value={totalRevenue > 0 ? `${((totalB2C/totalRevenue)*100).toFixed(0)}%` : "0%"} trend="up" trendValue={totalB2C.toLocaleString()} />
+          <StatCard title="Avg Order Value" value={districtInfo.totalOrders > 0 ? `₹${(totalRevenue/districtInfo.totalOrders).toFixed(0)}` : "₹0"} />
+          <StatCard title="Slot Availability" value={(districtInfo.maxLimit - (districtInfo.coreBodyCountA + districtInfo.coreBodyCountB)).toString()} subtitle="Remaining slots" />
         </div>
       </div>
-    </DashboardLayout>
   );
 }

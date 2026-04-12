@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { productApi } from "@/lib/productApi";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -45,17 +45,16 @@ import { IMAGE_BASE_URL } from "@/lib/api";
 
 // Steps configuration
 const steps = [
-  { id: 1, title: "Basic Info", description: "Product name, SKU, category", icon: Package },
+  { id: 1, title: "Basic Info", description: "Details, Stock & Variants", icon: Package },
   { id: 2, title: "Media", description: "Thumbnail and gallery images", icon: Eye },
   { id: 3, title: "Pricing", description: "Price, cost, margin settings", icon: DollarSign },
-  { id: 4, title: "Inventory", description: "Stock and availability", icon: Tag },
-  { id: 5, title: "Variations", description: "Sizes, Weights, or Colors", icon: Layers },
-  { id: 6, title: "Review", description: "Confirm and publish", icon: Check },
+  { id: 4, title: "Review", description: "Confirm and publish", icon: Check },
 ];
 
 export default function AddNewProduct() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const editingProduct = location.state?.product as Product | undefined;
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -63,6 +62,20 @@ export default function AddNewProduct() {
   const [hasChanges, setHasChanges] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+  }, []);
+
+  const getRedirectPath = () => {
+    const basePath = window.location.pathname;
+    if (basePath.startsWith('/admin')) return "/admin/products";
+    if (basePath.startsWith('/stockpoint') || user?.is_sph) return "/stockpoint/b2c-manager/listings";
+    if (basePath.startsWith('/businessman')) return "/businessman/b2c-manager/listings";
+    return "/admin/products"; // Default
+  };
 
   useEffect(() => {
     productApi.getCategories()
@@ -89,8 +102,9 @@ export default function AddNewProduct() {
     basePrice: editingProduct?.base_price || 0,
     sellingPrice: editingProduct?.selling_price || 0,
     bulkPrice: editingProduct?.bulk_price || 0,
+    minOrderQuantity: editingProduct?.min_order_quantity || 1,
     adminMarginPct: editingProduct?.admin_margin_pct || 0,
-    profitChannel: editingProduct?.profit_channel || "B2C",
+    profitChannel: editingProduct?.profit_channel || "B2B",
     minMarginPercent: editingProduct?.min_margin_percent || 15,
     stockRequired: editingProduct?.stock_required ?? true,
     stockQuantity: editingProduct?.stock_quantity || 0,
@@ -102,6 +116,14 @@ export default function AddNewProduct() {
     imageUrls: editingProduct?.image_urls || [],
     variants: editingProduct?.variants || [], 
   });
+
+  // Handle pre-fill from URL params
+  useEffect(() => {
+    const channelParam = searchParams.get("channel");
+    if (channelParam && (channelParam === "B2B" || channelParam === "B2C") && !editingProduct) {
+      setFormData(prev => ({ ...prev, profitChannel: channelParam }));
+    }
+  }, [searchParams, editingProduct]);
 
   // Derived calculations
   const marginPercent = formData.sellingPrice > 0
@@ -129,6 +151,7 @@ export default function AddNewProduct() {
       basePrice: formData.basePrice || 0,
       sellingPrice: formData.sellingPrice || 0,
       bulkPrice: formData.bulkPrice || 0,
+      minOrderQuantity: formData.minOrderQuantity || 1,
     };
     handleInputChange("variants", [...(formData.variants || []), newVariant]);
   };
@@ -152,7 +175,7 @@ export default function AddNewProduct() {
   };
 
   const handleNext = () => {
-    if (currentStep < 6) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -168,12 +191,18 @@ export default function AddNewProduct() {
     setError(null);
     try {
       if (editingProduct?.id) {
-        await productApi.update(editingProduct.id, { ...formData, status: 'active' });
+        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'active' });
       } else {
-        await productApi.create({ ...formData, status: 'active' });
+        const isAdmin = window.location.pathname.startsWith('/admin');
+        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'active' };
+        if (isAdmin) {
+          await productApi.create(finalData);
+        } else {
+          await productApi.createSPH(finalData);
+        }
       }
       setHasChanges(false);
-      navigate("/admin/products");
+      navigate(getRedirectPath());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to publish product';
       setError(msg);
@@ -187,11 +216,17 @@ export default function AddNewProduct() {
     setError(null);
     try {
       if (editingProduct?.id) {
-        await productApi.update(editingProduct.id, { ...formData, status: 'draft' });
+        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'draft' });
       } else {
-        await productApi.create({ ...formData, status: 'draft' });
+        const isAdmin = window.location.pathname.startsWith('/admin');
+        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'draft' };
+        if (isAdmin) {
+          await productApi.create(finalData);
+        } else {
+          await productApi.createSPH(finalData);
+        }
       }
-      navigate("/admin/products");
+      navigate(getRedirectPath());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to save draft';
       setError(msg);
@@ -228,11 +263,12 @@ export default function AddNewProduct() {
       case 1:
         return formData.name && formData.sku && formData.categoryId && formData.type;
       case 2:
+        return true;
       case 3:
-        return formData.mrp > 0 && formData.basePrice >= 0 && (formData.profitChannel === 'B2B' || formData.sellingPrice > 0);
+        const isB2BValid = formData.profitChannel === 'B2B' && (formData.bulkPrice || 0) > 0;
+        const isB2CValid = formData.profitChannel === 'B2C' && (formData.sellingPrice || 0) > 0;
+        return formData.mrp > 0 && formData.basePrice >= 0 && (isB2BValid || isB2CValid);
       case 4:
-      case 5:
-      case 6:
         return true;
       default:
         return false;
@@ -244,85 +280,158 @@ export default function AddNewProduct() {
     switch (currentStep) {
       case 1:
         return (
-          <Card className="border-t-4 border-t-primary shadow-md">
-            <CardHeader className="bg-muted/30 pb-4 border-b">
-              <CardTitle className="text-lg">Basic Information</CardTitle>
-              <CardDescription>Enter the basic identification details about your product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Product Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter product name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU / Code *</Label>
-                  <Input
-                    id="sku"
-                    placeholder="e.g., WBH-001"
-                    value={formData.sku}
-                    onChange={(e) => handleInputChange("sku", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={formData.categoryId}
-                    onValueChange={(value) => handleInputChange("categoryId", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+          <div className="space-y-6">
+            <Card className="border-t-4 border-t-primary shadow-md">
+              <CardHeader className="bg-muted/30 pb-4 border-b">
+                <CardTitle className="text-lg">Basic Information</CardTitle>
+                <CardDescription>Enter the basic identification details about your product.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Product Name *</Label>
+                    <Input
+                      id="name"
+                      placeholder="Enter product name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sku">SKU / Code *</Label>
+                    <Input
+                      id="sku"
+                      placeholder="e.g., WBH-001"
+                      value={formData.sku}
+                      onChange={(e) => handleInputChange("sku", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(value) => handleInputChange("categoryId", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Product Type *</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { value: "physical", label: "Physical", icon: Package },
+                        { value: "digital", label: "Digital", icon: DollarSign },
+                        { value: "service", label: "Service", icon: Tag },
+                      ].map((type) => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => handleInputChange("type", type.value)}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all",
+                            formData.type === type.value
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <type.icon className={cn("h-6 w-6", formData.type === type.value ? "text-primary" : "text-muted-foreground")} />
+                          <span className={cn("text-sm font-medium", formData.type === type.value ? "text-primary" : "text-muted-foreground")}>{type.label}</span>
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Product Type *</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { value: "physical", label: "Physical", icon: Package },
-                      { value: "digital", label: "Digital", icon: DollarSign },
-                      { value: "service", label: "Service", icon: Tag },
-                    ].map((type) => (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => handleInputChange("type", type.value)}
-                        className={cn(
-                          "flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all",
-                          formData.type === type.value
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <type.icon className={cn("h-6 w-6", formData.type === type.value ? "text-primary" : "text-muted-foreground")} />
-                        <span className={cn("text-sm font-medium", formData.type === type.value ? "text-primary" : "text-muted-foreground")}>{type.label}</span>
-                      </button>
-                    ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-2 pt-4 border-t">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Product description..."
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  rows={4}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Product description..."
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    rows={4}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Inventory Section (Merged) */}
+            <Card className="border-t-4 border-t-orange-500 shadow-sm">
+              <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center gap-2">
+                <Tag className="h-4 w-4 text-orange-500" />
+                <CardTitle className="text-sm">Inventory & Stock Tracking</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="stockRequired" checked={formData.stockRequired} onCheckedChange={(checked) => handleInputChange("stockRequired", checked)} />
+                  <Label htmlFor="stockRequired">Track inventory for this product</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="isDealerRouted" checked={formData.is_dealer_routed} onCheckedChange={(checked) => handleInputChange("is_dealer_routed", checked)} />
+                  <div className="space-y-1">
+                    <Label htmlFor="isDealerRouted" className="font-medium">Dealer Routed Product (B2B Auto-assignment)</Label>
+                    <p className="text-[10px] text-muted-foreground">B2B orders will be auto-assigned to the nearest Dealer.</p>
+                  </div>
+                </div>
+                {formData.stockRequired && (
+                  <div className="space-y-1.5 max-w-xs pl-6">
+                    <Label className="text-xs">Initial Stock Quantity</Label>
+                    <Input className="h-8" type="number" min="0" value={formData.stockQuantity} onChange={(e) => handleInputChange("stockQuantity", parseInt(e.target.value) || 0)} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Variations Section (Merged) */}
+            <Card className="border-t-4 border-t-indigo-500 shadow-sm">
+              <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-indigo-500" />
+                  <CardTitle className="text-sm">Product Variations</CardTitle>
+                </div>
+                <Button onClick={addVariant} variant="outline" size="xs" className="gap-1 h-7 text-[10px]"><PlusCircle className="h-3 w-3" /> Add Variant</Button>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {(formData.variants || []).length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground italic text-center py-2">No variations added. Product sold as single item.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {formData.variants?.map((v, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border bg-card/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                             <Input className="h-7 max-w-[180px] font-bold text-xs" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
+                             <Button variant="ghost" size="icon" className="text-red-500 h-6 w-6" onClick={() => removeVariant(idx)}><Trash2 className="h-3 w-3" /></Button>
+                          </div>
+                          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                             <div className="space-y-1"><Label className="text-[9px] uppercase">SKU Suffix</Label><Input className="h-7 text-[10px]" value={v.sku_suffix} onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} /></div>
+                             <div className="space-y-1"><Label className="text-[9px] uppercase">Attribute</Label>
+                             <Select value={Object.keys(v.attributes)[0]} onValueChange={(val) => handleAttributeChange(idx, val, Object.values(v.attributes)[0] || "")}>
+                                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="Weight">Weight</SelectItem><SelectItem value="Size">Size</SelectItem><SelectItem value="Color">Color</SelectItem></SelectContent>
+                             </Select></div>
+                             <div className="space-y-1"><Label className="text-[9px] uppercase">Value</Label><Input className="h-7 text-[10px]" value={Object.values(v.attributes)[0]} onChange={(e) => handleAttributeChange(idx, Object.keys(v.attributes)[0], e.target.value)} /></div>
+                             <div className="space-y-1">
+                               <Label className="text-[9px] uppercase text-blue-600 font-bold">MRP ₹</Label>
+                               <Input className="h-7 text-[10px] border-blue-100" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
+                             </div>
+                             <div className="space-y-1">
+                               <Label className="text-[9px] uppercase text-emerald-600 font-bold">Selling Price ₹</Label>
+                               <Input className="h-7 text-[10px] border-emerald-100" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
+                             </div>
+                          </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         );
 
       case 2:
@@ -406,33 +515,14 @@ export default function AddNewProduct() {
               <CardDescription>Set your product pricing and margin settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
                 <div className="space-y-2">
-                  <Label htmlFor="mrp">Maximum Retail Price (MRP) ₹ *</Label>
-                  <Input id="mrp" type="number" value={formData.mrp || ""} onChange={(e) => handleInputChange("mrp", parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="basePrice">Base/Landing Price (Cost) ₹ *</Label>
-                  <Input id="basePrice" type="number" value={formData.basePrice || ""} onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sellingPrice">Selling Price (B2C) ₹ *</Label>
-                  <Input id="sellingPrice" type="number" value={formData.sellingPrice || ""} onChange={(e) => handleInputChange("sellingPrice", parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bulkPrice">Bulk Price (B2B) ₹</Label>
-                  <Input id="bulkPrice" type="number" value={formData.bulkPrice || ""} onChange={(e) => handleInputChange("bulkPrice", parseFloat(e.target.value) || 0)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="space-y-2">
-                  <Label>Channel *</Label>
+                  <Label>Target Channel *</Label>
                   <Select value={formData.profitChannel} onValueChange={(val) => handleInputChange("profitChannel", val)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="B2C">B2C Retail</SelectItem>
-                      <SelectItem value="B2B">B2B Bulk</SelectItem>
+                      <SelectItem value="B2C">B2C Retail (Primary)</SelectItem>
+                      <SelectItem value="B2B">B2B Bulk (Wholesale)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -442,98 +532,51 @@ export default function AddNewProduct() {
                 </div>
               </div>
 
-              <div className={cn("p-4 rounded-lg border mt-4", marginWarning ? "border-amber-500/30 bg-amber-500/10" : "border-green-500/30 bg-green-500/10")}>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Customer Gross Margin: <span className={cn("text-xl font-bold ml-2", marginWarning ? "text-amber-600" : "text-green-600")}>{marginPercent.toFixed(1)}%</span></p>
-                  {marginWarning && <p className="text-xs text-amber-600 font-bold">Below min {formData.minMarginPercent}%</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="basePrice">Base/Landing Price (Cost) ₹ *</Label>
+                  <Input id="basePrice" type="number" value={formData.basePrice || ""} onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)} />
+                </div>
+                
+                {formData.profitChannel === "B2C" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <Label htmlFor="sellingPrice" className="text-blue-600 font-bold">Selling Price (B2C) ₹ *</Label>
+                    <Input id="sellingPrice" type="number" className="border-blue-200 focus:ring-blue-500" value={formData.sellingPrice || ""} onChange={(e) => handleInputChange("sellingPrice", parseFloat(e.target.value) || 0)} />
+                  </div>
+                )}
+
+                {formData.profitChannel === "B2B" && (
+                  <>
+                    <div className="space-y-2 animate-in fade-in slide-in-from-right-2 duration-300">
+                      <Label htmlFor="bulkPrice" className="text-emerald-600 font-bold">Bulk Price (B2B) ₹ *</Label>
+                      <Input id="bulkPrice" type="number" className="border-emerald-200 focus:ring-emerald-500" value={formData.bulkPrice || ""} onChange={(e) => handleInputChange("bulkPrice", parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="space-y-2 animate-in fade-in slide-in-from-right-3 duration-400">
+                      <Label htmlFor="minOrderQuantity" className="text-emerald-600 font-bold">Min Order Quantity (B2B) *</Label>
+                      <Input id="minOrderQuantity" type="number" min="1" className="border-emerald-200 focus:ring-emerald-500" value={formData.minOrderQuantity || 1} onChange={(e) => handleInputChange("minOrderQuantity", parseInt(e.target.value) || 1)} />
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="mrp" className="text-slate-900 font-bold">Maximum Retail Price (MRP) ₹ *</Label>
+                  <Input id="mrp" type="number" placeholder="0.00" value={formData.mrp || ""} onChange={(e) => handleInputChange("mrp", parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
+
+              {formData.profitChannel === "B2C" && (
+                <div className={cn("p-4 rounded-lg border mt-4 animate-in zoom-in-95 duration-300", marginWarning ? "border-amber-500/30 bg-amber-500/10" : "border-green-500/30 bg-green-500/10")}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Customer Gross Margin: <span className={cn("text-xl font-bold ml-2", marginWarning ? "text-amber-600" : "text-green-600")}>{marginPercent.toFixed(1)}%</span></p>
+                    {marginWarning && <p className="text-xs text-amber-600 font-bold">Below min {formData.minMarginPercent}%</p>}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
 
       case 4:
-        return (
-          <Card className="border-t-4 border-t-orange-500 shadow-md">
-            <CardHeader className="bg-muted/30 pb-4 border-b">
-              <CardTitle className="text-lg flex items-center">
-                <Tag className="h-5 w-5 mr-2 text-orange-500" /> Inventory & Trackability
-              </CardTitle>
-              <CardDescription>Setup stock tracking for this product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 pt-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox id="stockRequired" checked={formData.stockRequired} onCheckedChange={(checked) => handleInputChange("stockRequired", checked)} />
-                <Label htmlFor="stockRequired">Track inventory for this product</Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox id="isDealerRouted" checked={formData.is_dealer_routed} onCheckedChange={(checked) => handleInputChange("is_dealer_routed", checked)} />
-                <div className="space-y-1">
-                  <Label htmlFor="isDealerRouted" className="font-medium">Dealer Routed Product (B2B Auto-assignment)</Label>
-                  <p className="text-[10px] text-muted-foreground">If checked, B2B orders for this product will be auto-assigned to the Subdivision Dealer near the buyer.</p>
-                </div>
-              </div>
-
-              {formData.stockRequired && (
-                <div className="space-y-2 max-w-xs pl-6">
-                  <Label>Initial Stock Quantity</Label>
-                  <Input type="number" min="0" value={formData.stockQuantity} onChange={(e) => handleInputChange("stockQuantity", parseInt(e.target.value) || 0)} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-
-      case 5:
-        return (
-          <Card className="border-t-4 border-t-indigo-500 shadow-md">
-            <CardHeader className="bg-muted/30 pb-4 border-b flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg flex items-center">
-                  <Layers className="h-5 w-5 mr-2 text-indigo-500" /> Product Variations
-                </CardTitle>
-                <CardDescription>Sizes, Weights, or Colors with custom pricing.</CardDescription>
-              </div>
-              <Button onClick={addVariant} variant="outline" size="sm" className="gap-2"><PlusCircle className="h-4 w-4" /> Add Variant</Button>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {(formData.variants || []).length === 0 ? (
-                <div className="text-center py-10 border-2 border-dashed rounded-xl bg-muted/10">
-                   <p className="text-sm text-muted-foreground">Product sold as a single item. Click "Add Variant" to create options.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {formData.variants?.map((v, idx) => (
-                    <div key={idx} className="p-4 rounded-xl border bg-card/50 space-y-4">
-                        <div className="flex items-center justify-between">
-                           <Input className="h-8 max-w-[240px] font-bold" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
-                           <Button variant="ghost" size="icon" className="text-red-500 h-8 w-8" onClick={() => removeVariant(idx)}><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">SKU Suffix</Label><Input className="h-8 text-xs" value={v.sku_suffix} onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} /></div>
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">Attribute</Label>
-                           <Select value={Object.keys(v.attributes)[0]} onValueChange={(val) => handleAttributeChange(idx, val, Object.values(v.attributes)[0] || "")}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="Weight">Weight</SelectItem><SelectItem value="Size">Size</SelectItem><SelectItem value="Color">Color</SelectItem></SelectContent>
-                           </Select></div>
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">Value</Label><Input className="h-8 text-xs" value={Object.values(v.attributes)[0]} onChange={(e) => handleAttributeChange(idx, Object.keys(v.attributes)[0], e.target.value)} /></div>
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">MRP ₹</Label><Input className="h-8 text-xs" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} /></div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">Base/Cost ₹</Label><Input className="h-8 text-xs" type="number" value={v.basePrice} onChange={(e) => handleVariantChange(idx, "basePrice", parseFloat(e.target.value) || 0)} /></div>
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">Selling Price ₹</Label><Input className="h-8 text-xs" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} /></div>
-                           <div className="space-y-1"><Label className="text-[10px] uppercase">Bulk (B2B) ₹</Label><Input className="h-8 text-xs" type="number" value={v.bulkPrice} onChange={(e) => handleVariantChange(idx, "bulkPrice", parseFloat(e.target.value) || 0)} /></div>
-                        </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-
-      case 6:
         return (
           <Card className="border-t-4 border-t-blue-600 shadow-md">
             <CardHeader className="bg-muted/30 pb-4 border-b">
@@ -541,9 +584,8 @@ export default function AddNewProduct() {
               <CardDescription>Final check of your product configuration.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-               <div className="p-4 rounded-lg bg-blue-50/20 border border-blue-100 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">MRP</p><p className="font-black">₹{formData.mrp.toFixed(2)}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">SELLING</p><p className="font-black text-blue-600">₹{formData.sellingPrice.toFixed(2)}</p></div>
+               <div className="p-4 rounded-lg bg-blue-50/20 border border-blue-100 grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">SELLING PRICE</p><p className="font-black text-blue-600">₹{formData.sellingPrice.toFixed(2)}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">CATEGORY</p><p className="text-xs font-bold line-clamp-1">{categories.find(c => c.id === formData.categoryId)?.name || 'N/A'}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">VARIANTS</p><p className="text-xs font-bold">{formData.variants?.length || 0} Added</p></div>
                </div>
@@ -609,9 +651,9 @@ export default function AddNewProduct() {
             )}
           </div>
           <div className="flex items-center gap-3">
-             <Button variant="outline" type="button" onClick={() => navigate("/admin/products")}>Discard</Button>
+             <Button variant="outline" type="button" onClick={() => navigate(getRedirectPath())}>Discard</Button>
              <Button variant="outline" type="button" onClick={handleSaveDraft} disabled={isSaving}><Save className="h-4 w-4 mr-2" /> Save Draft</Button>
-             {currentStep < 6 ? (
+             {currentStep < 4 ? (
                <Button type="button" onClick={handleNext} disabled={!canProceed()}>Next Step <ArrowRight className="h-4 w-4 ml-2" /></Button>
              ) : (
                <Button type="button" onClick={handleSave} disabled={!canProceed() || isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]">

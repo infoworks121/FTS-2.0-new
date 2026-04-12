@@ -9,6 +9,7 @@ export interface AdminProductFilters {
   min_price?: string;
   max_price?: string;
   min_margin?: string;
+  profit_channel?: string;
   page?: number;
   limit?: number;
 }
@@ -46,6 +47,7 @@ export const productApi = {
       admin_margin_pct: data.adminMarginPct,
       profit_channel: data.profitChannel,
       min_margin_percent: data.minMarginPercent,
+      min_order_quantity: data.minOrderQuantity || 1,
       stock_required: data.stockRequired,
       stock_quantity: data.stockQuantity ?? 0,
       is_digital: data.isDigital,
@@ -62,6 +64,7 @@ export const productApi = {
         base_price: v.basePrice,
         selling_price: v.sellingPrice,
         bulk_price: v.bulkPrice,
+        min_order_quantity: v.minOrderQuantity || 1,
         is_active: v.isActive
       })),
     };
@@ -83,6 +86,7 @@ export const productApi = {
     if (data.adminMarginPct !== undefined) payload.admin_margin_pct = data.adminMarginPct;
     if (data.profitChannel !== undefined) payload.profit_channel = data.profitChannel;
     if (data.minMarginPercent !== undefined) payload.min_margin_percent = data.minMarginPercent;
+    if (data.minOrderQuantity !== undefined) payload.min_order_quantity = data.minOrderQuantity;
     if (data.stockRequired !== undefined) payload.stock_required = data.stockRequired;
     if (data.stockQuantity !== undefined) payload.stock_quantity = data.stockQuantity;
     if (data.isDigital !== undefined) payload.is_digital = data.isDigital;
@@ -99,6 +103,7 @@ export const productApi = {
       base_price: v.basePrice,
       selling_price: v.sellingPrice,
       bulk_price: v.bulkPrice,
+      min_order_quantity: v.minOrderQuantity,
       is_active: v.isActive
     }));
     const res = await api.put(`/catalog/admin/products/${id}`, payload);
@@ -189,6 +194,33 @@ export const productApi = {
     const params = new URLSearchParams();
     if (variantId) params.append('variant_id', variantId);
     const res = await api.get(`/catalog/products/${productId}/price-history${params.toString() ? `?${params.toString()}` : ''}`);
+    return res.data;
+  },
+
+  // Create SPH product
+  createSPH: async (data: ProductFormData) => {
+    const payload = {
+      name: data.name,
+      sku: data.sku,
+      category_id: data.categoryId,
+      type: data.type,
+      cost_price: data.basePrice,
+      mrp: data.mrp,
+      retail_price: data.sellingPrice,
+      description: data.description,
+      thumbnail_url: data.thumbnailUrl,
+      image_urls: data.imageUrls,
+      stock_quantity: data.stockQuantity ?? 0,
+      variants: data.variants?.map(v => ({
+        variant_name: v.variant_name,
+        sku_suffix: v.sku_suffix,
+        attributes: v.attributes,
+        mrp: v.mrp,
+        basePrice: v.basePrice,
+        sellingPrice: v.sellingPrice,
+      })),
+    };
+    const res = await api.post('/sph/products/custom', payload);
     return res.data;
   },
 };

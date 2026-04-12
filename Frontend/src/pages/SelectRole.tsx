@@ -58,6 +58,9 @@ export default function SelectRole() {
         case "businessman":
           navigate("/businessman");
           break;
+        case "stock_point":
+          navigate("/stockpoint");
+          break;
         case "customer":
           navigate("/");
           break;
@@ -100,6 +103,7 @@ export default function SelectRole() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="businessman">Businessman</SelectItem>
+                <SelectItem value="stock_point">Stock Point Partner</SelectItem>
                 <SelectItem value="core_body">Core Body / Dealer</SelectItem>
               </SelectContent>
             </Select>

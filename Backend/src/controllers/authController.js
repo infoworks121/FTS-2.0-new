@@ -152,6 +152,7 @@ const register = async (req, res) => {
             }
         }
 
+
         // Create dealer profile if role is dealer
         if (role_code === 'dealer') {
             const { category_id } = req.body;
@@ -193,6 +194,14 @@ const register = async (req, res) => {
                     );
                 }
             }
+        }
+        
+        // Create stock_point profile if role is stock_point
+        if (role_code === 'stock_point') {
+            await client.query(
+                'INSERT INTO stock_point_profiles (user_id, district_id, subdivision_id) VALUES ($1, $2, $3)',
+                [user.id, final_district_id, final_subdivision_id]
+            );
         }
 
         // Initialize 'main' wallet for every new user
@@ -348,6 +357,8 @@ const login = async (req, res) => {
         } else if (user.role_code.startsWith('core_body')) {
             const cProfile = await db.query('SELECT type FROM core_body_profiles WHERE user_id = $1', [user.id]);
             if (cProfile.rows.length > 0) core_body_type = cProfile.rows[0].type;
+        } else if (user.role_code === 'stock_point') {
+            // No extra subtype needed currently
         }
 
         await db.query(
@@ -365,6 +376,7 @@ const login = async (req, res) => {
                 role_code: user.role_code,
                 businessman_type,
                 core_body_type,
+                is_sph: user.is_sph,
                 has_transaction_pin,
             },
             token,

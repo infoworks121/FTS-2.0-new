@@ -93,13 +93,22 @@ export const sidebarNavItems: SidebarNavItem[] = [
     ],
   },
   {
+    title: "B2C Manager",
+    icon: ShoppingCart,
+    requiredRole: "admin",
+    submenu: [
+      { title: "B2C Orders", url: "/admin/orders/b2c" },
+      { title: "Add B2C Product", url: "/admin/products/new?channel=B2C" },
+      { title: "B2C Commission Structure", url: "/admin/commission/b2c" },
+    ],
+  },
+  {
     title: "Commission & Profit Engine",
     icon: Percent,
     warning: true,
     requiredRole: "admin",
     submenu: [
       { title: "B2B Commission Structure", url: "/admin/commission/b2b" },
-      { title: "B2C Commission Structure", url: "/admin/commission/b2c" },
       { title: "Referral Percentage Rules", url: "/admin/commission/referral" },
       { title: "Profit Distribution", url: "/admin/commission/profit" },
       { title: "Trust Fund Rules", url: "/admin/commission/trust" },
@@ -176,7 +185,6 @@ export const sidebarNavItems: SidebarNavItem[] = [
       { title: "All Orders", url: "/admin/orders" },
       { title: "Shortage Resolution", url: "/admin/stock/shortages" },
       { title: "B2B Orders", url: "/admin/orders/b2b" },
-      { title: "B2C Orders", url: "/admin/orders/b2c" },
       { title: "Bulk Orders", url: "/admin/orders/bulk" },
       { title: "Order Returns & Refunds", url: "/admin/orders/refunds" },
     ],

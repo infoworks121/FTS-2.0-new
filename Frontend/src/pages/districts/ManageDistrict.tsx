@@ -1,182 +1,156 @@
-import { useState } from "react";
-import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { CapacityBar } from "@/components/districts";
-import { useTheme } from "@/hooks/useTheme";
-import { Link, useSearchParams } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Package,
-  Percent,
   MapPin,
-  Users,
-  Wallet,
-  ShoppingCart,
-  ShieldAlert,
-  FileText,
-  Settings,
-  TrendingUp,
-  DollarSign,
-  Building2,
-  AlertTriangle,
-  BarChart3,
   Plus,
   Save,
   ArrowLeft,
   AlertCircle,
   Info,
-  UsersRound,
-  Warehouse,
-  Receipt,
-  ShieldCheck,
+  Loader2,
 } from "lucide-react";
-
-// Navigation items (same as AllDistricts)
-const navItems: NavItem[] = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Products & Categories", icon: Package, submenu: [
-    { title: "All Products", url: "/admin/products", icon: Package },
-    { title: "Add New Product", url: "/admin/products/new", icon: Package },
-    { title: "Product Pricing & Margin", url: "/admin/products/pricing", icon: DollarSign },
-    { title: "Product Status", url: "/admin/products/status", icon: TrendingUp },
-    { title: "Category List", url: "/admin/categories", icon: FileText },
-    { title: "Add / Edit Category", url: "/admin/categories/manage", icon: FileText },
-    { title: "Category Commission Rules", url: "/admin/categories/commission", icon: Percent },
-    { title: "Services & Digital Products", url: "/admin/services", icon: ShoppingCart },
-  ]},
-  { title: "Commission & Profit Engine", icon: Percent, warning: true, submenu: [
-    { title: "B2B Commission Structure", url: "/admin/commission/b2b", icon: Building2 },
-    { title: "B2C Commission Structure", url: "/admin/commission/b2c", icon: Users },
-    { title: "Referral Percentage Rules", url: "/admin/commission/referral", icon: UsersRound },
-    { title: "Profit Distribution", url: "/admin/commission/profit", icon: DollarSign },
-    { title: "Trust Fund Rules", url: "/admin/commission/trust", icon: ShieldCheck },
-    { title: "Company Share Rules", url: "/admin/commission/company", icon: Building2 },
-    { title: "Core Body Share Rules", url: "/admin/commission/corebody", icon: Users },
-    { title: "Stock Point Share Rules", url: "/admin/commission/stockpoint", icon: Warehouse },
-  ]},
-  { title: "District & Core Body", icon: MapPin, submenu: [
-    { title: "All Districts", url: "/admin/districts", icon: MapPin },
-    // { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
-    { title: "District Performance", url: "/admin/districts/performance", icon: BarChart3 },
-    { title: "Core Body List", url: "/admin/corebody", icon: Users },
-    // { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
-    // { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
-  ]},
-  { title: "Users & Roles", icon: Users, submenu: [
-    { title: "All Businessmen", url: "/admin/users/businessmen", icon: Users },
-    // { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
-    // { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
-    // { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
-    { title: "Stock Point List", url: "/admin/users/stockpoints", icon: Warehouse },
-    { title: "Role Permissions", url: "/admin/users/roles", icon: ShieldCheck },
-    { title: "Feature Access Control", url: "/admin/users/features", icon: Settings },
-  ]},
-  { title: "Wallets & Finance", icon: Wallet, warning: true, submenu: [
-    { title: "Main Wallet", url: "/admin/wallet/main", icon: DollarSign },
-    { title: "Referral Wallet", url: "/admin/wallet/referral", icon: UsersRound },
-    { title: "Trust Wallet", url: "/admin/wallet/trust", icon: ShieldCheck },
-    { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve", icon: Warehouse },
-    { title: "Withdrawal Requests", url: "/admin/wallet/withdrawals", icon: DollarSign },
-    { title: "Pending Approvals", url: "/admin/wallet/approvals", icon: AlertTriangle },
-    { title: "Approved / Rejected History", url: "/admin/wallet/history", icon: FileText },
-    { title: "TDS Configuration", url: "/admin/finance/tds", icon: Percent },
-    { title: "Processing Fee Rules", url: "/admin/finance/fees", icon: DollarSign },
-  ]},
-  { title: "Orders & Transactions", icon: ShoppingCart, submenu: [
-    { title: "All Orders", url: "/admin/orders", icon: ShoppingCart },
-    { title: "B2B Orders", url: "/admin/orders/b2b", icon: Building2 },
-    { title: "B2C Orders", url: "/admin/orders/b2c", icon: Users },
-    { title: "Bulk Orders", url: "/admin/orders/bulk", icon: Package },
-    { title: "Order Returns & Refunds", url: "/admin/orders/refunds", icon: Receipt },
-    { title: "Transaction Logs", url: "/admin/transactions", icon: FileText },
-    { title: "Ledger View", url: "/admin/ledger", icon: FileText },
-  ]},
-  { title: "Risk, Fraud & Compliance", icon: ShieldAlert, warning: true, submenu: [
-    { title: "Suspicious Transactions", url: "/admin/fraud/transactions", icon: AlertTriangle },
-    { title: "Fake Orders", url: "/admin/fraud/orders", icon: ShoppingCart },
-    { title: "Duplicate Accounts", url: "/admin/fraud/accounts", icon: Users },
-    { title: "Device Tracking Flags", url: "/admin/fraud/devices", icon: AlertTriangle },
-    { title: "PAN / Aadhaar Verification", url: "/admin/compliance/kyc", icon: ShieldCheck },
-    { title: "Cap Violation Reports", url: "/admin/compliance/cap", icon: AlertTriangle },
-    { title: "Referral Abuse Detection", url: "/admin/compliance/referral", icon: Users },
-    { title: "Actions & Freezes", url: "/admin/fraud/actions", icon: ShieldAlert },
-  ]},
-  { title: "Audit & System Logs", icon: FileText, submenu: [
-    { title: "Admin Activity Logs", url: "/admin/audit/admin", icon: FileText },
-    { title: "Financial Audit Logs", url: "/admin/audit/financial", icon: DollarSign },
-    { title: "Rule Change History", url: "/admin/audit/rules", icon: FileText },
-    { title: "Login & Access Logs", url: "/admin/audit/login", icon: ShieldCheck },
-  ]},
-  { title: "Settings", icon: Settings, submenu: [
-    { title: "Platform Settings", url: "/admin/settings/platform", icon: Settings },
-    { title: "Notification Rules", url: "/admin/settings/notifications", icon: AlertTriangle },
-    { title: "API & Integration", url: "/admin/settings/api", icon: Settings },
-    { title: "Language & Localization", url: "/admin/settings/language", icon: Settings },
-    { title: "Maintenance Mode", url: "/admin/settings/maintenance", icon: Settings },
-  ]},
-];
-
-// Sample existing district data (for edit mode)
-const existingDistricts = [
-  { id: "1", name: "North Delhi", code: "ND", state: "Delhi", status: "active" },
-  { id: "2", name: "South Mumbai", code: "SM", state: "Maharashtra", status: "active" },
-];
+import geographyApi, { State } from "@/lib/geographyApi";
 
 export default function ManageDistrict() {
-  const { theme } = useTheme();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const editId = searchParams.get("id");
   const isEditMode = !!editId;
 
   // Form state
   const [formData, setFormData] = useState({
-    name: isEditMode ? "North Delhi" : "",
-    state: isEditMode ? "Delhi" : "",
-    code: isEditMode ? "ND" : "",
-    isActive: isEditMode ? true : false,
-    isActive: isEditMode ? true : false,
-    notes: isEditMode ? "Primary district in Delhi NCR region" : "",
+    name: "",
+    state_id: "",
+    code: "",
+    isActive: true,
+    max_core_body: 20,
+    notes: "",
   });
 
-  const [subdivisions, setSubdivisions] = useState<{id: string, name: string, is_active: boolean}[]>([
-    { id: "1", name: "Connaught Place Region", is_active: true },
-    { id: "2", name: "Karol Bagh Zone", is_active: true }
-  ]);
-  const [newSubdivision, setNewSubdivision] = useState("");
-
-  const handleAddSubdivision = () => {
-    if (!newSubdivision.trim()) return;
-    setSubdivisions([...subdivisions, { id: Date.now().toString(), name: newSubdivision, is_active: true }]);
-    setNewSubdivision("");
-  };
-
+  const [states, setStates] = useState<State[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  // Check for duplicate district
-  const isDuplicate = existingDistricts.some(
-    d => d.name.toLowerCase() === formData.name.toLowerCase() && d.id !== editId
-  );
+  const [subdivisions, setSubdivisions] = useState<{id: string, name: string, is_active: boolean}[]>([]);
+  const [newSubdivision, setNewSubdivision] = useState("");
 
-  // Max limit is locked at 20
-  const MAX_CORE_BODY_LIMIT = 20;
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch states
+        const statesData = await geographyApi.getStates();
+        setStates(statesData);
 
-  const handleSave = () => {
-    setShowConfirmDialog(false);
-    // Save logic would go here
-    console.log("Saving district:", formData);
+        if (isEditMode) {
+          // Fetch district details
+          const district = await geographyApi.getDistrict(editId!);
+          setFormData({
+            name: district.name,
+            state_id: district.state_id?.toString() || "",
+            code: district.code || "",
+            isActive: district.is_active,
+            max_core_body: district.max_limit || 20,
+            notes: "", // Notes are not yet supported in DB but could be added to extra JSON if needed
+          });
+
+          // Fetch subdivisions
+          const subs = await geographyApi.getSubdivisionsByDistrict(editId!);
+          setSubdivisions(subs);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.error || "Failed to fetch data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [editId, isEditMode, toast]);
+
+  const handleAddSubdivision = async () => {
+    if (!newSubdivision.trim() || !editId) return;
+    try {
+      // Logic for adding subdivision would go through another API call if implemented
+      // For now, we update local state but in a real app this should call geographyApi.createSubdivision
+      setSubdivisions([...subdivisions, { id: Date.now().toString(), name: newSubdivision, is_active: true }]);
+      setNewSubdivision("");
+    } catch (error) {
+      console.error("Failed to add subdivision:", error);
+    }
   };
 
+  const handleSave = async () => {
+    setShowConfirmDialog(false);
+    setIsSaving(true);
+    try {
+      if (isEditMode) {
+        await geographyApi.updateDistrict(editId!, {
+          name: formData.name,
+          code: formData.code,
+          is_active: formData.isActive,
+          max_core_body: formData.max_core_body,
+          state_id: parseInt(formData.state_id)
+        });
+        toast({
+          title: "Success",
+          description: "District updated successfully",
+        });
+      } else {
+        await geographyApi.createDistrict({
+          name: formData.name,
+          code: formData.code,
+          state_id: parseInt(formData.state_id),
+          isActive: formData.isActive,
+          max_core_body: formData.max_core_body
+        });
+        toast({
+          title: "Success",
+          description: "District created successfully",
+        });
+      }
+      navigate("/admin/districts");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to save district",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const selectedStateName = states.find(s => s.id.toString() === formData.state_id)?.name || "";
+
   return (
-    <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -215,12 +189,6 @@ export default function ManageDistrict() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
-                    {isDuplicate && (
-                      <p className="text-xs text-destructive flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        District with this name already exists
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="code">District Code <span className="text-destructive">*</span></Label>
@@ -237,19 +205,25 @@ export default function ManageDistrict() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="state">State <span className="text-destructive">*</span></Label>
-                    <Input
-                      id="state"
-                      placeholder="e.g., Delhi"
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    />
+                    <Select value={formData.state_id} onValueChange={(val) => setFormData({ ...formData, state_id: val })}>
+                      <SelectTrigger id="state">
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {states.map((state) => (
+                          <SelectItem key={state.id} value={state.id.toString()}>
+                            {state.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="limit">Max Core Body Limit</Label>
                     <div className="relative">
                       <Input
                         id="limit"
-                        value={MAX_CORE_BODY_LIMIT}
+                        value={formData.max_core_body}
                         disabled
                         className="bg-muted cursor-not-allowed"
                       />
@@ -339,13 +313,15 @@ export default function ManageDistrict() {
               <Button variant="outline" asChild>
                 <Link to="/admin/districts">Cancel</Link>
               </Button>
+              <Button 
+                disabled={!formData.name || !formData.state_id || !formData.code || isSaving}
+                onClick={() => setShowConfirmDialog(true)}
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                {isEditMode ? "Update District" : "Create District"}
+              </Button>
+
               <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-                <AlertDialogTrigger asChild>
-                  <Button disabled={!formData.name || !formData.state || !formData.code || isDuplicate}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {isEditMode ? "Update District" : "Create District"}
-                  </Button>
-                </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Confirm {isEditMode ? "Update" : "Creation"}</AlertDialogTitle>
@@ -353,7 +329,7 @@ export default function ManageDistrict() {
                       {isEditMode ? (
                         <>You are about to update the district <strong>{formData.name}</strong>. This action will be logged.</>
                       ) : (
-                        <>You are about to create a new district <strong>{formData.name}</strong> in {formData.state}. Core Bodies can register once activated.</>
+                        <>You are about to create a new district <strong>{formData.name}</strong> in {selectedStateName}. Core Bodies can register once activated.</>
                       )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -387,48 +363,17 @@ export default function ManageDistrict() {
                   <div className="space-y-1">
                     <p className="font-semibold text-card-foreground">{formData.name || "District Name"}</p>
                     <p className="text-sm text-muted-foreground">
-                      {formData.state || "State"} • {formData.code || "CODE"}
+                      {selectedStateName || "State"} • {formData.code || "CODE"}
                     </p>
                   </div>
                   <Separator />
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">Capacity</p>
-                    <CapacityBar used={0} max={MAX_CORE_BODY_LIMIT} showLabel={true} size="sm" />
+                    <CapacityBar used={0} max={formData.max_core_body} showLabel={true} size="sm" />
                   </div>
                 </div>
               </CardContent>
             </Card>
-
-            {/* Edit History (for edit mode) */}
-            {isEditMode && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Edit History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3 text-sm">
-                      <div className="mt-1">
-                        <div className="h-2 w-2 rounded-full bg-profit" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Activated</p>
-                        <p className="text-xs text-muted-foreground">2025-08-15 10:30 by Admin</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 text-sm">
-                      <div className="mt-1">
-                        <div className="h-2 w-2 rounded-full bg-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Created</p>
-                        <p className="text-xs text-muted-foreground">2025-06-01 09:00 by Admin</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Activation Impact Warning */}
             <Card className={formData.isActive ? "border-warning/30" : ""}>
@@ -463,6 +408,5 @@ export default function ManageDistrict() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   );
 }

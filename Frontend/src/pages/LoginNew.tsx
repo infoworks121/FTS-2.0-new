@@ -64,10 +64,13 @@ export default function LoginNew() {
         case "core_body_a":
         case "core_body_b":
         case "dealer":
-          navigate("/dealer", { replace: true });
+          navigate("/corebody", { replace: true });
           break;
         case "businessman":
           navigate("/businessman", { replace: true });
+          break;
+        case "stock_point":
+          navigate("/stockpoint", { replace: true });
           break;
         case "customer":
           navigate("/", { replace: true });

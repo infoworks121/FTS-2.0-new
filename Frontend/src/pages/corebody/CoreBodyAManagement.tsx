@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
 import { KPICard } from "@/components/KPICard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -41,90 +40,6 @@ import {
   Loader2,
 } from "lucide-react";
 
-// Navigation items (kept for layout consistency)
-const navItems: NavItem[] = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Products & Categories", icon: Package, submenu: [
-    { title: "All Products", url: "/admin/products", icon: Package },
-    { title: "Add New Product", url: "/admin/products/new", icon: Package },
-    { title: "Product Pricing & Margin", url: "/admin/products/pricing", icon: DollarSign },
-    { title: "Product Status", url: "/admin/products/status", icon: TrendingUp },
-    { title: "Category List", url: "/admin/categories", icon: FileText },
-    { title: "Add / Edit Category", url: "/admin/categories/manage", icon: FileText },
-    { title: "Category Commission Rules", url: "/admin/categories/commission", icon: Percent },
-    { title: "Services & Digital Products", url: "/admin/services", icon: ShoppingCart },
-  ]},
-  { title: "Commission & Profit Engine", icon: Percent, warning: true, submenu: [
-    { title: "B2B Commission Structure", url: "/admin/commission/b2b", icon: Building2 },
-    { title: "B2C Commission Structure", url: "/admin/commission/b2c", icon: Users },
-    { title: "Referral Percentage Rules", url: "/admin/commission/referral", icon: UsersRound },
-    { title: "Profit Distribution", url: "/admin/commission/profit", icon: DollarSign },
-    { title: "Trust Fund Rules", url: "/admin/commission/trust", icon: ShieldCheck },
-    { title: "Company Share Rules", url: "/admin/commission/company", icon: Building2 },
-    { title: "Core Body Share Rules", url: "/admin/commission/corebody", icon: Users },
-    { title: "Stock Point Share Rules", url: "/admin/commission/stockpoint", icon: Warehouse },
-  ]},
-  { title: "District & Core Body", icon: MapPin, submenu: [
-    { title: "All Districts", url: "/admin/districts", icon: MapPin },
-    // { title: "Add / Edit District", url: "/admin/districts/manage", icon: MapPin },
-    { title: "District Performance", url: "/admin/districts/performance", icon: BarChart3 },
-    { title: "Core Body List", url: "/admin/corebody", icon: Users },
-    // { title: "Core Body A Management", url: "/admin/corebody/a", icon: Users },
-    // { title: "Core Body B Management", url: "/admin/corebody/b", icon: Users },
-  ]},
-  { title: "Users & Roles", icon: Users, submenu: [
-    { title: "All Businessmen", url: "/admin/users/businessmen", icon: Users },
-    // { title: "Entry Mode Users", url: "/admin/users/entry", icon: Users },
-    // { title: "Advance Mode Users", url: "/admin/users/advance", icon: Users },
-    // { title: "Bulk Users", url: "/admin/users/bulk", icon: Users },
-    { title: "Stock Point List", url: "/admin/users/stockpoints", icon: Warehouse },
-    { title: "Role Permissions", url: "/admin/users/roles", icon: ShieldCheck },
-    { title: "Feature Access Control", url: "/admin/users/features", icon: Settings },
-  ]},
-  { title: "Wallets & Finance", icon: Wallet, warning: true, submenu: [
-    { title: "Main Wallet", url: "/admin/wallet/main", icon: DollarSign },
-    { title: "Referral Wallet", url: "/admin/wallet/referral", icon: UsersRound },
-    { title: "Trust Wallet", url: "/admin/wallet/trust", icon: ShieldCheck },
-    { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve", icon: Warehouse },
-    { title: "Withdrawal Requests", url: "/admin/wallet/withdrawals", icon: DollarSign },
-    { title: "Pending Approvals", url: "/admin/wallet/approvals", icon: AlertTriangle },
-    { title: "Approved / Rejected History", url: "/admin/wallet/history", icon: FileText },
-    { title: "TDS Configuration", url: "/admin/finance/tds", icon: Percent },
-    { title: "Processing Fee Rules", url: "/admin/finance/fees", icon: DollarSign },
-  ]},
-  { title: "Orders & Transactions", icon: ShoppingCart, submenu: [
-    { title: "All Orders", url: "/admin/orders", icon: ShoppingCart },
-    { title: "B2B Orders", url: "/admin/orders/b2b", icon: Building2 },
-    { title: "B2C Orders", url: "/admin/orders/b2c", icon: Users },
-    { title: "Bulk Orders", url: "/admin/orders/bulk", icon: Package },
-    { title: "Order Returns & Refunds", url: "/admin/orders/refunds", icon: Receipt },
-    { title: "Transaction Logs", url: "/admin/transactions", icon: FileText },
-    { title: "Ledger View", url: "/admin/ledger", icon: FileText },
-  ]},
-  { title: "Risk, Fraud & Compliance", icon: ShieldAlert, warning: true, submenu: [
-    { title: "Suspicious Transactions", url: "/admin/fraud/transactions", icon: AlertTriangle },
-    { title: "Fake Orders", url: "/admin/fraud/orders", icon: ShoppingCart },
-    { title: "Duplicate Accounts", url: "/admin/fraud/accounts", icon: Users },
-    { title: "Device Tracking Flags", url: "/admin/fraud/devices", icon: AlertTriangle },
-    { title: "PAN / Aadhaar Verification", url: "/admin/compliance/kyc", icon: ShieldCheck },
-    { title: "Cap Violation Reports", url: "/admin/compliance/cap", icon: AlertTriangle },
-    { title: "Referral Abuse Detection", url: "/admin/compliance/referral", icon: Users },
-    { title: "Actions & Freezes", url: "/admin/fraud/actions", icon: ShieldAlert },
-  ]},
-  { title: "Audit & System Logs", icon: FileText, submenu: [
-    { title: "Admin Activity Logs", url: "/admin/audit/admin", icon: FileText },
-    { title: "Financial Audit Logs", url: "/admin/audit/financial", icon: DollarSign },
-    { title: "Rule Change History", url: "/admin/audit/rules", icon: FileText },
-    { title: "Login & Access Logs", url: "/admin/audit/login", icon: ShieldCheck },
-  ]},
-  { title: "Settings", icon: Settings, submenu: [
-    { title: "Platform Settings", url: "/admin/settings/platform", icon: Settings },
-    { title: "Notification Rules", url: "/admin/settings/notifications", icon: AlertTriangle },
-    { title: "API & Integration", url: "/admin/settings/api", icon: Settings },
-    { title: "Language & Localization", url: "/admin/settings/language", icon: Settings },
-    { title: "Maintenance Mode", url: "/admin/settings/maintenance", icon: Settings },
-  ]},
-];
 
 export default function CoreBodyAManagement() {
   const { theme } = useTheme();
@@ -162,29 +77,25 @@ export default function CoreBodyAManagement() {
 
   if (loading) {
     return (
-      <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
-        <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground animate-pulse">Loading Core Body Profile...</p>
-        </div>
-      </DashboardLayout>
+      <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">Loading Core Body Profile...</p>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
-        <div className="h-[60vh] flex flex-col items-center justify-center space-y-4 text-center">
-          <AlertTriangle className="h-12 w-12 text-destructive" />
-          <div>
-            <h2 className="text-xl font-bold">Data Access Error</h2>
-            <p className="text-muted-foreground">{error || "Core Body not found."}</p>
-          </div>
-          <Button variant="outline" asChild>
-            <Link to="/admin/corebody">Back to List</Link>
-          </Button>
+      <div className="h-[60vh] flex flex-col items-center justify-center space-y-4 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive" />
+        <div>
+          <h2 className="text-xl font-bold">Data Access Error</h2>
+          <p className="text-muted-foreground">{error || "Core Body not found."}</p>
         </div>
-      </DashboardLayout>
+        <Button variant="outline" asChild>
+          <Link to="/admin/corebody">Back to List</Link>
+        </Button>
+      </div>
     );
   }
 
@@ -194,8 +105,7 @@ export default function CoreBodyAManagement() {
   const paidInstallments = profile.installments.filter(i => i.paid_date).length;
 
   return (
-    <DashboardLayout navItems={navItems} role="admin" roleLabel="Administrator">
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -459,6 +369,5 @@ export default function CoreBodyAManagement() {
           <StatCard title="Hub Status" value={profile.is_active ? "Healthy" : "Suspended"} />
         </div>
       </div>
-    </DashboardLayout>
   );
 }

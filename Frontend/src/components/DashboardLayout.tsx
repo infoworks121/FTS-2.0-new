@@ -46,7 +46,7 @@ import { CartSheet } from "./cart/CartSheet";
 import { walletApi } from "@/lib/walletApi";
 import { adminApi } from "@/lib/adminApi";
 
-export type UserRole = "admin" | "corebody" | "businessman" | "dealer";
+export type UserRole = "admin" | "corebody" | "businessman" | "dealer" | "stock_point";
 
 interface NavItem {
   title: string;
@@ -76,6 +76,7 @@ const roleIcons: Record<UserRole, LucideIcon> = {
   corebody: Building2,
   businessman: Briefcase,
   dealer: Store,
+  stock_point: Package,
 };
 
 const roleColors: Record<UserRole, string> = {
@@ -83,6 +84,7 @@ const roleColors: Record<UserRole, string> = {
   corebody: "text-purple-400",
   businessman: "text-green-400",
   dealer: "text-emerald-400",
+  stock_point: "text-yellow-400",
 };
 
 const getIcon = (iconName: string): LucideIcon => {

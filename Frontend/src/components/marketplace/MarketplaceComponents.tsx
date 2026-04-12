@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useState } from "react";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 import { 
   Package, 
   ShoppingCart, 
@@ -8,7 +11,9 @@ import {
   MapPin, 
   Building2,
   ChevronRight,
-  Heart
+  ChevronLeft,
+  ShieldCheck,
+  Truck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,91 +49,102 @@ export const formatCurrency = (amount: string | number) => {
 export const ProductCardGrid = ({ 
   product, 
   onAddToCart, 
-  onBuyNow 
+  onBuyNow,
+  onQuickList
 }: { 
   product: Product, 
   onAddToCart: (p: any) => void, 
-  onBuyNow: (p: any) => void 
+  onBuyNow: (p: any) => void,
+  onQuickList?: (p: any) => void
 }) => {
   const discount = product.mrp && Number(product.mrp) > Number(product.selling_price)
     ? Math.round(((Number(product.mrp) - Number(product.selling_price)) / Number(product.mrp)) * 100)
     : 0;
 
   return (
-    <Card className="group relative overflow-hidden border-slate-100 hover:border-emerald-200 transition-all duration-500 hover:shadow-2xl hover:shadow-emerald-500/10 rounded-2xl bg-white">
-      <div className="relative aspect-square overflow-hidden bg-slate-50/50 p-6 flex items-center justify-center">
+    <Card className="group relative overflow-hidden border-slate-200 hover:border-emerald-500/50 transition-all duration-300 hover:shadow-md rounded-xl bg-white shadow-sm">
+      <div className="relative aspect-[4/3] overflow-hidden bg-slate-50 flex items-center justify-center p-4">
         {product.thumbnail_url ? (
           <img 
             src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
             alt={product.name} 
-            className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
+            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <Package className="h-16 w-16 text-slate-200" />
+          <Package className="h-10 w-10 text-slate-300" />
         )}
         
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-2">
+        {/* Minimal Badges */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1.5">
           {product.isNew && (
-            <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-none text-[10px] font-bold uppercase tracking-wider">
+            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-blue-100">
               New
-            </Badge>
+            </span>
           )}
           {product.isTrending && (
-            <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-none text-[10px] font-bold uppercase tracking-wider">
-              <TrendingUp className="h-3 w-3 mr-1" /> Trending
-            </Badge>
+            <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-orange-100">
+              Trending
+            </span>
           )}
           {discount > 0 && (
-            <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none text-[10px] font-bold">
+            <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-[9px] font-bold border border-emerald-100">
               {discount}% OFF
-            </Badge>
+            </span>
           )}
         </div>
 
-        <button className="absolute top-3 right-3 p-2 rounded-full bg-white/80 backdrop-blur-sm text-slate-400 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 duration-300">
-          <Heart className="h-4 w-4" />
-        </button>
-
-        {/* Quick Add Overlay */}
-        <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500">
+        {/* Hover Actions Bar */}
+        <div className="absolute inset-x-0 bottom-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex gap-1.5">
           <Button 
+            size="sm"
             onClick={() => onAddToCart(product)}
-            className="w-full bg-white/95 backdrop-blur-sm text-slate-900 border border-slate-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 rounded-xl shadow-lg transition-all duration-300 font-bold"
+            className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 h-8 text-[11px] font-semibold"
           >
-            <ShoppingCart className="h-4 w-4 mr-2" /> Add to Cart
+            <ShoppingCart className="h-3 w-3 mr-1.5" /> Cart
           </Button>
+          {onQuickList && (
+            <Button 
+              size="sm"
+              onClick={() => onQuickList(product)}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[11px] font-semibold border-none"
+            >
+              <TrendingUp className="h-3 w-3 mr-1.5" /> List
+            </Button>
+          )}
         </div>
       </div>
 
-      <CardContent className="p-5">
-        <div className="mb-2">
-          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">{product.category_name}</span>
-          <h3 className="text-lg font-bold text-slate-900 line-clamp-1 group-hover:text-emerald-600 transition-colors mt-0.5">
-            {product.name}
-          </h3>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-3">
-          <Building2 className="h-3 w-3 text-slate-400" />
-          <span className="truncate">{product.business_name}</span>
-        </div>
-
-        <div className="flex items-center justify-between mt-auto">
-          <div className="space-y-0.5">
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black text-slate-900">{formatCurrency(product.selling_price)}</span>
-              {discount > 0 && (
-                <span className="text-sm text-slate-400 line-through font-medium">{formatCurrency(product.mrp)}</span>
-              )}
+      <CardContent className="p-4">
+        <div className="space-y-1 mb-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{product.category_name}</span>
+            <div className="flex items-center gap-0.5 text-amber-500">
+              <Star className="h-2.5 w-2.5 fill-current" />
+              <span className="text-[10px] font-bold">{product.rating || "4.5"}</span>
             </div>
           </div>
+          <h3 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
+            {product.name}
+          </h3>
+          <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+            <Building2 className="h-3 w-3" />
+            <span className="truncate">{product.business_name}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-base font-bold text-slate-900">{formatCurrency(product.selling_price)}</span>
+            {discount > 0 && (
+              <span className="text-[11px] text-slate-400 line-through font-medium">{formatCurrency(product.mrp)}</span>
+            )}
+          </div>
           <Button 
-            size="icon"
+            size="sm"
             onClick={() => onBuyNow(product)}
-            className="rounded-full bg-slate-900 hover:bg-emerald-600 text-white shadow-lg transition-all duration-300 scale-90 group-hover:scale-100"
+            className="h-8 w-8 rounded-lg bg-slate-900 hover:bg-emerald-600 text-white p-0"
           >
-            <Zap className="h-4 w-4" />
+            <Zap className="h-3.5 w-3.5" />
           </Button>
         </div>
       </CardContent>
@@ -139,17 +155,19 @@ export const ProductCardGrid = ({
 export const ProductCardList = ({ 
   product, 
   onAddToCart, 
-  onBuyNow 
+  onBuyNow,
+  onQuickList
 }: { 
   product: Product, 
   onAddToCart: (p: any) => void, 
-  onBuyNow: (p: any) => void 
+  onBuyNow: (p: any) => void,
+  onQuickList?: (p: any) => void
 }) => {
   return (
-    <Card className="group overflow-hidden border-slate-100 hover:border-emerald-100 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/5 bg-white">
-      <CardContent className="p-0">
-        <div className="flex flex-col md:flex-row gap-6 p-5">
-          <div className="w-full md:w-52 aspect-square bg-slate-50 rounded-2xl overflow-hidden shrink-0 relative group-hover:scale-[1.02] transition-transform duration-500 flex items-center justify-center p-6">
+    <Card className="group overflow-hidden border-slate-200 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-sm bg-white shadow-sm rounded-xl">
+      <CardContent className="p-4">
+        <div className="flex gap-6">
+          <div className="w-32 aspect-square bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-3 relative">
             {product.thumbnail_url ? (
               <img 
                 src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
@@ -157,75 +175,85 @@ export const ProductCardList = ({
                 className="w-full h-full object-contain"
               />
             ) : (
-              <Package className="h-12 w-12 text-slate-200" />
+              <Package className="h-8 w-8 text-slate-200" />
             )}
-            <div className="absolute top-3 left-3">
-               <Badge className="bg-white/90 backdrop-blur-sm text-emerald-700 border-none shadow-sm text-[10px] uppercase font-bold tracking-tighter capitalize px-2">
+            <div className="absolute top-1.5 left-1.5">
+               <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-500 uppercase tracking-tighter border border-slate-100 px-1.5 rounded">
                  {product.category_name}
-               </Badge>
+               </span>
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col py-1">
-            <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1">
-                <h2 className="text-xl md:text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-tight">
-                  {product.name}
-                </h2>
-                <div className="flex items-center gap-3 text-slate-500 text-sm">
-                  <div className="flex items-center gap-1">
-                    <Building2 className="h-4 w-4 text-emerald-500" />
-                    <span className="font-semibold text-slate-700">{product.business_name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="text-xs">{product.business_address}</span>
+          <div className="flex-1 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-start gap-4">
+                <div className="space-y-0.5">
+                  <h2 className="text-base font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
+                    {product.name}
+                  </h2>
+                  <div className="flex items-center gap-3 text-slate-400 text-[11px]">
+                    <div className="flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      <span className="font-medium text-slate-500">{product.business_name}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      <span>{product.business_address}</span>
+                    </div>
                   </div>
                 </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-slate-900 leading-none">
+                    {formatCurrency(product.selling_price)}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">per {product.unit}</p>
+                </div>
               </div>
-              <div className="hidden sm:block text-right">
-                <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em] mb-1">Selling Price</p>
-                <p className="text-2xl font-black text-slate-900 leading-none">
-                  {formatCurrency(product.selling_price)}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">per {product.unit}</p>
+
+              <div className="mt-2.5 flex items-center gap-2">
+                <div className="flex items-center text-amber-500 text-[10px] font-bold gap-0.5">
+                  <Star className="h-3 w-3 fill-current" /> {product.rating || "4.5"}
+                </div>
+                <div className="w-1 h-1 rounded-full bg-slate-200" />
+                <div className="text-slate-500 text-[10px] font-semibold">
+                   {product.available_stock} items left
+                </div>
+                {product.isTrending && (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-slate-200" />
+                    <div className="text-orange-600 text-[10px] font-bold uppercase tracking-wider">
+                      Trending
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="flex items-center bg-amber-50 text-amber-700 px-2 py-1 rounded-lg text-xs font-bold gap-1 border border-amber-100">
-                <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {product.rating || "4.5"}
-              </div>
-              <div className="flex items-center bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-bold gap-1">
-                <Package className="h-3 w-3" /> {product.available_stock} in stock
-              </div>
-              {product.isTrending && (
-                <div className="flex items-center bg-orange-50 text-orange-700 px-2 py-1 rounded-lg text-xs font-bold gap-1 border border-orange-100">
-                  <TrendingUp className="h-3 w-3" /> Trending
-                </div>
-              )}
-            </div>
-
-            <div className="mt-auto pt-6 flex flex-wrap gap-2.5">
+            <div className="flex items-center gap-2 pt-4">
               <Button 
+                size="sm"
                 onClick={() => onBuyNow(product)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-7 h-11 font-bold shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                className="bg-slate-900 hover:bg-emerald-600 text-white rounded-lg px-4 h-8 text-xs font-semibold shadow-sm"
               >
-                <Zap className="mr-2 h-4 w-4" /> Buy Now
+                Buy Now
               </Button>
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => onAddToCart(product)}
-                className="rounded-xl px-6 h-11 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition-all font-bold"
+                className="rounded-lg px-4 h-8 border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
               >
-                <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
+                Add to Cart
               </Button>
-              <Button 
-                variant="ghost" 
-                className="rounded-xl px-4 h-11 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all font-bold"
-              >
-                Details
-              </Button>
+              {onQuickList && (
+                <Button 
+                  size="sm"
+                  onClick={() => onQuickList(product)}
+                  className="rounded-lg px-4 h-8 bg-emerald-600 hover:bg-emerald-700 text-white border-none text-xs font-semibold shadow-sm"
+                >
+                  List to B2C
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -235,43 +263,102 @@ export const ProductCardList = ({
 };
 
 export const MarketplaceHero = () => {
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000 })]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+  }, [emblaApi, onSelect]);
+
+  const slides = [
+    {
+      title: "Global Wholesale Network",
+      description: "Direct access to original source products with verified fulfillment quality.",
+      icon: ShieldCheck,
+      color: "from-emerald-500/10 to-transparent"
+    },
+    {
+      title: "Real-time Tracking",
+      description: "Monitor your assignments and inventory with enterprise-grade precision.",
+      icon: Truck,
+      color: "from-blue-500/10 to-transparent"
+    },
+    {
+      title: "Scalable Distribution",
+      description: "Grow your reach with FTS integrated logistics and subdivision dealer support.",
+      icon: TrendingUp,
+      color: "from-purple-500/10 to-transparent"
+    }
+  ];
+
   return (
-    <div className="relative overflow-hidden rounded-[2.5rem] bg-[#0f172a] text-white p-8 md:p-16 mb-12 group">
-      {/* Abstract Background Shapes */}
-      <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] group-hover:bg-emerald-500/20 transition-colors duration-1000" />
-      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-blue-500/10 rounded-full blur-[80px] group-hover:bg-blue-500/20 transition-colors duration-1000" />
-      
-      <div className="relative z-10 max-w-2xl">
-        <Badge className="bg-emerald-500/20 text-emerald-400 border-none px-4 py-1.5 rounded-full mb-6 text-xs font-bold tracking-widest uppercase">
-          Marketplace 2.0
-        </Badge>
-        <h1 className="text-4xl md:text-6xl font-black mb-6 leading-[1.1] tracking-tight">
-          Redefining <span className="text-emerald-400">Wholesale</span> Experience
-        </h1>
-        <p className="text-slate-400 text-lg md:text-xl leading-relaxed mb-10 max-w-lg">
-          Connect with trusted suppliers, explore premium products, and scale your business with FTS Marketplace.
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <Button className="h-14 px-8 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg shadow-xl shadow-emerald-500/25 transition-all hover:translate-y-[-2px] active:translate-y-0">
-            Explore All Products
-          </Button>
-          <Button variant="outline" className="h-14 px-8 rounded-2xl border-slate-700 text-white hover:bg-slate-800 font-bold text-lg transition-all hover:translate-y-[-2px]">
-            Become a Supplier
-          </Button>
+    <div className="space-y-4 mb-10 px-0 md:px-2">
+      <div className="relative overflow-hidden group rounded-xl border border-slate-200 bg-white" ref={emblaRef}>
+        <div className="flex">
+          {slides.map((slide, index) => (
+            <div className="flex-[0_0_100%] min-w-0 relative h-32 md:h-40" key={index}>
+              <div className={cn("absolute inset-0 bg-gradient-to-r", slide.color)} />
+              <div className="relative h-full flex items-center px-8 md:px-12 gap-6">
+                <div className="hidden sm:flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-xl bg-white border border-slate-100 shadow-sm shrink-0">
+                  <slide.icon className="h-6 w-6 md:h-8 md:w-8 text-slate-700" />
+                </div>
+                <div className="max-w-xl">
+                  <h2 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                    {slide.title}
+                  </h2>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium leading-relaxed mt-1">
+                    {slide.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* Dots */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {slides.map((_, i) => (
+            <div 
+              key={i} 
+              className={cn(
+                "h-1 rounded-full transition-all duration-300",
+                selectedIndex === i ? "w-6 bg-slate-900" : "w-2 bg-slate-200"
+              )} 
+            />
+          ))}
+        </div>
+
+        {/* Controls */}
+        <button 
+          onClick={() => emblaApi?.scrollPrev()}
+          className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 backdrop-blur-sm text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button 
+          onClick={() => emblaApi?.scrollNext()}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 backdrop-blur-sm text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Decorative Image/Element */}
-      <div className="absolute right-0 bottom-0 top-0 w-1/3 hidden lg:flex items-center justify-center p-12">
-        <div className="relative w-full aspect-square animate-pulse-slow">
-           <div className="absolute inset-0 bg-emerald-500/20 rounded-3xl rotate-12 blur-2xl" />
-           <div className="relative z-10 w-full h-full border-2 border-white/10 rounded-3xl backdrop-blur-xl flex flex-col items-center justify-center text-center p-8">
-              <div className="w-20 h-20 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/50">
-                <Package className="h-10 w-10 text-white" />
-              </div>
-              <p className="text-2xl font-black text-white">5000+</p>
-              <p className="text-sm text-slate-400 font-bold uppercase tracking-widest">Premium Products</p>
-           </div>
+      <div className="flex gap-4 border-b border-slate-100 pb-4 ml-1">
+        <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Verified
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Real-time
+        </div>
+        <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Direct
         </div>
       </div>
     </div>
@@ -288,14 +375,14 @@ export const CategoryStrip = ({
   onSelect: (id: string) => void 
 }) => {
   return (
-    <div className="flex items-center gap-3 overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide no-scrollbar">
+    <div className="flex items-center gap-2 overflow-x-auto pb-4 -mx-1 px-1 scrollbar-hide no-scrollbar">
       <button
         onClick={() => onSelect("all")}
         className={cn(
-          "shrink-0 px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-300",
+          "shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300",
           selected === "all" 
-            ? "bg-slate-900 text-white shadow-xl shadow-slate-900/20" 
-            : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-100"
+            ? "bg-slate-900 text-white shadow-sm" 
+            : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
         )}
       >
         All Products
@@ -305,10 +392,10 @@ export const CategoryStrip = ({
           key={cat.id}
           onClick={() => onSelect(cat.id.toString())}
           className={cn(
-            "shrink-0 px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-300 flex items-center gap-2",
+            "shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300",
             selected === cat.id.toString() 
-              ? "bg-emerald-600 text-white shadow-xl shadow-emerald-600/20" 
-              : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-100"
+              ? "bg-emerald-600 text-white shadow-sm" 
+              : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
           )}
         >
           {cat.name}

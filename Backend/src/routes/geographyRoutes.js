@@ -11,12 +11,19 @@ router.get('/countries', geogController.getCountries);
 router.post('/countries', geogController.createCountry);
 
 // States
+router.get('/states', geogController.getStates);
 router.get('/countries/:countryId/states', geogController.getStatesByCountry);
 router.post('/states', geogController.createState);
 
-// Districts
+// Districts — static paths MUST come before parameterized /:id
 router.get('/states/:stateId/districts', geogController.getDistrictsByState);
+router.get('/districts/summary', geogController.getDistrictsSummary);
+router.get('/districts/:id', geogController.getDistrict);
+router.get('/districts/:id/performance', geogController.getDistrictPerformance);
+router.get('/districts/:id/dealers', geogController.getDistrictDealers);
 router.post('/districts', geogController.createDistrict);
+router.put('/districts/:id', geogController.updateDistrict);
+
 // Subdivisions
 router.get('/districts/:districtId/subdivisions', geogController.getSubdivisionsByDistrict);
 router.get('/subdivisions/:subdivisionId/assigned-products', geogController.getSubdivisionAssignedProducts);
@@ -31,7 +38,6 @@ router.get('/cities/:cityId/pincodes', geogController.getPincodesByCity);
 router.post('/pincodes', geogController.createPincode);
 
 // District Quota
-router.get('/districts/summary', geogController.getDistrictsSummary);
 router.get('/quotas', geogController.getAllDistrictQuotas);
 router.get('/districts/:districtId/quota', geogController.getDistrictQuota);
 router.put('/districts/:districtId/quota', geogController.updateDistrictQuota);

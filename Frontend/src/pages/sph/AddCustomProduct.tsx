@@ -57,7 +57,10 @@ export default function AddCustomProduct({ onProductCreated }: { onProductCreate
       toast.success("Custom product created and listed!");
       
       if (onProductCreated) onProductCreated();
-      else navigate("/businessman/b2c-manager/listings");
+      else {
+        const basePath = window.location.pathname.startsWith("/stockpoint") ? "/stockpoint" : "/businessman";
+        navigate(`${basePath}/b2c-manager/listings`);
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Failed to create product");
     } finally {
@@ -182,7 +185,7 @@ export default function AddCustomProduct({ onProductCreated }: { onProductCreate
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Selling Price *</label>
+                <label className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Customer Selling Price *</label>
                 <div className="relative">
                     <span className="absolute left-3 top-2.5 text-emerald-600 text-sm font-bold">₹</span>
                     <Input 

@@ -57,6 +57,8 @@ export default function B2CManager() {
     l.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const basePath = location.pathname.startsWith("/stockpoint") ? "/stockpoint" : "/businessman";
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -65,10 +67,10 @@ export default function B2CManager() {
           <p className="text-sm text-muted-foreground">Manage your products listed for direct customer sales</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => navigate("/businessman/b2c-manager/browse")}>
+          <Button variant="outline" className="gap-2" onClick={() => navigate(`${basePath}/b2c-manager/browse`)}>
             <Search className="h-4 w-4" /> Browse Catalog
           </Button>
-          <Button className="gap-2" onClick={() => navigate("/businessman/b2c-manager/add-custom")}>
+          <Button className="gap-2" onClick={() => navigate(`${basePath}/b2c-manager/add-custom`)}>
             <Plus className="h-4 w-4" /> Add Custom Product
           </Button>
         </div>

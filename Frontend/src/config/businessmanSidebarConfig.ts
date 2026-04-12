@@ -245,7 +245,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
 
   const filteredItems = items
     .filter((item) => {
-      if (item.key === "stockInventory" && !isStockPoint) return false;
+      if ((item.key === "stockInventory" || item.key === "b2cMarketplace") && !isStockPoint) return false;
       if (item.key === "bulkOrders" && !bulkEnabled) return false;
       if (item.key === "purchaseAdvance" && !entryModeEnabled && !advanceModeEnabled) return false;
 

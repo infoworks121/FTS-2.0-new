@@ -206,7 +206,8 @@ exports.createCustomSPHProduct = async (req, res) => {
   try {
     const {
       name, sku, category_id, description, thumbnail_url, image_urls = [],
-      retail_price, mrp, cost_price, stock_quantity = 0
+      retail_price, mrp, cost_price, stock_quantity = 0,
+      variants = [], type = 'physical'
     } = req.body;
 
     if (!name || !sku || !category_id || !retail_price || !mrp) {
@@ -219,22 +220,57 @@ exports.createCustomSPHProduct = async (req, res) => {
     const productResult = await client.query(
       `INSERT INTO products 
        (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by) 
-       VALUES ($1, $2, $3, $4, 'physical', $5, $6, true, $7) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8) 
        RETURNING id`,
-      [category_id, name, sku, description, thumbnail_url, JSON.stringify(image_urls), req.user.id]
+      [category_id, name, sku, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id]
     );
     const productId = productResult.rows[0].id;
 
-    // 2. Create Pricing (Required for internal calculations even if custom)
-    // We use retail_price as selling_price and cost_price as base_price
+    // 2. Create Pricing (Base Product)
+    // For custom products, we use retail_price as selling_price and cost_price (or retail_price) as base_price
     await client.query(
       `INSERT INTO product_pricing 
-       (product_id, mrp, base_price, selling_price, is_current, created_by) 
-       VALUES ($1, $2, $3, $4, true, $5)`,
+       (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, true, $5)`,
       [productId, mrp, cost_price || retail_price, retail_price, req.user.id]
     );
 
-    // 3. Create Marketplace Listing immediately
+    // 3. Handle Variants if provided
+    if (variants && variants.length > 0) {
+      for (const variant of variants) {
+        const { variant_name, sku_suffix, attributes = {}, mrp: vMrp, basePrice: vBase, sellingPrice: vSell } = variant;
+        
+        if (!variant_name) continue;
+        
+        const variantResult = await client.query(
+          `INSERT INTO product_variants 
+           (product_id, variant_name, sku_suffix, attributes) 
+           VALUES ($1, $2, $3, $4) RETURNING id`,
+          [productId, variant_name, sku_suffix, JSON.stringify(attributes)]
+        );
+        const variantId = variantResult.rows[0].id;
+
+        // Variant Pricing
+        await client.query(
+          `INSERT INTO product_pricing 
+           (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
+           VALUES ($1, $2, $3, $4, $5, true, $6)`,
+          [productId, variantId, vMrp || mrp, vBase || cost_price || retail_price, vSell || retail_price, req.user.id]
+        );
+      }
+    }
+
+    // 4. Create Initial Stock Entry (Admin context for the product itself)
+    if (parseFloat(stock_quantity) > 0) {
+      await client.query(
+        `INSERT INTO inventory_balances 
+         (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
+         VALUES ('admin', $1, $2, NULL, $3)`,
+        [req.user.id, productId, stock_quantity]
+      );
+    }
+
+    // 5. Create Marketplace Listing immediately for the creator
     const listingResult = await client.query(
       `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity)
        VALUES ($1, $2, $3, $4)
@@ -244,7 +280,7 @@ exports.createCustomSPHProduct = async (req, res) => {
 
     await client.query('COMMIT');
     res.status(201).json({
-      message: 'Custom product created and listed successfully',
+      message: 'Custom product with advanced details created and listed successfully',
       listing: listingResult.rows[0],
       product_id: productId
     });
@@ -252,6 +288,7 @@ exports.createCustomSPHProduct = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     if (error.code === '23505') return res.status(400).json({ error: 'SKU already exists' });
+    console.error('createCustomSPHProduct expanded error:', error);
     res.status(500).json({ error: error.message });
   } finally {
     client.release();
