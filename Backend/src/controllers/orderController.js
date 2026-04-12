@@ -69,11 +69,7 @@ exports.createB2BOrder = async (req, res) => {
 
       // Fetch Pricing
       const priceResult = await client.query(
-<<<<<<< HEAD
-        `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, p.is_dealer_routed, p.name as product_name
-=======
         `SELECT pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, pp.min_order_quantity, p.name as product_name, p.is_dealer_routed 
->>>>>>> 9ef302cf55b8ab94a1e6e1a7ddac0b37138e3893
          FROM product_pricing pp 
          JOIN products p ON pp.product_id = p.id
          WHERE pp.product_id = $1 AND ($2::uuid IS NULL OR pp.variant_id = $2) AND pp.is_current = true`,
