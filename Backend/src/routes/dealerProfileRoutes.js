@@ -10,7 +10,9 @@ const {
   getDealerAssignedProducts,
   getMyAuthorizedProducts,
   getDealerInsights,
-  getDealerInventoryLedger
+  getDealerInventoryLedger,
+  getDealerNetwork,
+  getDistrictCoreBodyDirectory
 } = require('../controllers/dealerProfileController');
 const { adminOnly } = require('../middleware/authMiddleware');
 
@@ -20,6 +22,8 @@ router.get('/dashboard', protect, getDealerDashboard);
 router.get('/my-products', protect, getMyAuthorizedProducts);
 router.get('/insights', protect, getDealerInsights);
 router.get('/inventory-ledger', protect, getDealerInventoryLedger);
+router.get('/network', protect, getDealerNetwork);
+router.get('/district-directory', protect, getDistrictCoreBodyDirectory);
 
 // Admin mapping operations
 router.post('/assign-product', protect, adminOnly, assignProductToDealer);

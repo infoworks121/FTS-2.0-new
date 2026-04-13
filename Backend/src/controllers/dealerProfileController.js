@@ -375,7 +375,7 @@ const getDealerInsights = async (req, res) => {
   }
 };
 
-// Get inventory ledger for the logged-in dealer
+// Get dealer inventory ledger for the logged-in dealer
 const getDealerInventoryLedger = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -419,6 +419,103 @@ const getDealerInventoryLedger = async (req, res) => {
   }
 };
 
+// Get dealer network (subdivision associates)
+const getDealerNetwork = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get Dealer's subdivision and district
+    const profileRes = await pool.query(`
+      SELECT dp.subdivision_id, sd.district_id
+      FROM dealer_profiles dp
+      JOIN subdivisions sd ON dp.subdivision_id = sd.id
+      WHERE dp.user_id = $1
+    `, [userId]);
+
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Dealer profile not found' });
+    }
+
+    const { subdivision_id } = profileRes.rows[0];
+
+    // 2. Fetch all members in the same subdivision
+    const networkRes = await pool.query(`
+      SELECT 
+        u.id, u.full_name as name, u.phone, u.email, u.is_active, u.is_approved,
+        r.role_code, r.role_label,
+        bp.business_name, bp.type as businessman_type,
+        COALESCE(bp.mtd_sales, 0) as mtd_sales,
+        COALESCE(bp.ytd_sales, 0) as ytd_sales,
+        u.created_at
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+      WHERE u.subdivision_id = $1 AND u.id != $2
+      ORDER BY u.full_name ASC
+    `, [subdivision_id, userId]);
+
+    // 3. Summarize KPIs
+    const kpis = {
+      total_members: networkRes.rows.length,
+      active_members: networkRes.rows.filter(m => m.is_approved && m.is_active).length,
+      mtd_sales: networkRes.rows.reduce((sum, m) => sum + parseFloat(m.mtd_sales || 0), 0)
+    };
+
+    res.json({
+      success: true,
+      network: networkRes.rows,
+      kpis
+    });
+
+  } catch (error) {
+    console.error('Get dealer network error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get core bodies in the dealer's district
+const getDistrictCoreBodyDirectory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get Dealer's district
+    const profileRes = await pool.query(`
+      SELECT sd.district_id
+      FROM dealer_profiles dp
+      JOIN subdivisions sd ON dp.subdivision_id = sd.id
+      WHERE dp.user_id = $1
+    `, [userId]);
+
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Dealer profile not found' });
+    }
+
+    const { district_id } = profileRes.rows[0];
+
+    // 2. Fetch core bodies in the same district
+    const directoryRes = await pool.query(`
+      SELECT 
+        u.id, u.full_name as name, u.phone, u.email, u.profile_photo_url,
+        r.role_label,
+        d.name as district_name
+      FROM users u
+      JOIN user_roles r ON u.role_id = r.id
+      JOIN districts d ON u.district_id = d.id
+      WHERE u.district_id = $1 AND u.role_code LIKE 'core_body%'
+      ORDER BY u.full_name ASC
+    `, [district_id]);
+
+    res.json({
+      success: true,
+      directory: directoryRes.rows
+    });
+
+  } catch (error) {
+    console.error('Get district core body directory error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getDealerProfile,
   updateDealerProfile,
@@ -428,5 +525,7 @@ module.exports = {
   getDealerAssignedProducts,
   getMyAuthorizedProducts,
   getDealerInsights,
-  getDealerInventoryLedger
+  getDealerInventoryLedger,
+  getDealerNetwork,
+  getDistrictCoreBodyDirectory
 };
