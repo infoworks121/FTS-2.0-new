@@ -14,11 +14,13 @@ const getBusinessmanProfile = async (req, res) => {
         bp.monthly_target, bp.ytd_sales, bp.mtd_sales, bp.commission_earned,
         bp.is_active, bp.activated_at, bp.last_order_at, bp.last_transaction_at,
         bp.created_at, bp.updated_at,
-        d.name as district_name, d.id as district_id
+        d.name as district_name, d.id as district_id,
+        s.name as subdivision_name, s.id as subdivision_id
       FROM users u
       JOIN user_roles r ON u.role_id = r.id
       JOIN businessman_profiles bp ON u.id = bp.user_id
       LEFT JOIN districts d ON bp.district_id = d.id
+      LEFT JOIN subdivisions s ON bp.subdivision_id = s.id
       WHERE u.id = $1 AND r.role_code = 'businessman'
     `;
     
@@ -130,7 +132,7 @@ const updateBusinessmanProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const { business_name, business_address, gst_number, bank_account, ifsc_code,
-            monthly_target, advance_amount, assigned_core_body_id } = req.body;
+            monthly_target, advance_amount, assigned_core_body_id, subdivision_id } = req.body;
     
     const client = await pool.connect();
     
@@ -147,10 +149,11 @@ const updateBusinessmanProfile = async (req, res) => {
              monthly_target = COALESCE($6, monthly_target),
              advance_amount = COALESCE($7, advance_amount),
              assigned_core_body_id = COALESCE($8, assigned_core_body_id),
+             subdivision_id = COALESCE($9, subdivision_id),
              updated_at = NOW()
-         WHERE user_id = $9`,
+         WHERE user_id = $10`,
         [business_name, business_address, gst_number, bank_account, ifsc_code,
-         monthly_target, advance_amount, assigned_core_body_id, userId]
+         monthly_target, advance_amount, assigned_core_body_id, subdivision_id, userId]
       );
       
       await client.query('COMMIT');
@@ -176,9 +179,10 @@ const getBusinessmanDashboard = async (req, res) => {
     
     // Get profile info
     const profileQuery = `
-      SELECT bp.*, d.name as district_name
+      SELECT bp.*, d.name as district_name, s.name as subdivision_name
       FROM businessman_profiles bp
       LEFT JOIN districts d ON bp.district_id = d.id
+      LEFT JOIN subdivisions s ON bp.subdivision_id = s.id
       WHERE bp.user_id = $1
     `;
     

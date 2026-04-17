@@ -334,13 +334,23 @@ export default function Register() {
     }
 
     // Validate businessman requirements
-    if (formData.role_code === "businessman" && !formData.businessman_type) {
-      toast({
-        title: "Validation Error",
-        description: "Please select Businessman type",
-        variant: "destructive",
-      });
-      return;
+    if (formData.role_code === "businessman") {
+      if (!formData.businessman_type) {
+        toast({
+          title: "Validation Error",
+          description: "Please select Businessman type",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!formData.subdivision_id) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a subdivision",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Validate KYC Documents if mandatory

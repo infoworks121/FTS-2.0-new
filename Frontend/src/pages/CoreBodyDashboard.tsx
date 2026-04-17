@@ -53,10 +53,25 @@ const dealers = [
   { name: "Mehta Supply", zone: "Zone B", orders: 58, revenue: "₹2.1L", status: "cap-reached" as const },
 ];
 
+import api from "@/lib/api";
 import { coreBodyApi } from "@/lib/coreBodyApi";
 import { dealerApi } from "@/lib/dealerApi";
 import { fulfillmentApi, FulfillmentAssignment } from "@/lib/fulfillmentApi";
-import { XCircle, Store, Box } from "lucide-react";
+import { stockApi } from "@/lib/stockApi";
+import { XCircle, Store, Box, PlusCircle, LayoutGrid } from "lucide-react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 export default function CoreBodyDashboard() {
   const [userName, setUserName] = useState('');
@@ -64,6 +79,13 @@ export default function CoreBodyDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [roleCode, setRoleCode] = useState<string>('');
   const [pendingAssignments, setPendingAssignments] = useState<FulfillmentAssignment[]>([]);
+  
+  // Stock Issuance State
+  const [districtDealers, setDistrictDealers] = useState<any[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [issuing, setIssuing] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueForm, setIssueForm] = useState({ dealer_id: '', product_id: '', quantity: 0, note: '' });
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -82,6 +104,15 @@ export default function CoreBodyDashboard() {
         } else {
           const res = await coreBodyApi.getMyDashboard();
           setStats(res.stats);
+
+          // Fetch Dealers and Products for issuance
+          try {
+            const dealersRes = await api.get('/admin/dealers'); // Using generic dealer list for now, ideally filtered by CB district in backend
+            setDistrictDealers(dealersRes.data.dealers.filter((d: any) => d.district_id === res.stats.profile.district_id));
+            
+            const productsRes = await api.get('/products');
+            setAvailableProducts(productsRes.data.products);
+          } catch (e) { console.error("Aux Data Load Fail", e); }
         }
       } catch (err) {
         console.error("Failed to load dashboard stats", err);
@@ -108,11 +139,101 @@ export default function CoreBodyDashboard() {
   const distName = stats?.profile?.district_name || "North";
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems as any} roleLabel="Core Body — District North">
+    <DashboardLayout role="corebody" navItems={navItems as any} roleLabel={`Core Body — District ${distName}`}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Good Morning, {userName} 👋</h1>
-          <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Good Morning, {userName} 👋</h1>
+            <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
+          </div>
+          {!isDealer && (
+            <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
+              <DialogTrigger asChild>
+                <Button className="bg-profit hover:bg-profit/90 text-white gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  Issue Physical Stock
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Issue stock to Dealer</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="dealer">Select Dealer</Label>
+                    <Select onValueChange={(v) => setIssueForm({...issueForm, dealer_id: v})}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Choose a dealer..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {districtDealers.map(d => (
+                          <SelectItem key={d.id} value={d.id}>{d.full_name || d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="product">Select Product</Label>
+                    <Select onValueChange={(v) => setIssueForm({...issueForm, product_id: v})}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Choose product..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProducts.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="quantity">Quantity</Label>
+                    <Input 
+                      id="quantity" 
+                      type="number" 
+                      className="bg-background"
+                      onChange={(e) => setIssueForm({...issueForm, quantity: parseInt(e.target.value)})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="note">Dispatch Note (Internal)</Label>
+                    <Input 
+                      id="note" 
+                      placeholder="e.g. Batch 42 dispatch" 
+                      className="bg-background"
+                      onChange={(e) => setIssueForm({...issueForm, note: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowIssueModal(false)}
+                    disabled={issuing}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    className="bg-profit text-white hover:bg-profit/90"
+                    disabled={issuing || !issueForm.dealer_id || !issueForm.product_id || issueForm.quantity <= 0}
+                    onClick={async () => {
+                      try {
+                        setIssuing(true);
+                        await stockApi.issuePhysicalStock(issueForm);
+                        toast.success("Stock issued successfully!");
+                        setShowIssueModal(false);
+                      } catch (err: any) {
+                        toast.error(err.response?.data?.error || "Failed to issue stock");
+                      } finally {
+                        setIssuing(false);
+                      }
+                    }}
+                  >
+                    {issuing ? "Issuing..." : "Confirm Dispatch"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Overview Section */}
@@ -142,20 +263,26 @@ export default function CoreBodyDashboard() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Store className="h-4 w-4 text-emerald-500" />
-                  Local Stock Status
+                  <LayoutGrid className="h-4 w-4 text-emerald-500" />
+                  Stock Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex flex-col">
-                    <span className="text-3xl font-bold font-mono">{stats?.inventory?.total_stock || 0}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Total Units in Subdivision</span>
+                  <div className="flex justify-between items-end border-b border-border/30 pb-2">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-muted-foreground uppercase tracking-tight">Virtual (District)</span>
+                      <span className="text-2xl font-bold font-mono text-emerald-400">{stats?.inventory?.district_stock || stats?.inventory?.total_stock || 0}</span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs text-muted-foreground uppercase tracking-tight">Physical On-Hand</span>
+                      <span className="text-2xl font-bold font-mono text-blue-400">{stats?.inventory?.physical_stock || 0}</span>
+                    </div>
                   </div>
-                  <div className="pt-2 border-t border-border/50">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">Assigned Products</span>
-                      <span className="font-bold">{stats?.assigned_products?.length || 0}</span>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>Available for allocation</span>
+                      <span>Ready for delivery</span>
                     </div>
                   </div>
                 </div>

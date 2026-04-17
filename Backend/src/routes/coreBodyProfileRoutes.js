@@ -11,6 +11,8 @@ const {
   getDirectoryUsers,
   getDirectoryUserDetail,
   getDistrictPerformanceSnapshot,
+  getDistrictDealers,
+  getCoreBodyInventory,
 } = require('../controllers/coreBodyProfileController');
 
 // Core Body profile routes
@@ -23,5 +25,7 @@ router.get('/users', protect, getDistrictUsers);
 router.get('/directory-users', protect, getDirectoryUsers);
 router.get('/directory-users/:id', protect, getDirectoryUserDetail);
 router.get('/district-performance', protect, getDistrictPerformanceSnapshot);
+router.get('/district-dealers', protect, getDistrictDealers);
+router.get('/inventory', protect, getCoreBodyInventory);
 
 module.exports = router;

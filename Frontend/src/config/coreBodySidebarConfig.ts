@@ -211,6 +211,11 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               title: "Dispatch Stock",
               url: "/corebody/stock/physical-transfer"
             },
+            {
+              title: "Admin Tasked Dispatches",
+              url: "/corebody/stock/directed-tasks",
+              badge: { count: 1, variant: "danger", label: "Admin Request" }
+            },
             // Order Operations
             {
               title: "B2B Orders",

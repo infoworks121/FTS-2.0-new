@@ -14,9 +14,18 @@ export interface B2BOrderPayload {
   pincode_id?: number;
   delivery_address?: any;
   transaction_pin?: string;
+  preferred_fulfiller?: {
+    id: string;
+    type: string;
+  };
 }
 
 export const orderApi = {
+  getBusinessmanProfile: async () => {
+    const res = await api.get('/auth/me'); // Using /auth/me to get the context including district_id
+    return res.data;
+  },
+  
   createB2BOrder: async (data: B2BOrderPayload) => {
     const res = await api.post('/orders/b2b', data);
     return res.data;

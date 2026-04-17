@@ -1721,7 +1721,10 @@ exports.getIssuedProducts = async (req, res) => {
              pp.mrp, pp.selling_price, p.unit,
              COALESCE(bp.business_name, u.full_name, 'FTS Official') as seller_name,
              COALESCE(bp.business_address, 'Main Hub') as business_address,
-             COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock
+             COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,
+             ib.entity_type as fulfiller_type,
+             ib.entity_id as fulfiller_id,
+             u.district_id as source_district_id
       FROM products p
       JOIN categories c ON p.category_id = c.id
       JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL

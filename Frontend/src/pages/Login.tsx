@@ -89,8 +89,10 @@ export default function Login() {
         case "core_body":
         case "core_body_a":
         case "core_body_b":
-        case "dealer":
           navigate("/corebody");
+          break;
+        case "dealer":
+          navigate("/dealer");
           break;
         case "businessman":
           navigate("/businessman");

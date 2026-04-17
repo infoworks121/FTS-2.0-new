@@ -10,6 +10,8 @@ export interface FulfillmentAssignment {
   assigned_at: string;
   total_amount: number;
   order_date: string;
+  items: any[]; // New field for partial order details
+  is_shortage_fulfillment: boolean; // New field for split orders
 }
 
 export const fulfillmentApi = {
@@ -20,7 +22,8 @@ export const fulfillmentApi = {
   },
 
   updateStatus: async (assignmentId: string, status: string, trackingData: any = {}) => {
-    const res = await api.patch(`/fulfillments/assignments/${assignmentId}/status`, {
+    // Backend route is PUT /api/fulfillments/:assignment_id/status
+    const res = await api.put(`/fulfillments/${assignmentId}/status`, {
       status,
       ...trackingData
     });

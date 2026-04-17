@@ -135,8 +135,8 @@ const register = async (req, res) => {
         if (role_code === 'businessman' && businessman_type) {
             const advanceAmount = businessman_type === 'retailer_a' ? (investment_amount || 0) : 0;
             const bpResult = await client.query(
-                'INSERT INTO businessman_profiles (user_id, type, district_id, advance_amount) VALUES ($1, $2, $3, $4) RETURNING id',
-                [user.id, businessman_type, final_district_id, advanceAmount]
+                'INSERT INTO businessman_profiles (user_id, type, district_id, subdivision_id, advance_amount) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                [user.id, businessman_type, final_district_id, final_subdivision_id, advanceAmount]
             );
 
             // Insert installment records for retailer_a

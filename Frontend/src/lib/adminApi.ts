@@ -97,6 +97,28 @@ export const adminApi = {
   getLowStockAlerts: async (threshold: number = 5) => {
     const response = await api.get(`/admin/low-stock-alerts?threshold=${threshold}`);
     return response.data;
+  },
+
+  getShortages: async () => {
+    const response = await api.get('/admin/stock/shortages');
+    return response.data;
+  },
+
+  getCoreBodyStock: async (productId: string) => {
+    const response = await api.get(`/admin/stock/core-body-inventory/${productId}`);
+    return response.data;
+  },
+
+  requestDirectedDispatch: async (data: {
+    from_core_body_id: string;
+    to_dealer_id: string;
+    product_id: string;
+    quantity: number;
+    order_id?: string;
+    note?: string;
+  }) => {
+    const response = await api.post('/stock/allocation/admin/direct-dispatch', data);
+    return response.data;
   }
 };
 

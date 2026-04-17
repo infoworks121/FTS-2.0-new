@@ -26,7 +26,9 @@ router.get('/users', protect, adminOnly, adminController.getAllUsers);
 router.patch('/users/:id/is-sph', protect, adminOnly, adminController.updateUserSPHStatus);
 router.patch('/users/:id/is-active', protect, adminOnly, adminController.updateUserActiveStatus);
 
-// Alerts & Dashboards
+// Low Stock & Shortages
 router.get('/low-stock-alerts', protect, adminController.getLowStockAlerts);
+router.get('/stock/shortages', protect, adminOnly, require('../controllers/fulfillmentController').getShortageAssignments);
+router.get('/stock/core-body-inventory/:productId', protect, adminOnly, require('../controllers/fulfillmentController').getCoreBodyInventory);
 
 module.exports = router;
