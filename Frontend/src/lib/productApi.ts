@@ -115,7 +115,7 @@ export const productApi = {
     const res = await api.delete(`/catalog/admin/products/${id}`);
     return res.data;
   },
-  
+
   // Toggle product status (active/inactive)
   toggleStatus: async (id: string) => {
     const res = await api.patch(`/catalog/admin/products/${id}/toggle-status`);
@@ -159,7 +159,7 @@ export const productApi = {
     const res = await api.delete(`/catalog/categories/${id}`);
     return res.data;
   },
-  
+
   // Market Catalog (Issued Products)
   getIssuedProducts: async (params: { category_id?: string; search?: string; page?: number; limit?: number } = {}) => {
     const query = new URLSearchParams();
@@ -177,7 +177,7 @@ export const productApi = {
     const res = await api.get('/catalog/admin/products/bulk/template', { responseType: 'blob' });
     return res.data;
   },
-  
+
   uploadBulkProducts: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);

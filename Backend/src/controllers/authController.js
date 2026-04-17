@@ -311,6 +311,10 @@ const login = async (req, res) => {
         }
 
         if (!user.is_approved) {
+            if (user.is_rejected) {
+                console.log('Account rejected:', identifier);
+                return res.status(403).json({ message: 'Your registration has been rejected. Please contact support for more information.' });
+            }
             console.log('Account pending approval:', identifier);
             return res.status(403).json({ message: 'Your account is pending admin approval' });
         }

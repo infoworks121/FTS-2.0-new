@@ -561,6 +561,7 @@ exports.createB2COrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     const user = req.user;
+    const { order_type, status } = req.query;
     const roleCode = user.role_code || '';
     
     let query = `
@@ -575,11 +576,28 @@ exports.getMyOrders = async (req, res) => {
       LEFT JOIN users u ON o.customer_id = u.id
     `;
     const params = [];
+    const conditions = [];
 
-    // Admins and core bodies see all orders; everyone else sees only their own
+    // 1. Authorization Filter: Admins/CoreBodies see all, others see their own
     if (roleCode !== 'admin' && !roleCode.startsWith('core_body')) {
-      query += ` WHERE o.customer_id = $1`;
       params.push(user.id);
+      conditions.push(`o.customer_id = $${params.length}`);
+    }
+
+    // 2. Type Filter (B2B/B2C)
+    if (order_type) {
+      params.push(order_type);
+      conditions.push(`o.order_type = $${params.length}`);
+    }
+    
+    // 3. Status Filter
+    if (status) {
+      params.push(status);
+      conditions.push(`o.status = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
     }
 
     query += ` ORDER BY o.created_at DESC`;

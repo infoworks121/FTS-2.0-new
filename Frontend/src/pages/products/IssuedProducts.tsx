@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { 
-  Search, 
+import {
+  Search,
   Filter,
   X,
   LayoutGrid,
@@ -26,10 +26,10 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter
@@ -45,12 +45,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/context/CartContext";
 import { CartSheet } from "@/components/cart/CartSheet";
-import { 
-  ProductCardGrid, 
-  ProductCardList, 
-  MarketplaceHero, 
+import {
+  ProductCardGrid,
+  ProductCardList,
+  MarketplaceHero,
   CategoryStrip,
-  formatCurrency 
+  formatCurrency
 } from "@/components/marketplace/MarketplaceComponents";
 import { cn } from "@/lib/utils";
 import QuickListModal from "@/components/sph/QuickListModal";
@@ -100,7 +100,7 @@ function MarketplaceContent() {
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: ["issued-products", selectedCategory, search],
-    queryFn: () => productApi.getIssuedProducts({ 
+    queryFn: () => productApi.getIssuedProducts({
       category_id: selectedCategory === "all" ? undefined : selectedCategory,
       search: search || undefined
     }),
@@ -166,7 +166,7 @@ function MarketplaceContent() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="relative w-full md:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
-            <Input 
+            <Input
               placeholder="Search products..."
               className="h-9 w-full rounded-lg border-slate-200 bg-white pl-9 focus-visible:ring-emerald-500/20 text-[11px] font-medium"
               value={search}
@@ -183,7 +183,7 @@ function MarketplaceContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44 rounded-lg p-1 shadow-lg border-slate-100">
                 {(Object.keys(sortLabels) as SortOption[]).map((option) => (
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     key={option}
                     className={cn(
                       "rounded-md text-[10px] font-bold cursor-pointer mb-0.5 p-2 px-3 uppercase tracking-wider",
@@ -198,7 +198,7 @@ function MarketplaceContent() {
             </DropdownMenu>
 
             <div className="h-9 flex items-center gap-1 p-1 bg-white rounded-lg border border-slate-200">
-              <button 
+              <button
                 onClick={() => setViewMode("grid")}
                 className={cn(
                   "p-1.5 rounded-md transition-all",
@@ -207,7 +207,7 @@ function MarketplaceContent() {
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
               </button>
-              <button 
+              <button
                 onClick={() => setViewMode("list")}
                 className={cn(
                   "p-1.5 rounded-md transition-all",
@@ -220,10 +220,10 @@ function MarketplaceContent() {
           </div>
         </div>
 
-        <CategoryStrip 
-          categories={categories} 
-          selected={selectedCategory} 
-          onSelect={setSelectedCategory} 
+        <CategoryStrip
+          categories={categories}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
         />
       </div>
 
@@ -243,14 +243,14 @@ function MarketplaceContent() {
             <Package className="h-10 w-10 text-slate-200 mb-4" />
             <h3 className="text-lg font-bold text-slate-900">No matching products</h3>
             <p className="mt-1 text-sm text-slate-500 font-medium">Try adjusting your filters or search terms.</p>
-            <Button 
-                variant="link" 
-                size="sm"
-                className="text-emerald-600 font-bold"
-                onClick={() => {setSearch(""); setSelectedCategory("all");}}
-              >
-                Clear all filters
-              </Button>
+            <Button
+              variant="link"
+              size="sm"
+              className="text-emerald-600 font-bold"
+              onClick={() => { setSearch(""); setSelectedCategory("all"); }}
+            >
+              Clear all filters
+            </Button>
           </div>
         ) : (
           <div className={cn(
@@ -259,17 +259,17 @@ function MarketplaceContent() {
           )}>
             {processedProducts.map((product) => (
               viewMode === "grid" ? (
-                <ProductCardGrid 
-                  key={product.id} 
-                  product={product} 
+                <ProductCardGrid
+                  key={product.id}
+                  product={product}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   onQuickList={isStockPoint ? (p) => setQuickListProduct(p) : undefined}
                 />
               ) : (
-                <ProductCardList 
-                  key={product.id} 
-                  product={product} 
+                <ProductCardList
+                  key={product.id}
+                  product={product}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
                   onQuickList={isStockPoint ? (p) => setQuickListProduct(p) : undefined}
@@ -280,7 +280,7 @@ function MarketplaceContent() {
         )}
       </div>
 
-      <QuickListModal 
+      <QuickListModal
         product={quickListProduct}
         isOpen={!!quickListProduct}
         onClose={() => setQuickListProduct(null)}
@@ -293,7 +293,7 @@ export default function IssuedProducts() {
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : null;
   const roleCode = user?.role_code || "guest";
-  
+
   const layoutProps = useMemo(() => {
     switch (roleCode) {
       case "admin":
@@ -356,9 +356,9 @@ export default function IssuedProducts() {
   if (!layoutProps) {
     return (
       <div className="min-h-screen bg-slate-50 pb-20">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-            <MarketplaceContent />
-         </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          <MarketplaceContent />
+        </div>
       </div>
     );
   }

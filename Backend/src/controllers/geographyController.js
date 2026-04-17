@@ -88,7 +88,7 @@ exports.getDistrict = async (req, res) => {
             LEFT JOIN district_quota dq ON d.id = dq.district_id 
             WHERE d.id = $1
         `, [id]);
-        
+
         if (rows.length === 0) {
             return res.status(404).json({ error: 'District not found' });
         }
@@ -102,23 +102,23 @@ exports.getDistrict = async (req, res) => {
 exports.createDistrict = async (req, res) => {
     try {
         const { state_id, name, code, max_core_body, is_active } = req.body;
-        
+
         // Start transaction
         await db.query('BEGIN');
-        
+
         const result = await db.query(
             'INSERT INTO districts (state_id, name, code, is_active) VALUES ($1, $2, $3, $4) RETURNING *',
             [state_id, name, code, is_active !== undefined ? is_active : true]
         );
-        
+
         const districtId = result.rows[0].id;
-        
+
         // Create quota entry
         await db.query(
             'INSERT INTO district_quota (district_id, max_core_body, current_count) VALUES ($1, $2, 0)',
             [districtId, max_core_body || 20]
         );
-        
+
         await db.query('COMMIT');
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -132,21 +132,21 @@ exports.updateDistrict = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, code, is_active, max_core_body, state_id } = req.body;
-        
+
         await db.query('BEGIN');
-        
+
         const result = await db.query(
             `UPDATE districts 
              SET name = $1, code = $2, is_active = $3, state_id = COALESCE($4, state_id), updated_at = NOW() 
              WHERE id = $5 RETURNING *`,
             [name, code, is_active, state_id, id]
         );
-        
+
         if (result.rows.length === 0) {
             await db.query('ROLLBACK');
             return res.status(404).json({ error: 'District not found' });
         }
-        
+
         // Update quota if provided
         if (max_core_body !== undefined) {
             const check = await db.query('SELECT * FROM district_quota WHERE district_id = $1', [id]);
@@ -162,7 +162,7 @@ exports.updateDistrict = async (req, res) => {
                 );
             }
         }
-        
+
         await db.query('COMMIT');
         res.json(result.rows[0]);
     } catch (err) {
@@ -301,11 +301,11 @@ exports.updateDistrictQuota = async (req, res) => {
     try {
         const { districtId } = req.params;
         const { max_core_body } = req.body;
-        
+
         // Check if exists
         const check = await db.query('SELECT * FROM district_quota WHERE district_id = $1', [districtId]);
         let result;
-        
+
         if (check.rows.length === 0) {
             // Insert
             result = await db.query(
@@ -349,9 +349,9 @@ exports.getDistrictsSummary = async (req, res) => {
             LEFT JOIN district_quota dq ON d.id = dq.district_id
             ORDER BY d.name ASC
         `;
-        
+
         const { rows } = await db.query(query);
-        
+
         // Calculate totals for KPI cards
         const kpiData = {
             totalDistricts: rows.length,
@@ -379,7 +379,7 @@ exports.getDistrictsSummary = async (req, res) => {
 exports.getDistrictPerformance = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         // 1. Basic District Info
         const districtRes = await db.query(`
             SELECT d.*, s.name as state_name, dq.max_core_body, COALESCE(dq.current_count, 0) as current_count
@@ -388,13 +388,13 @@ exports.getDistrictPerformance = async (req, res) => {
             LEFT JOIN district_quota dq ON d.id = dq.district_id
             WHERE d.id = $1
         `, [id]);
-        
+
         if (districtRes.rows.length === 0) {
             return res.status(404).json({ error: 'District not found' });
         }
-        
+
         const district = districtRes.rows[0];
-        
+
         // 2. Core Body Counts
         const cbCountsRes = await db.query(`
             SELECT 
@@ -403,9 +403,9 @@ exports.getDistrictPerformance = async (req, res) => {
             FROM core_body_profiles
             WHERE district_id = $1 AND is_active = true
         `, [id]);
-        
+
         const counts = cbCountsRes.rows[0];
-        
+
         // 3. Overall Order Stats
         const orderStatsRes = await db.query(`
             SELECT 
@@ -414,9 +414,9 @@ exports.getDistrictPerformance = async (req, res) => {
             FROM orders
             WHERE district_id = $1
         `, [id]);
-        
+
         const stats = orderStatsRes.rows[0];
-        
+
         // 4. Monthly Trends (Last 6 Months)
         const trendsRes = await db.query(`
             WITH months AS (
@@ -436,7 +436,7 @@ exports.getDistrictPerformance = async (req, res) => {
             GROUP BY m.month
             ORDER BY m.month ASC
         `, [id]);
-        
+
         // 5. Core Body List
         const cbListRes = await db.query(`
             SELECT 
@@ -452,7 +452,7 @@ exports.getDistrictPerformance = async (req, res) => {
             WHERE cbp.district_id = $1
             ORDER BY cbp.type ASC, u.full_name ASC
         `, [id]);
-        
+
         // Response
         res.json({
             districtInfo: {
@@ -483,19 +483,95 @@ exports.getDistrictPerformance = async (req, res) => {
                 earnings: parseFloat(r.earnings),
                 status: r.is_active ? 'active' : 'inactive',
                 lastActive: r.last_active ? new Date(r.last_active).toISOString().split('T')[0] : 'Never'
-            }))
+            })),
+            weeklySnapshot: await getWeeklyHeatmapData(id)
         });
-        
+
     } catch (err) {
         console.error('Error fetching district performance:', err);
         res.status(500).json({ error: 'Failed to fetch district performance data' });
     }
 };
 
+// Helper for weekly heatmap (order density)
+async function getWeeklyHeatmapData(districtId) {
+    const heatmapQuery = `
+        SELECT 
+            EXTRACT(DOW FROM created_at) as day, 
+            EXTRACT(HOUR FROM created_at) as hour, 
+            COUNT(*) as count
+        FROM orders
+        WHERE district_id = $1 AND created_at > NOW() - INTERVAL '30 days'
+        GROUP BY day, hour
+        ORDER BY day, hour
+    `;
+    const { rows } = await db.query(heatmapQuery, [districtId]);
+    
+    // Initialize 7x24 grid (0 for all)
+    const grid = Array(7).fill(0).map(() => Array(24).fill(0));
+    rows.forEach(r => {
+        grid[parseInt(r.day)][parseInt(r.hour)] = parseInt(r.count);
+    });
+    
+    return grid;
+}
+
+exports.getGlobalDistrictsPerformance = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                d.id, 
+                d.name,
+                s.name as state,
+                COALESCE(SUM(o.total_amount), 0) as total_revenue,
+                COUNT(o.id) as total_orders,
+                (SELECT COUNT(*) FROM core_body_profiles cbp WHERE cbp.district_id = d.id AND cbp.is_active = true) as active_cb,
+                COALESCE(dq.max_core_body, 20) as max_cb
+            FROM districts d
+            JOIN states s ON d.state_id = s.id
+            LEFT JOIN orders o ON d.id = o.district_id
+            LEFT JOIN district_quota dq ON d.id = dq.district_id
+            GROUP BY d.id, d.name, s.name, dq.max_core_body
+            ORDER BY total_revenue DESC
+        `;
+        
+        const { rows } = await db.query(query);
+        
+        // Calculate Trends (Growth) - compare last 30 days vs 30-60 days ago
+        const trendsQuery = `
+            SELECT 
+                district_id,
+                SUM(CASE WHEN created_at > NOW() - INTERVAL '30 days' THEN total_amount ELSE 0 END) as current_month,
+                SUM(CASE WHEN created_at <= NOW() - INTERVAL '30 days' AND created_at > NOW() - INTERVAL '60 days' THEN total_amount ELSE 0 END) as prev_month
+            FROM orders
+            WHERE created_at > NOW() - INTERVAL '60 days'
+            GROUP BY district_id
+        `;
+        const trendsRes = await db.query(trendsQuery);
+        const trendsMap = {};
+        trendsRes.rows.forEach(t => {
+            const growth = t.prev_month > 0 ? ((t.current_month - t.prev_month) / t.prev_month) * 100 : 0;
+            trendsMap[t.district_id] = growth.toFixed(1);
+        });
+
+        res.json(rows.map(r => ({
+            ...r,
+            total_revenue: parseFloat(r.total_revenue),
+            total_orders: parseInt(r.total_orders),
+            active_cb: parseInt(r.active_cb),
+            growth: trendsMap[r.id] || "0.0"
+        })));
+        
+    } catch (err) {
+        console.error('Error fetching global performance:', err);
+        res.status(500).json({ error: 'Failed to fetch global performance metrics' });
+    }
+};
+
 exports.getDistrictDealers = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const query = `
             SELECT 
                 s.id as subdivision_id,
@@ -512,12 +588,12 @@ exports.getDistrictDealers = async (req, res) => {
             WHERE s.district_id = $1
             ORDER BY s.name ASC, u.full_name ASC
         `;
-        
+
         const { rows } = await db.query(query, [id]);
-        
+
         // Group by subdivision
         const subdivisionMap = {};
-        
+
         rows.forEach(row => {
             if (!subdivisionMap[row.subdivision_id]) {
                 subdivisionMap[row.subdivision_id] = {
@@ -526,7 +602,7 @@ exports.getDistrictDealers = async (req, res) => {
                     dealers: []
                 };
             }
-            
+
             if (row.dealer_id) {
                 subdivisionMap[row.subdivision_id].dealers.push({
                     id: row.dealer_id,
@@ -538,10 +614,10 @@ exports.getDistrictDealers = async (req, res) => {
                 });
             }
         });
-        
+
         res.json(Object.values(subdivisionMap));
     } catch (err) {
-// ...
+        // ...
         console.error('Error fetching district dealers:', err);
         res.status(500).json({ error: 'Failed to fetch subdivision-wise dealer data' });
     }

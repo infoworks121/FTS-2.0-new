@@ -1,5 +1,12 @@
 const db = require('../config/db');
 
+const stripIdPrefix = (id) => {
+    if (typeof id === 'string') {
+        return id.replace(/^(BSM-|DLR-|CB-)/, '');
+    }
+    return id;
+};
+
 const getPendingUsers = async (req, res) => {
     try {
         const result = await db.query(`
@@ -23,7 +30,7 @@ const getPendingUsers = async (req, res) => {
             LEFT JOIN districts d ON u.district_id = d.id
             LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
             LEFT JOIN core_body_profiles cp ON u.id = cp.user_id
-            WHERE u.is_approved = FALSE AND u.role_id != 1
+            WHERE u.is_approved = FALSE AND (u.is_rejected = FALSE OR u.is_rejected IS NULL) AND u.role_id != 1
             ORDER BY u.created_at DESC
         `);
 
@@ -35,7 +42,7 @@ const getPendingUsers = async (req, res) => {
 };
 
 const approveUser = async (req, res) => {
-    const { userId } = req.params;
+    const userId = stripIdPrefix(req.params.userId);
     const adminId = req.user.id;
 
     try {
@@ -52,30 +59,69 @@ const approveUser = async (req, res) => {
 };
 
 const rejectUser = async (req, res) => {
-    const { userId } = req.params;
+    const userId = stripIdPrefix(req.params.userId);
+    const adminId = req.user.id;
 
     try {
-        // Delete related core body installments first
-        await db.query('DELETE FROM core_body_installments WHERE core_body_id IN (SELECT id FROM core_body_profiles WHERE user_id = $1)', [userId]);
-        // Delete related businessman investments
-        await db.query('DELETE FROM businessman_investments WHERE businessman_id IN (SELECT id FROM businessman_profiles WHERE user_id = $1)', [userId]);
-        
-        // Delete profiles and sessions
-        await db.query('DELETE FROM businessman_profiles WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM core_body_profiles WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM user_devices WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM referral_links WHERE user_id = $1', [userId]);
-        await db.query('DELETE FROM referral_registrations WHERE referred_id = $1', [userId]);
-        
-        // Then delete the user
-        await db.query('DELETE FROM users WHERE id = $1', [userId]);
-        
-        res.json({ message: 'User rejected and removed' });
+        await db.query(
+            'UPDATE users SET is_rejected = TRUE, rejected_at = NOW(), rejected_by = $1 WHERE id = $2',
+            [adminId, userId]
+        );
+
+        res.json({ message: 'User rejection record created' });
     } catch (err) {
         console.error('Reject user error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+const getRejectedUsers = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT u.id, u.phone, u.email, u.full_name, u.pan_number, u.referral_code, 
+                   r.role_code, u.district_id, u.created_at, u.rejected_at,
+                   d.name as district_name,
+                   bp.type as businessman_type, bp.business_name, bp.gst_number, bp.advance_amount,
+                   cp.type as core_body_type, cp.investment_amount,
+                   (
+                       SELECT json_agg(i.* ORDER BY i.installment_no) 
+                       FROM core_body_installments i 
+                       WHERE i.core_body_id = cp.id
+                   ) as core_body_installments,
+                   (
+                       SELECT json_agg(bi.* ORDER BY bi.installment_no) 
+                       FROM businessman_investments bi 
+                       WHERE bi.businessman_id = bp.id
+                   ) as businessman_installments
+            FROM users u
+            JOIN user_roles r ON u.role_id = r.id
+            LEFT JOIN districts d ON u.district_id = d.id
+            LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+            LEFT JOIN core_body_profiles cp ON u.id = cp.user_id
+            WHERE u.is_rejected = TRUE AND u.role_id != 1
+            ORDER BY u.rejected_at DESC
+        `);
+
+        res.json({ users: result.rows });
+    } catch (err) {
+        console.error('Get rejected users error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const restoreUser = async (req, res) => {
+    const userId = stripIdPrefix(req.params.userId);
+
+    try {
+        await db.query(
+            'UPDATE users SET is_rejected = FALSE, rejected_at = NULL, rejected_by = NULL WHERE id = $1',
+            [userId]
+        );
+
+        res.json({ message: 'User restored to pending status' });
+    } catch (err) {
+        console.error('Restore user error:', err);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -157,7 +203,7 @@ const getAllBusinessmen = async (req, res) => {
 
 const getAllCoreBodies = async (req, res) => {
     try {
-        const { search, type, district, status } = req.query;
+        const { search, type, district, district_id, status } = req.query;
 
         let query = `
             SELECT 
@@ -199,6 +245,11 @@ const getAllCoreBodies = async (req, res) => {
             params.push(district);
             paramIndex++;
         }
+        if (district_id) {
+            whereClauses.push(`cb.district_id = $${paramIndex}`);
+            params.push(district_id);
+            paramIndex++;
+        }
         if (status) {
             if (status === 'active') {
                 whereClauses.push(`cb.is_active = TRUE AND (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 < 80`);
@@ -211,16 +262,17 @@ const getAllCoreBodies = async (req, res) => {
             }
         }
 
+        let finalQuery = query;
         if (whereClauses.length > 0) {
-            query += ' WHERE ' + whereClauses.join(' AND ');
+            finalQuery += ' WHERE ' + whereClauses.join(' AND ');
         }
 
-        query += ` ORDER BY u.created_at DESC`;
+        finalQuery += ` ORDER BY u.created_at DESC`;
 
-        const result = await db.query(query, params);
+        const result = await db.query(finalQuery, params);
 
-        // KPI summary
-        const kpiQuery = `
+        // KPI summary with same filters
+        let kpiQuery = `
             SELECT 
                 COUNT(*) as total_core_bodies,
                 COUNT(*) FILTER (WHERE cb.type = 'A') as type_a,
@@ -232,7 +284,32 @@ const getAllCoreBodies = async (req, res) => {
                 COALESCE(SUM(cb.ytd_earnings), 0) as total_earnings
             FROM core_body_profiles cb
         `;
-        const kpiResult = await db.query(kpiQuery);
+
+        if (whereClauses.length > 0) {
+            // Adjust where clauses for KPI query (which uses only cb table)
+            const kpiWhereClauses = whereClauses.map(clause => clause.replace('u.', 'cb_u.').replace('d.', 'cb_d.'));
+            // Since kpiQuery only has 'cb', we might need to join users/districts if those filters are applied
+            let kpiJoin = "";
+            if (search) kpiJoin += " JOIN users cb_u ON cb.user_id = cb_u.id";
+            if (district) kpiJoin += " LEFT JOIN districts cb_d ON cb.district_id = cb_d.id";
+            
+            kpiQuery = `
+                SELECT 
+                    COUNT(*) as total_core_bodies,
+                    COUNT(*) FILTER (WHERE cb.type = 'A') as type_a,
+                    COUNT(*) FILTER (WHERE cb.type = 'B') as type_b,
+                    COUNT(*) FILTER (WHERE cb.is_active = TRUE) as active,
+                    COUNT(*) FILTER (WHERE cb.is_active = FALSE) as inactive,
+                    COUNT(*) FILTER (WHERE (cb.ytd_earnings / NULLIF(cb.annual_cap, 0)) * 100 >= 80) as cap_warning,
+                    COALESCE(SUM(cb.investment_amount), 0) as total_investment,
+                    COALESCE(SUM(cb.ytd_earnings), 0) as total_earnings
+                FROM core_body_profiles cb
+                ${kpiJoin}
+                WHERE ${kpiWhereClauses.join(' AND ')}
+            `;
+        }
+        
+        const kpiResult = await db.query(kpiQuery, params);
 
         res.json({
             coreBodies: result.rows,
@@ -246,7 +323,7 @@ const getAllCoreBodies = async (req, res) => {
 
 const getCoreBodyById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = stripIdPrefix(req.params.id);
 
         // 1. Basic Profile & User Info
         const profileResult = await db.query(`
@@ -266,7 +343,7 @@ const getCoreBodyById = async (req, res) => {
             LEFT JOIN core_body_profiles cb ON u.id = cb.user_id
             LEFT JOIN districts d ON cb.district_id = d.id OR u.district_id = d.id
             LEFT JOIN states s ON d.state_id = s.id
-            WHERE u.id = $1
+            WHERE u.id = $1 OR cb.id = $1
         `, [id]);
 
         if (profileResult.rows.length === 0) {
@@ -388,7 +465,7 @@ const getEntryModeUsers = async (req, res) => {
             users: usersResult.rows.map(row => {
                 const now = new Date();
                 const lastLogin = row.last_login_time ? new Date(row.last_login_time) : null;
-                const inactivityDays = lastLogin 
+                const inactivityDays = lastLogin
                     ? Math.floor((now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24))
                     : 999;
 
@@ -426,7 +503,7 @@ const getEntryModeUsers = async (req, res) => {
 
 const getBusinessmanById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = stripIdPrefix(req.params.id);
 
         // 1. Basic User & Businessman Profile Info
         const profileResult = await db.query(`
@@ -446,7 +523,7 @@ const getBusinessmanById = async (req, res) => {
             LEFT JOIN districts d ON bp.district_id = d.id
             LEFT JOIN core_body_profiles cbp ON bp.assigned_core_body_id = cbp.id
             LEFT JOIN users cbu ON cbp.user_id = cbu.id
-            WHERE u.id = $1 AND r.role_code = 'businessman'
+            WHERE (u.id = $1 OR bp.id = $1) AND r.role_code = 'businessman'
         `, [id]);
 
         if (profileResult.rows.length === 0) {
@@ -480,8 +557,18 @@ const getBusinessmanById = async (req, res) => {
 };
 
 const updateBusinessmanSettings = async (req, res) => {
-    const { id } = req.params;
-    const { 
+    let id = stripIdPrefix(req.params.id);
+
+    // Resolve Profile ID to User ID if necessary
+    try {
+        const bpCheck = await db.query('SELECT user_id FROM businessman_profiles WHERE id::text = $1', [id]);
+        if (bpCheck.rows.length > 0) {
+            id = bpCheck.rows[0].user_id;
+        }
+    } catch (err) {
+        console.warn('[DEBUG] Businessman resolution failed:', err.message);
+    }
+    const {
         name, email, phone, status, mode, district_id,
         business_name, business_address, gst_number, pan_number,
         bank_account, ifsc_code, monthly_target, advance_amount,
@@ -494,11 +581,11 @@ const updateBusinessmanSettings = async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Update User Table
-        const is_approved = status === 'active' || status === 'inactive'; 
-        
+        const is_approved = status === 'active' || status === 'inactive';
+
         let user_is_active = true;
         let user_is_approved = true;
-        
+
         if (status === 'suspended') {
             user_is_active = false;
         } else if (status === 'pending') {
@@ -536,7 +623,7 @@ const updateBusinessmanSettings = async (req, res) => {
                 updated_at = NOW()
             WHERE user_id = $12
         `, [
-            mode, district_id, business_name, business_address, gst_number, 
+            mode, district_id, business_name, business_address, gst_number,
             pan_number, bank_account, ifsc_code, monthly_target, advance_amount,
             bp_is_active, id
         ]);
@@ -638,7 +725,7 @@ const getAllUsers = async (req, res) => {
 };
 
 const updateUserSPHStatus = async (req, res) => {
-    const { id } = req.params;
+    const id = stripIdPrefix(req.params.id);
     const { is_sph } = req.body;
 
     try {
@@ -655,7 +742,7 @@ const updateUserSPHStatus = async (req, res) => {
 };
 
 const updateUserActiveStatus = async (req, res) => {
-    const { id } = req.params;
+    const id = stripIdPrefix(req.params.id);
     const { is_active } = req.body;
 
     try {
@@ -769,7 +856,7 @@ const approveCoreBodyInstallment = async (req, res) => {
     const { id } = req.params;
     const { action } = req.body; // action: 'approve' or 'reject'
     const adminId = req.user.id;
-    
+
     const client = await db.pool.connect();
 
     try {
@@ -788,7 +875,7 @@ const approveCoreBodyInstallment = async (req, res) => {
         }
 
         const installment = installmentResult.rows[0];
-        
+
         if (action === 'approve') {
             // Update installment to paid
             await client.query(`
@@ -809,7 +896,7 @@ const approveCoreBodyInstallment = async (req, res) => {
                 SET is_approved = TRUE, approved_by = $1, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() 
                 WHERE id = $2
             `, [adminId, installment.user_id]);
-            
+
             // Add to wallet ledger if applicable - user wanted it transferred to corebody wallet
             const walletQuery = await client.query(`
                 SELECT w.id, w.balance
@@ -818,7 +905,7 @@ const approveCoreBodyInstallment = async (req, res) => {
                 WHERE w.user_id = $1 AND wt.type_code = 'main'
             `, [installment.user_id]);
             let walletId;
-            
+
             if (walletQuery.rows.length > 0) {
                 walletId = walletQuery.rows[0].id;
                 const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
@@ -827,7 +914,7 @@ const approveCoreBodyInstallment = async (req, res) => {
                 await client.query(`
                     UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
                 `, [newBalance, walletId]);
-                
+
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
                     VALUES ($1, $2, 'deposit', $3, $4, $5, 'Investment Installment Payment Approved', 'core_body_installment', $6)
@@ -884,7 +971,7 @@ const approveBusinessmanInstallment = async (req, res) => {
     const { id } = req.params;
     const { action } = req.body; // action: 'approve' or 'reject'
     const adminId = req.user.id;
-    
+
     const client = await db.pool.connect();
 
     try {
@@ -903,7 +990,7 @@ const approveBusinessmanInstallment = async (req, res) => {
         }
 
         const installment = installmentResult.rows[0];
-        
+
         if (action === 'approve') {
             // Update installment to paid
             await client.query(`
@@ -924,7 +1011,7 @@ const approveBusinessmanInstallment = async (req, res) => {
                 SET is_approved = TRUE, approved_by = $1, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() 
                 WHERE id = $2
             `, [adminId, installment.user_id]);
-            
+
             // Add to wallet ledger
             const walletQuery = await client.query(`
                 SELECT w.id, w.balance
@@ -932,7 +1019,7 @@ const approveBusinessmanInstallment = async (req, res) => {
                 JOIN wallet_types wt ON w.wallet_type_id = wt.id 
                 WHERE w.user_id = $1 AND wt.type_code = 'main'
             `, [installment.user_id]);
-            
+
             if (walletQuery.rows.length > 0) {
                 const walletId = walletQuery.rows[0].id;
                 const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
@@ -941,7 +1028,7 @@ const approveBusinessmanInstallment = async (req, res) => {
                 await client.query(`
                     UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
                 `, [newBalance, walletId]);
-                
+
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
                     VALUES ($1, $2, 'deposit', $3, $4, $5, 'Businessman Investment Installment Payment Approved', 'businessman_installment', $6)
@@ -973,7 +1060,7 @@ const approveBusinessmanInstallment = async (req, res) => {
 
 const updateCoreBodySettings = async (req, res) => {
     const { id } = req.params;
-    const { 
+    const {
         name, email, phone, status, type, district_id,
         investment_amount, installment_count, annual_cap, monthly_cap,
         is_sph
@@ -986,7 +1073,7 @@ const updateCoreBodySettings = async (req, res) => {
 
         // 1. Update User Table
         let user_is_approved = true;
-        
+
         if (status === 'pending') {
             user_is_approved = false;
         }
@@ -1017,7 +1104,7 @@ const updateCoreBodySettings = async (req, res) => {
                 updated_at = NOW()
             WHERE user_id = $8
         `, [
-            type, district_id, investment_amount, installment_count, 
+            type, district_id, investment_amount, installment_count,
             annual_cap, monthly_cap, cb_is_active, id
         ]);
 
@@ -1070,11 +1157,11 @@ const getLowStockAlerts = async (req, res) => {
     }
 };
 
-module.exports = { 
-    getPendingUsers, 
-    approveUser, 
-    rejectUser, 
-    getAllBusinessmen, 
+module.exports = {
+    getPendingUsers,
+    approveUser,
+    rejectUser,
+    getAllBusinessmen,
     getAllCoreBodies,
     getCoreBodyById,
     getEntryModeUsers,
@@ -1087,6 +1174,8 @@ module.exports = {
     getAdminDashboardStats,
     getPendingCoreBodyInstallments,
     approveCoreBodyInstallment,
+    getRejectedUsers,
+    restoreUser,
     getLowStockAlerts,
     getPendingBusinessmanInstallments,
     approveBusinessmanInstallment

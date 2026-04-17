@@ -1,5 +1,5 @@
 const express = require('express');
-const { uploadKYC, getKYCStatus, reviewKYC, getKYCAuditLog, getAllPendingKYC } = require('../controllers/kycController');
+const { uploadKYC, getKYCStatus, reviewKYC, getKYCAuditLog, getAllPendingKYC, getUserKYC } = require('../controllers/kycController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -13,5 +13,6 @@ router.get('/audit-log', getKYCAuditLog);
 // Only admins can review KYC
 router.post('/review', authorize('admin'), reviewKYC);
 router.get('/pending', authorize('admin'), getAllPendingKYC);
+router.get('/admin/user/:userId', authorize('admin'), getUserKYC);
 
 module.exports = router;

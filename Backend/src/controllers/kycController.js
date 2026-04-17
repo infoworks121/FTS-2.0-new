@@ -118,10 +118,26 @@ const getAllPendingKYC = async (req, res) => {
     }
 };
 
+const getUserKYC = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const result = await db.query(
+            'SELECT id, doc_type, status, doc_url, review_note, reviewed_at, uploaded_at FROM kyc_documents WHERE user_id = $1 ORDER BY uploaded_at DESC',
+            [userId]
+        );
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Get user KYC error:', err);
+        res.status(500).json({ message: 'Server error fetching user KYC' });
+    }
+};
+
 module.exports = {
     uploadKYC,
     getKYCStatus,
     reviewKYC,
     getKYCAuditLog,
     getAllPendingKYC,
+    getUserKYC,
 };

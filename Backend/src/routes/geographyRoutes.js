@@ -18,6 +18,7 @@ router.post('/states', geogController.createState);
 // Districts — static paths MUST come before parameterized /:id
 router.get('/states/:stateId/districts', geogController.getDistrictsByState);
 router.get('/districts/summary', geogController.getDistrictsSummary);
+router.get('/districts/performance/global', geogController.getGlobalDistrictsPerformance);
 router.get('/districts/:id', geogController.getDistrict);
 router.get('/districts/:id/performance', geogController.getDistrictPerformance);
 router.get('/districts/:id/dealers', geogController.getDistrictDealers);

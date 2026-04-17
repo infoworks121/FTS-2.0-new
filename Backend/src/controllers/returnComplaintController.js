@@ -124,7 +124,7 @@ exports.createComplaint = async (req, res) => {
     }
 };
 
-// Resolve complaint
+// Resolves complaint
 exports.resolveComplaint = async (req, res) => {
     try {
         const { id } = req.params;
@@ -146,6 +146,52 @@ exports.resolveComplaint = async (req, res) => {
 
     } catch (error) {
         console.error('Error resolving complaint:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// --- ADMIN SPECIFIC ---
+
+// Get all return requests (Admin Only)
+exports.getAllReturnRequests = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT rr.*, 
+                   o.order_number, 
+                   u.full_name as customer_name,
+                   (SELECT STRING_AGG(p.name, ', ') 
+                    FROM order_items oi 
+                    JOIN products p ON oi.product_id = p.id 
+                    WHERE oi.order_id = rr.order_id AND (rr.order_item_id IS NULL OR oi.id = rr.order_item_id)) as product_names
+            FROM return_requests rr
+            JOIN orders o ON rr.order_id = o.id
+            JOIN users u ON rr.requested_by = u.id
+            ORDER BY rr.created_at DESC
+        `);
+        
+        res.json({ returnRequests: result.rows });
+    } catch (error) {
+        console.error('Error fetching return requests:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Get timeline for a specific return request
+exports.getReturnTimeline = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const timeline = await db.query(`
+            SELECT rsl.*, u.full_name as performed_by_name
+            FROM return_status_log rsl
+            LEFT JOIN users u ON rsl.performed_by = u.id
+            WHERE rsl.return_id = $1
+            ORDER BY rsl.created_at ASC
+        `, [id]);
+
+        res.json({ timeline: timeline.rows });
+    } catch (error) {
+        console.error('Error fetching return timeline:', error);
         res.status(500).json({ error: 'Server error' });
     }
 };

@@ -62,6 +62,18 @@ export interface DistrictPerformanceResponse {
     status: 'active' | 'inactive';
     lastActive: string;
   }[];
+  weeklySnapshot?: number[][];
+}
+
+export interface GlobalDistrictPerformance {
+  id: number;
+  name: string;
+  state: string;
+  total_revenue: number;
+  total_orders: number;
+  active_cb: number;
+  max_cb: number;
+  growth: string;
 }
 
 export interface SubdivisionDealers {
@@ -100,6 +112,11 @@ export const geographyApi = {
 
   getDistrictDealers: async (id: number | string): Promise<SubdivisionDealers[]> => {
     const response = await api.get(`/geography/districts/${id}/dealers`);
+    return response.data;
+  },
+
+  getGlobalPerformance: async (): Promise<GlobalDistrictPerformance[]> => {
+    const response = await api.get('/geography/districts/performance/global');
     return response.data;
   },
 

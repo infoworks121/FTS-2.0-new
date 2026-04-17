@@ -26,22 +26,22 @@ exports.getCategories = async (req, res) => {
 exports.createCategory = async (req, res) => {
   try {
     const { name, description, icon_url, sort_order, parent_id, commission_rule_id } = req.body;
-    
+
     if (!name) {
       return res.status(400).json({ error: 'Category name is required' });
     }
-    
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    
+
     const result = await db.query(
       `INSERT INTO categories (name, description, slug, icon_url, sort_order, parent_id, commission_rule_id) 
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [name, description || null, slug, icon_url || null, sort_order || 0, parent_id || null, commission_rule_id === 'none' ? null : commission_rule_id || null]
     );
-    
-    res.status(201).json({ 
-      category: result.rows[0], 
-      message: 'Category created successfully' 
+
+    res.status(201).json({
+      category: result.rows[0],
+      message: 'Category created successfully'
     });
   } catch (error) {
     if (error.code === '23505') { // Unique constraint violation
@@ -60,9 +60,9 @@ exports.updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, icon_url, sort_order, parent_id, commission_rule_id, is_active } = req.body;
-    
+
     const slug = name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : undefined;
-    
+
     // Check if category exists
     const existing = await db.query('SELECT * FROM categories WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
@@ -85,7 +85,7 @@ exports.updateCategory = async (req, res) => {
        WHERE id = $9 RETURNING *`,
       [updatedName, updatedDescription, updatedSlug, updatedIcon, updatedSort, updatedParent, updatedRule, updatedActive, id]
     );
-    
+
     res.json({ category: result.rows[0], message: 'Category updated successfully' });
   } catch (error) {
     if (error.code === '23505') res.status(400).json({ error: 'Category name already exists' });
@@ -110,17 +110,17 @@ exports.deleteCategory = async (req, res) => {
 exports.downloadBulkTemplate = (req, res) => {
   try {
     const headers = [
-      'Category', 'Product Name', 'SKU', 'Description', 'Type (physical/digital/service)', 'Unit (e.g. kg/pcs)', 
+      'Category', 'Product Name', 'SKU', 'Description', 'Type (physical/digital/service)', 'Unit (e.g. kg/pcs)',
       'Profit Channel (B2B/B2C)', 'MRP', 'Base Price', 'Selling Price', 'Initial Stock',
       'Variant Name', 'Variant SKU Suffix', 'Variant MRP', 'Variant Base Price', 'Variant Selling Price'
     ];
-    
+
     const worksheet = xlsx.utils.aoa_to_sheet([headers]);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, 'Products');
-    
+
     const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    
+
     res.setHeader('Content-Disposition', 'attachment; filename="bulk_products_template.xlsx"');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
@@ -133,14 +133,14 @@ exports.bulkUploadProducts = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  
+
   try {
     const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-    
+
     if (data.length === 0) {
-       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(400).json({ error: 'File is empty' });
     }
 
@@ -159,122 +159,122 @@ exports.bulkUploadProducts = async (req, res) => {
     const profitRulesResult = await db.query('SELECT id, channel FROM profit_rules WHERE is_current = true');
     const profitRulesMap = {};
     profitRulesResult.rows.forEach(pr => profitRulesMap[pr.channel] = pr.id);
-    
+
     for (let i = 0; i < data.length; i++) {
-        const row = data[i];
-        const client = await db.pool.connect();
-        
-        try {
-            await client.query('BEGIN');
-            
-            const catName = row['Category'];
-            const name = row['Product Name'];
-            const sku = row['SKU'];
-            let mrp = row['MRP'];
-            let base_price = row['Base Price'];
-            let selling_price = row['Selling Price'];
-            
-            if (!catName || !name || !sku || !mrp || !base_price || !selling_price) {
-                throw new Error('Missing required fields: Category, Product Name, SKU, MRP, Base Price, or Selling Price');
-            }
+      const row = data[i];
+      const client = await db.pool.connect();
 
-            let category_id = categoriesMap[catName.toLowerCase()];
-            if (!category_id) {
-                const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                const newCat = await client.query(
-                    `INSERT INTO categories (name, slug, is_active) VALUES ($1, $2, true) RETURNING id, name`,
-                    [catName, slug]
-                );
-                category_id = newCat.rows[0].id;
-                categoriesMap[catName.toLowerCase()] = category_id;
-            }
+      try {
+        await client.query('BEGIN');
 
-            const type = (row['Type (physical/digital/service)'] || 'physical').toLowerCase();
-            const unit = row['Unit (e.g. kg/pcs)'] || 'pcs';
-            let profit_channel = (row['Profit Channel (B2B/B2C)'] || profitChannelFallback).toUpperCase();
-            
-            if (!['B2B', 'B2C'].includes(profit_channel)) profit_channel = profitChannelFallback;
-            
-            if (!profitRulesMap[profit_channel]) {
-                throw new Error(`No active profit rule found for channel: ${profit_channel}`);
-            }
-            
-            const initial_stock = parseFloat(row['Initial Stock']) || 0;
-            
-            const productResult = await client.query(
-              `INSERT INTO products 
+        const catName = row['Category'];
+        const name = row['Product Name'];
+        const sku = row['SKU'];
+        let mrp = row['MRP'];
+        let base_price = row['Base Price'];
+        let selling_price = row['Selling Price'];
+
+        if (!catName || !name || !sku || !mrp || !base_price || !selling_price) {
+          throw new Error('Missing required fields: Category, Product Name, SKU, MRP, Base Price, or Selling Price');
+        }
+
+        let category_id = categoriesMap[catName.toLowerCase()];
+        if (!category_id) {
+          const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          const newCat = await client.query(
+            `INSERT INTO categories (name, slug, is_active) VALUES ($1, $2, true) RETURNING id, name`,
+            [catName, slug]
+          );
+          category_id = newCat.rows[0].id;
+          categoriesMap[catName.toLowerCase()] = category_id;
+        }
+
+        const type = (row['Type (physical/digital/service)'] || 'physical').toLowerCase();
+        const unit = row['Unit (e.g. kg/pcs)'] || 'pcs';
+        let profit_channel = (row['Profit Channel (B2B/B2C)'] || profitChannelFallback).toUpperCase();
+
+        if (!['B2B', 'B2C'].includes(profit_channel)) profit_channel = profitChannelFallback;
+
+        if (!profitRulesMap[profit_channel]) {
+          throw new Error(`No active profit rule found for channel: ${profit_channel}`);
+        }
+
+        const initial_stock = parseFloat(row['Initial Stock']) || 0;
+
+        const productResult = await client.query(
+          `INSERT INTO products 
                (category_id, name, sku, description, type, unit, created_by) 
                VALUES ($1, $2, $3, $4, $5, $6, $7) 
                RETURNING id`,
-              [category_id, name, sku, row['Description'] || '', type, unit, req.user.id]
-            );
-            const productId = productResult.rows[0].id;
+          [category_id, name, sku, row['Description'] || '', type, unit, req.user.id]
+        );
+        const productId = productResult.rows[0].id;
 
-            const varName = row['Variant Name'];
-            let createdVariantId = null;
-            if (varName) {
-                const varSku = row['Variant SKU Suffix'] || '';
-                const varMrp = row['Variant MRP'] || mrp;
-                const varBase = row['Variant Base Price'] || base_price;
-                const varSell = row['Variant Selling Price'] || selling_price;
-                
-                const variantResult = await client.query(
-                  `INSERT INTO product_variants 
+        const varName = row['Variant Name'];
+        let createdVariantId = null;
+        if (varName) {
+          const varSku = row['Variant SKU Suffix'] || '';
+          const varMrp = row['Variant MRP'] || mrp;
+          const varBase = row['Variant Base Price'] || base_price;
+          const varSell = row['Variant Selling Price'] || selling_price;
+
+          const variantResult = await client.query(
+            `INSERT INTO product_variants 
                    (product_id, variant_name, sku_suffix, attributes) 
                    VALUES ($1, $2, $3, '{}') RETURNING id`,
-                  [productId, varName, varSku]
-                );
-                createdVariantId = variantResult.rows[0].id;
-                
-                await client.query(
-                    `INSERT INTO product_pricing 
+            [productId, varName, varSku]
+          );
+          createdVariantId = variantResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO product_pricing 
                      (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
                      VALUES ($1, $2, $3, $4, $5, true, $6)`,
-                    [productId, createdVariantId, varMrp, varBase, varSell, req.user.id]
-                );
-            }
-            
-            await client.query(
-              `INSERT INTO product_pricing 
+            [productId, createdVariantId, varMrp, varBase, varSell, req.user.id]
+          );
+        }
+
+        await client.query(
+          `INSERT INTO product_pricing 
                (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
                VALUES ($1, NULL, $2, $3, $4, true, $5)`,
-              [productId, mrp, base_price, selling_price, req.user.id]
-            );
+          [productId, mrp, base_price, selling_price, req.user.id]
+        );
 
-            if (initial_stock > 0) {
-                await client.query(
-                    `INSERT INTO inventory_balances 
+        if (initial_stock > 0) {
+          await client.query(
+            `INSERT INTO inventory_balances 
                      (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
                      VALUES ('admin', $1, $2, $3, $4)`,
-                    [req.user.id, productId, createdVariantId, initial_stock]
-                );
-                
-                await client.query(
-                    `INSERT INTO inventory_ledger 
+            [req.user.id, productId, createdVariantId, initial_stock]
+          );
+
+          await client.query(
+            `INSERT INTO inventory_ledger 
                      (product_id, variant_id, entity_type, entity_id, transaction_type, 
                       quantity, reference_type, note, created_by) 
                      VALUES ($1, $2, 'admin', $3, 'initial_stock', $4, 'product_creation', 
                              'Bulk Upload Initial Stock', $5)`,
-                    [productId, createdVariantId, req.user.id, initial_stock, req.user.id]
-                );
-            }
-
-            await client.query('COMMIT');
-            results.success++;
-        } catch (error) {
-            await client.query('ROLLBACK');
-            let errorMsg = error.message;
-            if (error.code === '23505') errorMsg = 'SKU already exists';
-            results.failed++;
-            results.errors.push({ row: i + 2, sku: row['SKU'] || 'N/A', error: errorMsg });
-        } finally {
-            client.release();
+            [productId, createdVariantId, req.user.id, initial_stock, req.user.id]
+          );
         }
+
+        await client.query('COMMIT');
+        results.success++;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        let errorMsg = error.message;
+        if (error.code === '23505') errorMsg = 'SKU already exists';
+        results.failed++;
+        results.errors.push({ row: i + 2, sku: row['SKU'] || 'N/A', error: errorMsg });
+      } finally {
+        client.release();
+      }
     }
-    
+
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(200).json(results);
-    
+
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: error.message });
@@ -287,17 +287,17 @@ exports.getProducts = async (req, res) => {
     const offset = (page - 1) * limit;
     let whereClause = 'WHERE p.is_active = true';
     const params = [];
-    
+
     if (category_id) {
       params.push(category_id);
       whereClause += ` AND p.category_id = $${params.length}`;
     }
-    
+
     if (search) {
       params.push(`%${search}%`);
       whereClause += ` AND (p.name ILIKE $${params.length} OR p.sku ILIKE $${params.length})`;
     }
-    
+
     if (type) {
       params.push(type);
       whereClause += ` AND p.type = $${params.length}`;
@@ -307,13 +307,13 @@ exports.getProducts = async (req, res) => {
       params.push(is_dealer_routed === 'true');
       whereClause += ` AND p.is_dealer_routed = $${params.length}`;
     }
-    
+
     // Get total count
     const countResult = await db.query(
       `SELECT COUNT(*) FROM products p ${whereClause}`,
       params
     );
-    
+
     // Get products with variants and pricing
     params.push(limit, offset);
     const result = await db.query(`
@@ -344,8 +344,8 @@ exports.getProducts = async (req, res) => {
       ORDER BY p.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
-    
-    res.json({ 
+
+    res.json({
       products: result.rows,
       total: parseInt(countResult.rows[0].count),
       page: parseInt(page),
@@ -366,24 +366,24 @@ exports.createProduct = async (req, res) => {
       is_subscription = false, // FUTURE IMPLEMENTATION: Currently not active
       thumbnail_url, image_urls = [], tags = [],
       is_dealer_routed = false, // Added for Dealer Subdivision flow
-      
+
       // Variants (optional)
       variants = [],
-      
+
       // Pricing Info
       mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity,
-      
+
       // Profit Distribution (B2B/B2C)
       profit_channel = 'B2C', // 'B2B' or 'B2C'
-      
+
       // Initial Stock
       initial_stock_quantity = 0
     } = req.body;
 
     // Validation
     if (!category_id || !name || !sku || !mrp || !base_price || !selling_price) {
-      return res.status(400).json({ 
-        error: 'category_id, name, sku, mrp, base_price, selling_price are required' 
+      return res.status(400).json({
+        error: 'category_id, name, sku, mrp, base_price, selling_price are required'
       });
     }
 
@@ -409,7 +409,7 @@ exports.createProduct = async (req, res) => {
         thumbnail_url, JSON.stringify(image_urls), tags, is_dealer_routed, req.user.id
       ]
     );
-    
+
     const product = productResult.rows[0];
     const productId = product.id;
 
@@ -418,16 +418,16 @@ exports.createProduct = async (req, res) => {
     if (variants && variants.length > 0) {
       for (const variant of variants) {
         const { variant_name, sku_suffix, attributes = {} } = variant;
-        
+
         if (!variant_name) continue;
-        
+
         const variantResult = await client.query(
           `INSERT INTO product_variants 
            (product_id, variant_name, sku_suffix, attributes) 
            VALUES ($1, $2, $3, $4) RETURNING *`,
           [productId, variant_name, sku_suffix, JSON.stringify(attributes)]
         );
-        
+
         const variantId = variantResult.rows[0].id;
 
         // NEW: Handle Variant-specific pricing if provided in bulk
@@ -453,7 +453,7 @@ exports.createProduct = async (req, res) => {
              VALUES ('admin', $1, $2, $3, $4)`,
             [req.user.id, productId, variantId, variant.initial_stock_quantity]
           );
-          
+
           await client.query(
             `INSERT INTO inventory_ledger 
              (product_id, variant_id, entity_type, entity_id, transaction_type, 
@@ -463,7 +463,7 @@ exports.createProduct = async (req, res) => {
             [productId, variantId, req.user.id, variant.initial_stock_quantity, req.user.id]
           );
         }
-        
+
         createdVariants.push(variantResult.rows[0]);
       }
     }
@@ -475,7 +475,7 @@ exports.createProduct = async (req, res) => {
         admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
        VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true, $8)`,
       [
-        productId, mrp, base_price, selling_price, 
+        productId, mrp, base_price, selling_price,
         admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, req.user.id
       ]
     );
@@ -487,11 +487,11 @@ exports.createProduct = async (req, res) => {
        LIMIT 1`,
       [profit_channel]
     );
-    
+
     if (profitRuleResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ 
-        error: `No active profit rule found for channel: ${profit_channel}` 
+      return res.status(400).json({
+        error: `No active profit rule found for channel: ${profit_channel}`
       });
     }
 
@@ -503,7 +503,7 @@ exports.createProduct = async (req, res) => {
          VALUES ('admin', $1, $2, NULL, $3)`,
         [req.user.id, productId, initial_stock_quantity]
       );
-      
+
       // Log in inventory_ledger
       await client.query(
         `INSERT INTO inventory_ledger 
@@ -516,7 +516,7 @@ exports.createProduct = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    
+
     res.status(201).json({
       message: 'Product created successfully',
       product: {
@@ -527,10 +527,10 @@ exports.createProduct = async (req, res) => {
         initial_stock: initial_stock_quantity
       }
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
-    
+
     if (error.code === '23505') { // Unique constraint violation
       res.status(400).json({ error: 'SKU already exists' });
     } else {
@@ -548,7 +548,7 @@ exports.createProduct = async (req, res) => {
 exports.getProductVariants = async (req, res) => {
   try {
     const { product_id } = req.params;
-    
+
     const result = await db.query(`
       SELECT pv.*, 
              pp.mrp, pp.base_price, pp.selling_price, pp.bulk_price, pp.min_order_quantity
@@ -557,7 +557,7 @@ exports.getProductVariants = async (req, res) => {
       WHERE pv.product_id = $1 AND pv.is_active = true
       ORDER BY pv.created_at ASC
     `, [product_id]);
-    
+
     res.json({ variants: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -568,9 +568,9 @@ exports.createProductVariant = async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { product_id } = req.params;
-    const { 
+    const {
       variant_name, sku_suffix, attributes = {},
-      mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity 
+      mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity
     } = req.body;
 
     if (!variant_name) {
@@ -586,7 +586,7 @@ exports.createProductVariant = async (req, res) => {
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [product_id, variant_name, sku_suffix, JSON.stringify(attributes)]
     );
-    
+
     const variant = variantResult.rows[0];
 
     // Create pricing if provided
@@ -604,12 +604,12 @@ exports.createProductVariant = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    
+
     res.status(201).json({
       message: 'Product variant created successfully',
       variant
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
@@ -628,8 +628,8 @@ exports.updateProductPricing = async (req, res) => {
     const { product_id, variant_id, mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity, reason } = req.body;
 
     if (!product_id || !mrp || !base_price || !selling_price) {
-      return res.status(400).json({ 
-        error: 'product_id, mrp, base_price, selling_price are required' 
+      return res.status(400).json({
+        error: 'product_id, mrp, base_price, selling_price are required'
       });
     }
 
@@ -644,7 +644,7 @@ exports.updateProductPricing = async (req, res) => {
 
     if (currentResult.rows.length > 0) {
       const current = currentResult.rows[0];
-      
+
       // Record price history
       await client.query(
         `INSERT INTO price_history 
@@ -652,7 +652,7 @@ exports.updateProductPricing = async (req, res) => {
          VALUES ($1, $2, $3, $4, 'selling_price', $5, $6)`,
         [product_id, variant_id || null, current.selling_price, selling_price, req.user.id, reason || 'Price update']
       );
-      
+
       // Update existing pricing
       await client.query(
         `UPDATE product_pricing SET 
@@ -676,9 +676,9 @@ exports.updateProductPricing = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    
+
     res.json({ message: 'Product pricing updated successfully' });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
@@ -698,7 +698,7 @@ exports.getProfitRules = async (req, res) => {
       WHERE is_current = true 
       ORDER BY channel ASC
     `);
-    
+
     res.json({ profit_rules: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -746,12 +746,12 @@ exports.createProfitRule = async (req, res) => {
     );
 
     await client.query('COMMIT');
-    
+
     res.status(201).json({
       message: 'Profit rule created successfully',
       profit_rule: result.rows[0]
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
@@ -769,22 +769,22 @@ exports.getInventoryBalances = async (req, res) => {
     const { entity_type, entity_id, product_id } = req.query;
     let whereClause = 'WHERE 1=1';
     const params = [];
-    
+
     if (entity_type) {
       params.push(entity_type);
       whereClause += ` AND ib.entity_type = $${params.length}`;
     }
-    
+
     if (entity_id) {
       params.push(entity_id);
       whereClause += ` AND ib.entity_id = $${params.length}`;
     }
-    
+
     if (product_id) {
       params.push(product_id);
       whereClause += ` AND ib.product_id = $${params.length}`;
     }
-    
+
     const result = await db.query(`
       SELECT ib.*, 
              p.name as product_name, p.sku, p.unit,
@@ -797,7 +797,7 @@ exports.getInventoryBalances = async (req, res) => {
       ${whereClause}
       ORDER BY ib.last_updated_at DESC
     `, params);
-    
+
     res.json({ inventory_balances: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -835,9 +835,9 @@ exports.addInitialStock = async (req, res) => {
     );
 
     await client.query('COMMIT');
-    
+
     res.json({ message: 'Stock added successfully' });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: error.message });
@@ -1087,7 +1087,7 @@ exports.getAdminProducts = async (req, res) => {
     const countResult = await db.query(countQuery, params);
 
     params.push(limit, offset);
-    
+
     // Select aliases to match frontend expect: base_price -> selling_price (or mrp), cost_price -> pp.base_price, status -> is_active, stock_quantity -> ib.quantity_on_hand
     const query = `
       SELECT p.id, p.name, p.sku, p.category_id, c.name as category_name, p.type as product_type, 
@@ -1193,12 +1193,12 @@ exports.createAdminProduct = async (req, res) => {
        (product_id, mrp, base_price, selling_price, bulk_price, admin_margin_pct, is_current, created_by) 
        VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
       [
-        product.id, 
-        mrp || 0, 
-        base_price || 0, 
-        selling_price || 0, 
-        bulk_price || 0, 
-        admin_margin_pct || 0, 
+        product.id,
+        mrp || 0,
+        base_price || 0,
+        selling_price || 0,
+        bulk_price || 0,
+        admin_margin_pct || 0,
         req.user.id
       ]
     );
@@ -1222,7 +1222,7 @@ exports.createAdminProduct = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     if (error.code === '23505') {
-       return res.status(400).json({ error: 'SKU already exists' });
+      return res.status(400).json({ error: 'SKU already exists' });
     }
     res.status(400).json({ error: error.message });
   } finally {
@@ -1251,8 +1251,8 @@ exports.updateAdminProduct = async (req, res) => {
     if (sku) {
       const skuCheck = await client.query('SELECT id FROM products WHERE sku = $1 AND id != $2', [sku, id]);
       if (skuCheck.rows.length > 0) {
-         await client.query('ROLLBACK');
-         return res.status(400).json({ error: 'SKU already exists' });
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'SKU already exists' });
       }
     }
 
@@ -1277,10 +1277,10 @@ exports.updateAdminProduct = async (req, res) => {
     // Pricing update logic with History Logging
     if (base_price !== undefined || mrp !== undefined || selling_price !== undefined || bulk_price !== undefined || admin_margin_pct !== undefined) {
       const currentPricing = await client.query(
-        'SELECT * FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL', 
+        'SELECT * FROM product_pricing WHERE product_id = $1 AND is_current = true AND variant_id IS NULL',
         [id]
       );
-      
+
       if (currentPricing.rows.length > 0) {
         const cur = currentPricing.rows[0];
         // 1. Log old prices to history BEFORE updating
@@ -1294,7 +1294,7 @@ exports.updateAdminProduct = async (req, res) => {
         for (const f of pFields) {
           const newVal = req.body[f.key];
           const oldVal = cur[f.key];
-          
+
           if (newVal !== undefined && parseFloat(oldVal) !== parseFloat(newVal)) {
             await client.query(
               `INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) 
@@ -1303,7 +1303,7 @@ exports.updateAdminProduct = async (req, res) => {
             );
           }
         }
-        
+
         // 2. Perform the update
         await client.query(
           `UPDATE product_pricing SET
@@ -1362,15 +1362,15 @@ exports.deleteAdminProduct = async (req, res) => {
 exports.toggleAdminProductStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // First, get current status
     const currentStatusRes = await db.query('SELECT is_active FROM products WHERE id = $1', [id]);
     if (currentStatusRes.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
+
     const newStatus = !currentStatusRes.rows[0].is_active;
-    
+
     const result = await db.query(
       `UPDATE products 
        SET is_active = $1, updated_at = NOW() 
@@ -1378,8 +1378,8 @@ exports.toggleAdminProductStatus = async (req, res) => {
        RETURNING id, is_active`,
       [newStatus, id]
     );
-    
-    res.json({ 
+
+    res.json({
       message: `Product ${newStatus ? 'activated' : 'deactivated'} successfully`,
       product_id: result.rows[0].id,
       is_active: result.rows[0].is_active,
@@ -1394,22 +1394,22 @@ exports.toggleAdminProductStatus = async (req, res) => {
 exports.updatePricing = async (req, res) => {
   try {
     const { product_id, variant_id, price_type, price, reason } = req.body;
-    
+
     // Check if pricing exists
     const existingResult = await db.query(
       'SELECT * FROM product_pricing WHERE product_id = $1 AND variant_id = $2 AND price_type = $3 AND is_active = true',
       [product_id, variant_id, price_type]
     );
-    
+
     if (existingResult.rows.length > 0) {
       const currentPricing = existingResult.rows[0];
-      
+
       // Record price history (align with SQL schema columns)
       await db.query(
         'INSERT INTO price_history (product_id, variant_id, old_price, new_price, field_changed, changed_by, reason) VALUES ($1, $2, $3, $4, $5, $6, $7)',
         [product_id, variant_id, currentPricing.price, price, 'selling_price', req.user?.id, reason || 'Global update']
       );
-      
+
       // Update existing pricing
       await db.query(
         'UPDATE product_pricing SET price = $1, effective_from = NOW() WHERE id = $2',
@@ -1422,7 +1422,7 @@ exports.updatePricing = async (req, res) => {
         [product_id, variant_id, price, req.user?.id]
       );
     }
-    
+
     res.json({ message: 'Pricing updated successfully' });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1454,30 +1454,30 @@ exports.getServices = async (req, res) => {
 exports.createService = async (req, res) => {
   const client = await db.pool.connect();
   try {
-    const { 
+    const {
       // Basic Product Info
       name, description, category_id, thumbnail_url,
       // Pricing
       mrp, base_price, selling_price,
       // Service specific info
-      service_type, delivery_mode, duration_minutes, requires_booking 
+      service_type, delivery_mode, duration_minutes, requires_booking
     } = req.body;
-    
+
     if (!name || !category_id || !base_price || !selling_price || !mrp) {
       return res.status(400).json({ error: 'name, category_id, mrp, base_price and selling_price are required' });
     }
-    
+
     await client.query('BEGIN');
-    
+
     const sku = `SRV-${Date.now()}`;
-    
+
     // 1. Insert into products
     const productResult = await client.query(
       `INSERT INTO products (category_id, name, sku, description, type, thumbnail_url, created_by) 
        VALUES ($1, $2, $3, $4, 'service', $5, $6) RETURNING *`,
       [category_id, name, sku, description, thumbnail_url, req.user.id]
     );
-    
+
     const product = productResult.rows[0];
     const productId = product.id;
 
@@ -1498,10 +1498,10 @@ exports.createService = async (req, res) => {
     );
 
     await client.query('COMMIT');
-    
-    res.status(201).json({ 
-      service: { ...product, ...serviceResult.rows[0], pricing: { mrp, base_price, selling_price } }, 
-      message: 'Service created successfully' 
+
+    res.status(201).json({
+      service: { ...product, ...serviceResult.rows[0], pricing: { mrp, base_price, selling_price } },
+      message: 'Service created successfully'
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1537,10 +1537,10 @@ exports.updateService = async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
-    const { 
+    const {
       name, description, category_id, thumbnail_url,
       mrp, base_price, selling_price,
-      service_type, delivery_mode, duration_minutes, requires_booking 
+      service_type, delivery_mode, duration_minutes, requires_booking
     } = req.body;
 
     await client.query('BEGIN');
@@ -1620,7 +1620,7 @@ exports.getPriceHistory = async (req, res) => {
   try {
     const { id } = req.params;
     const { variant_id } = req.query;
-    
+
     let query = `
       SELECT ph.*, u.full_name as changed_by_name
       FROM price_history ph
@@ -1665,22 +1665,22 @@ exports.getSubscriptionPlans = async (req, res) => {
 exports.createSubscriptionPlan = async (req, res) => {
   try {
     const { name, description, category_id, base_price, duration_months } = req.body;
-    
+
     if (!name || !category_id || !base_price) {
       return res.status(400).json({ error: 'name, category_id, and base_price are required' });
     }
-    
+
     const sku = `SUB-${Date.now()}`;
-    
+
     const result = await db.query(
       `INSERT INTO products (name, sku, description, category_id, type, is_subscription, created_by) 
        VALUES ($1, $2, $3, $4, 'digital', true, $5) RETURNING *`,
       [name, sku, description, category_id, req.user.id]
     );
-    
-    res.status(201).json({ 
-      subscription_plan: result.rows[0], 
-      message: 'Subscription plan created successfully' 
+
+    res.status(201).json({
+      subscription_plan: result.rows[0],
+      message: 'Subscription plan created successfully'
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1695,7 +1695,7 @@ exports.getIssuedProducts = async (req, res) => {
     const { category_id, search, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
     const params = [];
-    
+
     let whereClause = "WHERE p.is_active = true";
 
     if (category_id && category_id !== 'all') {

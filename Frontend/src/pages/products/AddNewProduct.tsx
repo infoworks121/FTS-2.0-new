@@ -114,7 +114,7 @@ export default function AddNewProduct() {
     description: editingProduct?.description || "",
     thumbnailUrl: editingProduct?.thumbnail_url || "",
     imageUrls: editingProduct?.image_urls || [],
-    variants: editingProduct?.variants || [], 
+    variants: editingProduct?.variants || [],
   });
 
   // Handle pre-fill from URL params
@@ -164,11 +164,11 @@ export default function AddNewProduct() {
   const handleAttributeChange = (vIdx: number, key: string, value: string) => {
     const newVariants = [...(formData.variants || [])];
     const newAttrs = { ...newVariants[vIdx].attributes };
-    
+
     // Replace existing attribute as per consistent behavior
     const existingKeys = Object.keys(newAttrs);
     existingKeys.forEach(k => delete newAttrs[k]);
-    
+
     newAttrs[key] = value;
     newVariants[vIdx].attributes = newAttrs;
     handleInputChange("variants", newVariants);
@@ -289,6 +289,16 @@ export default function AddNewProduct() {
               <CardContent className="space-y-6 pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
+                    <Label>Target Channel *</Label>
+                    <Select value={formData.profitChannel} onValueChange={(val) => handleInputChange("profitChannel", val)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="B2C">B2C Retail (Primary)</SelectItem>
+                        <SelectItem value="B2B">B2B Bulk (Wholesale)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="name">Product Name *</Label>
                     <Input
                       id="name"
@@ -322,7 +332,7 @@ export default function AddNewProduct() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label>Product Type *</Label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
@@ -404,27 +414,27 @@ export default function AddNewProduct() {
                   <div className="space-y-3">
                     {formData.variants?.map((v, idx) => (
                       <div key={idx} className="p-3 rounded-lg border bg-card/30 space-y-3">
-                          <div className="flex items-center justify-between">
-                             <Input className="h-7 max-w-[180px] font-bold text-xs" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
-                             <Button variant="ghost" size="icon" className="text-red-500 h-6 w-6" onClick={() => removeVariant(idx)}><Trash2 className="h-3 w-3" /></Button>
+                        <div className="flex items-center justify-between">
+                          <Input className="h-7 max-w-[180px] font-bold text-xs" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
+                          <Button variant="ghost" size="icon" className="text-red-500 h-6 w-6" onClick={() => removeVariant(idx)}><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                          <div className="space-y-1"><Label className="text-[9px] uppercase">SKU Suffix</Label><Input className="h-7 text-[10px]" value={v.sku_suffix} onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} /></div>
+                          <div className="space-y-1"><Label className="text-[9px] uppercase">Attribute</Label>
+                            <Select value={Object.keys(v.attributes)[0]} onValueChange={(val) => handleAttributeChange(idx, val, Object.values(v.attributes)[0] || "")}>
+                              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="Weight">Weight</SelectItem><SelectItem value="Size">Size</SelectItem><SelectItem value="Color">Color</SelectItem></SelectContent>
+                            </Select></div>
+                          <div className="space-y-1"><Label className="text-[9px] uppercase">Value</Label><Input className="h-7 text-[10px]" value={Object.values(v.attributes)[0]} onChange={(e) => handleAttributeChange(idx, Object.keys(v.attributes)[0], e.target.value)} /></div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase text-blue-600 font-bold">MRP ₹</Label>
+                            <Input className="h-7 text-[10px] border-blue-100" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
                           </div>
-                          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                             <div className="space-y-1"><Label className="text-[9px] uppercase">SKU Suffix</Label><Input className="h-7 text-[10px]" value={v.sku_suffix} onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} /></div>
-                             <div className="space-y-1"><Label className="text-[9px] uppercase">Attribute</Label>
-                             <Select value={Object.keys(v.attributes)[0]} onValueChange={(val) => handleAttributeChange(idx, val, Object.values(v.attributes)[0] || "")}>
-                                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                                <SelectContent><SelectItem value="Weight">Weight</SelectItem><SelectItem value="Size">Size</SelectItem><SelectItem value="Color">Color</SelectItem></SelectContent>
-                             </Select></div>
-                             <div className="space-y-1"><Label className="text-[9px] uppercase">Value</Label><Input className="h-7 text-[10px]" value={Object.values(v.attributes)[0]} onChange={(e) => handleAttributeChange(idx, Object.keys(v.attributes)[0], e.target.value)} /></div>
-                             <div className="space-y-1">
-                               <Label className="text-[9px] uppercase text-blue-600 font-bold">MRP ₹</Label>
-                               <Input className="h-7 text-[10px] border-blue-100" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
-                             </div>
-                             <div className="space-y-1">
-                               <Label className="text-[9px] uppercase text-emerald-600 font-bold">Selling Price ₹</Label>
-                               <Input className="h-7 text-[10px] border-emerald-100" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
-                             </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase text-emerald-600 font-bold">Selling Price ₹</Label>
+                            <Input className="h-7 text-[10px] border-emerald-100" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
                           </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -471,8 +481,8 @@ export default function AddNewProduct() {
                       <div className="flex-1 space-y-3">
                         <Button type="button" variant="outline" className="relative h-10 px-6 font-bold overflow-hidden">
                           <Upload className="h-4 w-4 mr-2" /> Choose File
-                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" 
-                                 onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(file, "thumbnailUrl"); }} />
+                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*"
+                            onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(file, "thumbnailUrl"); }} />
                         </Button>
                         {formData.thumbnailUrl && <Button variant="ghost" size="icon" className="text-red-500 ml-2" onClick={() => handleInputChange("thumbnailUrl", "")}><X className="h-4 w-4" /></Button>}
                       </div>
@@ -517,16 +527,6 @@ export default function AddNewProduct() {
             <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
                 <div className="space-y-2">
-                  <Label>Target Channel *</Label>
-                  <Select value={formData.profitChannel} onValueChange={(val) => handleInputChange("profitChannel", val)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="B2C">B2C Retail (Primary)</SelectItem>
-                      <SelectItem value="B2B">B2B Bulk (Wholesale)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label>Admin Specific Margin %</Label>
                   <Input type="number" value={formData.adminMarginPct || ""} onChange={(e) => handleInputChange("adminMarginPct", parseFloat(e.target.value) || 0)} />
                 </div>
@@ -537,7 +537,7 @@ export default function AddNewProduct() {
                   <Label htmlFor="basePrice">Base/Landing Price (Cost) ₹ *</Label>
                   <Input id="basePrice" type="number" value={formData.basePrice || ""} onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)} />
                 </div>
-                
+
                 {formData.profitChannel === "B2C" && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-left-2 duration-300">
                     <Label htmlFor="sellingPrice" className="text-blue-600 font-bold">Selling Price (B2C) ₹ *</Label>
@@ -584,19 +584,19 @@ export default function AddNewProduct() {
               <CardDescription>Final check of your product configuration.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-               <div className="p-4 rounded-lg bg-blue-50/20 border border-blue-100 grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">SELLING PRICE</p><p className="font-black text-blue-600">₹{formData.sellingPrice.toFixed(2)}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">CATEGORY</p><p className="text-xs font-bold line-clamp-1">{categories.find(c => c.id === formData.categoryId)?.name || 'N/A'}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">VARIANTS</p><p className="text-xs font-bold">{formData.variants?.length || 0} Added</p></div>
-               </div>
-               
-               <div className="space-y-2">
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase">Confirmation</p>
-                  <div className="p-4 rounded-xl border bg-muted/20 flex items-center gap-3">
-                     <Check className="h-5 w-5 text-green-500" />
-                     <p className="text-sm">Ready to push product to live marketplace.</p>
-                  </div>
-               </div>
+              <div className="p-4 rounded-lg bg-blue-50/20 border border-blue-100 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">SELLING PRICE</p><p className="font-black text-blue-600">₹{formData.sellingPrice.toFixed(2)}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">CATEGORY</p><p className="text-xs font-bold line-clamp-1">{categories.find(c => c.id === formData.categoryId)?.name || 'N/A'}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold font-mono">VARIANTS</p><p className="text-xs font-bold">{formData.variants?.length || 0} Added</p></div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase">Confirmation</p>
+                <div className="p-4 rounded-xl border bg-muted/20 flex items-center gap-3">
+                  <Check className="h-5 w-5 text-green-500" />
+                  <p className="text-sm">Ready to push product to live marketplace.</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         );
@@ -651,15 +651,15 @@ export default function AddNewProduct() {
             )}
           </div>
           <div className="flex items-center gap-3">
-             <Button variant="outline" type="button" onClick={() => navigate(getRedirectPath())}>Discard</Button>
-             <Button variant="outline" type="button" onClick={handleSaveDraft} disabled={isSaving}><Save className="h-4 w-4 mr-2" /> Save Draft</Button>
-             {currentStep < 4 ? (
-               <Button type="button" onClick={handleNext} disabled={!canProceed()}>Next Step <ArrowRight className="h-4 w-4 ml-2" /></Button>
-             ) : (
-               <Button type="button" onClick={handleSave} disabled={!canProceed() || isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]">
-                 {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Check className="h-4 w-4 mr-2" /> Publish Product</>}
-               </Button>
-             )}
+            <Button variant="outline" type="button" onClick={() => navigate(getRedirectPath())}>Discard</Button>
+            <Button variant="outline" type="button" onClick={handleSaveDraft} disabled={isSaving}><Save className="h-4 w-4 mr-2" /> Save Draft</Button>
+            {currentStep < 4 ? (
+              <Button type="button" onClick={handleNext} disabled={!canProceed()}>Next Step <ArrowRight className="h-4 w-4 ml-2" /></Button>
+            ) : (
+              <Button type="button" onClick={handleSave} disabled={!canProceed() || isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]">
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Check className="h-4 w-4 mr-2" /> Publish Product</>}
+              </Button>
+            )}
           </div>
         </div>
       </div>

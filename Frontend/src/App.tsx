@@ -129,7 +129,7 @@ import UnifiedMemberProfile from "./pages/shared/UnifiedMemberProfile";
 // Finance & Wallet Pages
 import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
 import { TDSConfiguration, ProcessingFeeRules } from "./pages/finance";
-import { AllOrders, B2BOrders, B2COrders, BulkOrders, ReturnsRefunds, TransactionLogs, LedgerView } from "./pages/orders";
+import { AllOrders, B2BOrders, B2COrders, ReturnsRefunds, TransactionLogs, LedgerView } from "./pages/orders";
 import { AdminActivityLogs, FinancialAuditLogs, RuleChangeHistory, LoginAccessLogs } from "./pages/audit";
 import SuspiciousTransactions from "./pages/risk/SuspiciousTransactions";
 import FakeOrders from "./pages/risk/FakeOrders";
@@ -245,6 +245,7 @@ const App = () => {
             <Route path="/admin/corebody" element={<DistrictsLayout><CoreBodyList /></DistrictsLayout>} />
             <Route path="/admin/corebody/a" element={<DistrictsLayout><CoreBodyAManagement /></DistrictsLayout>} />
             <Route path="/admin/corebody/b" element={<DistrictsLayout><CoreBodyBManagement /></DistrictsLayout>} />
+            <Route path="/admin/corebody/dealer" element={<UnifiedMemberProfile />} />
 
             {/* Referral Management */}
             <Route path="/admin/referral/network" element={<UsersLayout><ReferralNetwork /></UsersLayout>} />
@@ -263,6 +264,7 @@ const App = () => {
             <Route path="/admin/users/stockpoints" element={<UsersLayout><StockPointList /></UsersLayout>} />
             <Route path="/admin/users/roles" element={<UsersLayout><RolePermissions /></UsersLayout>} />
             <Route path="/admin/users/profile/:id" element={<UnifiedMemberProfile />} />
+            <Route path="/admin/corebody/dealer" element={<UnifiedMemberProfile />} />
             <Route path="/admin/users/features" element={<UsersLayout><FeatureAccessControl /></UsersLayout>} />
             <Route path="/admin/kyc/review" element={<UsersLayout><KYCReview /></UsersLayout>} />
 
@@ -281,7 +283,6 @@ const App = () => {
             <Route path="/admin/orders" element={<WalletPageLayout><AllOrders /></WalletPageLayout>} />
             <Route path="/admin/orders/b2b" element={<WalletPageLayout><B2BOrders /></WalletPageLayout>} />
             <Route path="/admin/orders/b2c" element={<WalletPageLayout><B2COrders /></WalletPageLayout>} />
-            <Route path="/admin/orders/bulk" element={<WalletPageLayout><BulkOrders /></WalletPageLayout>} />
             <Route path="/admin/orders/refunds" element={<WalletPageLayout><ReturnsRefunds /></WalletPageLayout>} />
             <Route path="/admin/transactions" element={<WalletPageLayout><TransactionLogs /></WalletPageLayout>} />
             <Route path="/admin/ledger" element={<WalletPageLayout><LedgerView /></WalletPageLayout>} />

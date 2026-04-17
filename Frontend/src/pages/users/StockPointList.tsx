@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Warehouse, MapPin, Package, TrendingUp, AlertTriangle, Search, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import {
   Select,
@@ -19,11 +19,11 @@ import {
 } from "@/components/ui/select";
 import { KPICard } from "@/components/KPICard";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  UsersLayout, 
-  UsersKPIGrid, 
-  UsersFilterBar, 
-  UsersFilters, 
+import {
+  UsersLayout,
+  UsersKPIGrid,
+  UsersFilterBar,
+  UsersFilters,
   UsersSearch,
   UsersActions
 } from "@/components/users/UsersLayout";
@@ -152,7 +152,7 @@ export default function StockPointList() {
       sp.managerName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || sp.status === statusFilter;
     const matchesDistrict = districtFilter === "all" || sp.district === districtFilter;
-    
+
     return matchesSearch && matchesStatus && matchesDistrict;
   });
 
@@ -161,7 +161,7 @@ export default function StockPointList() {
     setConfirmModal({
       isOpen: true,
       title: newStatus === "active" ? "Activate Stock Point" : "Deactivate Stock Point",
-      description: newStatus === "active" 
+      description: newStatus === "active"
         ? `Are you sure you want to activate ${stockPoint.name}?`
         : `Are you sure you want to deactivate ${stockPoint.name}? This will affect order fulfillment.`,
       action: () => {
@@ -228,7 +228,7 @@ export default function StockPointList() {
             onChange={setSearchQuery}
             placeholder="Search by name, ID, or manager..."
           />
-          
+
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as UserStatus | "all")}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="All Status" />
@@ -306,12 +306,12 @@ export default function StockPointList() {
 
               {/* Warning & Toggle */}
               <div className="flex items-center justify-between pt-2 border-t border-border">
-                <InventoryWarning 
-                  level={stockPoint.inventoryLevel} 
-                  threshold={stockPoint.minInventoryThreshold} 
+                <InventoryWarning
+                  level={stockPoint.inventoryLevel}
+                  threshold={stockPoint.minInventoryThreshold}
                 />
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={() => handleToggleStatus(stockPoint)}
                   className={stockPoint.status === "active" ? "text-warning hover:text-warning" : "text-profit hover:text-profit"}

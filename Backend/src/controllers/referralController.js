@@ -191,10 +191,11 @@ const adminGetReferralStats = async (req, res) => {
     try {
         const statsQuery = `
             SELECT 
-                COUNT(*) as total_referrals,
-                COALESCE(SUM(CAST(gross_amount AS NUMERIC)), 0) as total_commissions_paid
+                COALESCE(SUM(CAST(gross_amount AS NUMERIC)) FILTER (WHERE status = 'processed'), 0) as available_balance,
+                COALESCE(SUM(CAST(gross_amount AS NUMERIC)) FILTER (WHERE status = 'pending'), 0) as pending_balance,
+                COALESCE(SUM(CAST(gross_amount AS NUMERIC)) FILTER (WHERE status = 'processed' AND created_at >= date_trunc('month', CURRENT_DATE)), 0) as released_this_month,
+                COUNT(*) FILTER (WHERE status IN ('reversed', 'flagged')) as fraud_counts
             FROM referral_earnings
-            WHERE status = 'processed'
         `;
         
         const countQuery = `SELECT COUNT(*) as total_registrations FROM referral_registrations`;
@@ -203,8 +204,11 @@ const adminGetReferralStats = async (req, res) => {
         const countResult = await db.query(countQuery);
 
         res.json({
+            available_balance: statsResult.rows[0].available_balance,
+            pending_balance: statsResult.rows[0].pending_balance,
+            released_this_month: statsResult.rows[0].released_this_month,
+            fraud_counts: parseInt(statsResult.rows[0].fraud_counts),
             total_referrals: parseInt(countResult.rows[0].total_registrations),
-            total_commissions_paid: statsResult.rows[0].total_commissions_paid,
         });
     } catch (err) {
         console.error('Error fetching global referral stats:', err);

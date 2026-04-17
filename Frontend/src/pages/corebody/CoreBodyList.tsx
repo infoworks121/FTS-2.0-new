@@ -9,6 +9,14 @@ import { QuickFilterChip, CoreBodyTypeBadge, StatCard } from "@/components/distr
 import { useTheme } from "@/hooks/useTheme";
 import { Link } from "react-router-dom";
 import { coreBodyApi, CoreBodySummary } from "@/lib/coreBodyApi";
+import { geographyApi, DistrictSummary } from "@/lib/geographyApi";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   LayoutDashboard,
   Package,
@@ -44,13 +52,16 @@ export default function CoreBodyList() {
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [districtFilter, setDistrictFilter] = useState<string | null>(null);
+  const [districts, setDistricts] = useState<DistrictSummary[]>([]);
 
   const fetchList = useCallback(async () => {
     try {
       setLoading(true);
       const data = await coreBodyApi.getAllCoreBodies({
         type: typeFilter,
-        status: statusFilter
+        status: statusFilter,
+        district_id: districtFilter
       });
       setCoreBodies(data.coreBodies);
       setKpis(data.kpis);
@@ -61,7 +72,19 @@ export default function CoreBodyList() {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, statusFilter]);
+  }, [typeFilter, statusFilter, districtFilter]);
+
+  useEffect(() => {
+    const fetchDistricts = async () => {
+      try {
+        const data = await geographyApi.getDistrictsSummary();
+        setDistricts(data.districts);
+      } catch (err) {
+        console.error("Failed to fetch districts:", err);
+      }
+    };
+    fetchDistricts();
+  }, []);
 
   useEffect(() => {
     fetchList();
@@ -74,7 +97,7 @@ export default function CoreBodyList() {
       accessor: (row: CoreBodySummary) => (
         <div>
           <Link 
-            to={`/admin/corebody/${row.type.toLowerCase()}?id=${row.id}`}
+            to={`/admin/users/profile/${row.id}`}
             className="font-semibold text-card-foreground hover:text-primary hover:underline"
           >
             {row.name}
@@ -140,7 +163,7 @@ export default function CoreBodyList() {
       accessor: (row: CoreBodySummary) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" asChild>
-            <Link to={`/admin/corebody/${row.type.toLowerCase()}?id=${row.id}`}>
+            <Link to={`/admin/users/profile/${row.id}`}>
               <MoreVertical className="h-3.5 w-3.5" />
             </Link>
           </Button>
@@ -215,8 +238,24 @@ export default function CoreBodyList() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Operational Filters</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => fetchList()}>
+              <div className="flex items-center gap-3">
+                <Select 
+                  value={districtFilter || "all"} 
+                  onValueChange={(v) => setDistrictFilter(v === "all" ? null : v)}
+                >
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="All Districts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Districts</SelectItem>
+                    {districts.map((d) => (
+                      <SelectItem key={d.id} value={d.id.toString()}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={() => fetchList()} className="h-9">
                   Refresh Data
                 </Button>
               </div>

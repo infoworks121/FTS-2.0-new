@@ -25,6 +25,10 @@ import {
   Hash,
   Eye,
   AlertCircle,
+  RotateCcw,
+  FileCheck,
+  ExternalLink,
+  ShieldAlert,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import {
@@ -45,13 +49,28 @@ import {
 } from "@/components/ui/table";
 
 export default function UserApprovalPage() {
-  const [pendingUsers, setPendingUsers] = useState([]);
+   const [pendingUsers, setPendingUsers] = useState([]);
+  const [rejectedUsers, setRejectedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isKycDialogOpen, setIsKycDialogOpen] = useState(false);
+  const [kycDocs, setKycDocs] = useState<any[]>([]);
+  const [loadingKyc, setLoadingKyc] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: "approve" | "reject" | "restore";
+    userId: string;
+    userName: string;
+  }>({
+    isOpen: false,
+    type: "approve",
+    userId: "",
+    userName: "",
+  });
   const { toast } = useToast();
 
   const openUserDetails = (user: any) => {
@@ -59,14 +78,21 @@ export default function UserApprovalPage() {
     setIsDialogOpen(true);
   };
 
-  const fetchPendingUsers = async (isRefresh = false) => {
+  const fetchData = async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
-      const response = await api.get("/admin/pending-users");
-      setPendingUsers(response.data.users || []);
+      else setLoading(true);
+
+      const [pendingRes, rejectedRes] = await Promise.all([
+        api.get("/admin/pending-users"),
+        api.get("/admin/rejected-users")
+      ]);
+
+      setPendingUsers(pendingRes.data.users || []);
+      setRejectedUsers(rejectedRes.data.users || []);
     } catch (error) {
-      console.error("Error fetching pending users:", error);
-      toast({ title: "Error", description: "Failed to fetch pending users", variant: "destructive" });
+      console.error("Error fetching users:", error);
+      toast({ title: "Error", description: "Failed to fetch user data", variant: "destructive" });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -74,32 +100,65 @@ export default function UserApprovalPage() {
   };
 
   useEffect(() => {
-    fetchPendingUsers();
+    fetchData();
   }, []);
 
-  const handleApprove = async (userId: string) => {
+   const handleAction = (type: "approve" | "reject" | "restore", user: any) => {
+    setConfirmDialog({
+      isOpen: true,
+      type,
+      userId: user.id,
+      userName: user.full_name,
+    });
+  };
+
+  const executeAction = async () => {
+    const { type, userId } = confirmDialog;
+    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+
     try {
-      await api.post(`/admin/approve-user/${userId}`);
-      toast({ title: "Success", description: "User approved successfully" });
-      fetchPendingUsers();
+      if (type === "approve") {
+        await api.post(`/admin/approve-user/${userId}`);
+        toast({ title: "Approved", description: "User has been approved successfully" });
+      } else if (type === "reject") {
+        await api.delete(`/admin/reject-user/${userId}`);
+        toast({ title: "Rejected", description: "User has been moved to rejection list" });
+      } else if (type === "restore") {
+        await api.post(`/admin/restore-user/${userId}`);
+        toast({ title: "Restored", description: "User has been restored to pending status" });
+      }
+      fetchData();
       setIsDialogOpen(false);
     } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || "Failed to approve user", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error.response?.data?.message || `Failed to ${type} user`, 
+        variant: "destructive" 
+      });
+    }
+  };
+  const fetchUserKyc = async (userId: string) => {
+    try {
+      setLoadingKyc(true);
+      const res = await api.get(`/kyc/admin/user/${userId}`);
+      setKycDocs(res.data);
+    } catch (error) {
+      console.error("Error fetching KYC:", error);
+      toast({ title: "Error", description: "Failed to fetch KYC documents", variant: "destructive" });
+    } finally {
+      setLoadingKyc(false);
     }
   };
 
-  const handleReject = async (userId: string) => {
+  const handleReviewKyc = async (docId: string, status: "approved" | "rejected", note: string = "") => {
     try {
-      await api.delete(`/admin/reject-user/${userId}`);
-      toast({ title: "Success", description: "User rejected and removed" });
-      fetchPendingUsers();
-      setIsDialogOpen(false);
+      await api.post("/kyc/review", { doc_id: docId, status, note });
+      toast({ title: "Success", description: `Document ${status}` });
+      if (selectedUser) fetchUserKyc(selectedUser.id);
     } catch (error: any) {
-      console.error("Reject error:", error);
-      toast({ title: "Error", description: error.response?.data?.message || "Failed to reject user", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to review document", variant: "destructive" });
     }
   };
-
   const coreBodyUsers = pendingUsers.filter((u: any) =>
     ["core_body_a", "core_body_b", "dealer"].includes(u.role_code)
   );
@@ -109,7 +168,8 @@ export default function UserApprovalPage() {
     let users: any[] = [];
     if (activeTab === "all") users = pendingUsers;
     else if (activeTab === "corebody") users = coreBodyUsers;
-    else users = businessmanUsers;
+    else if (activeTab === "businessman") users = businessmanUsers;
+    else if (activeTab === "rejected") users = rejectedUsers;
 
     if (!searchQuery.trim()) return users;
     const q = searchQuery.toLowerCase();
@@ -119,7 +179,7 @@ export default function UserApprovalPage() {
       u.phone?.includes(q) ||
       u.district_name?.toLowerCase().includes(q)
     );
-  }, [pendingUsers, activeTab, searchQuery]);
+  }, [pendingUsers, rejectedUsers, activeTab, searchQuery]);
 
   const getRoleBadge = (roleCode: string) => {
     const map: Record<string, { label: string; className: string }> = {
@@ -180,9 +240,9 @@ export default function UserApprovalPage() {
           <p className="text-sm text-muted-foreground mt-1">Review and manage pending registration requests</p>
         </div>
         <Button
-          variant="outline"
+           variant="outline"
           size="sm"
-          onClick={() => fetchPendingUsers(true)}
+          onClick={() => fetchData(true)}
           disabled={refreshing}
           className="self-start sm:self-auto gap-2 text-muted-foreground hover:text-foreground"
         >
@@ -242,9 +302,13 @@ export default function UserApprovalPage() {
                 Core Body / Dealer
                 <span className="ml-1.5 text-[10px] tabular-nums opacity-60">{coreBodyUsers.length}</span>
               </TabsTrigger>
-              <TabsTrigger value="businessman" className="text-xs px-3 h-7">
+               <TabsTrigger value="businessman" className="text-xs px-3 h-7">
                 Businessman
                 <span className="ml-1.5 text-[10px] tabular-nums opacity-60">{businessmanUsers.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="rejected" className="text-xs px-3 h-7 text-rose-600 data-[state=active]:text-rose-600">
+                Rejected
+                <span className="ml-1.5 text-[10px] tabular-nums opacity-60">{rejectedUsers.length}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -264,11 +328,11 @@ export default function UserApprovalPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-[280px]">User</TableHead>
+                 <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-[280px]">User</TableHead>
                 <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Role</TableHead>
                 <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Contact</TableHead>
                 <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">District</TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Registered</TableHead>
+                <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{activeTab === 'rejected' ? 'Rejected' : 'Registered'}</TableHead>
                 <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -334,9 +398,11 @@ export default function UserApprovalPage() {
                       )}
                     </TableCell>
 
-                    {/* Date */}
+                     {/* Date */}
                     <TableCell>
-                      <span className="text-xs text-muted-foreground tabular-nums">{formatDate(user.created_at)}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {formatDate(activeTab === 'rejected' ? user.rejected_at : user.created_at)}
+                      </span>
                     </TableCell>
 
                     {/* Actions */}
@@ -347,28 +413,42 @@ export default function UserApprovalPage() {
                           variant="ghost"
                           className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
                           onClick={() => openUserDetails(user)}
-                          title="View details"
+                           title="View details"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                          onClick={() => handleApprove(user.id)}
-                          title="Approve"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                          onClick={() => handleReject(user.id)}
-                          title="Reject"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                        </Button>
+                         {activeTab === 'rejected' ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                            onClick={() => handleAction("restore", user)}
+                            title="Restore User"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                              onClick={() => handleAction("approve", user)}
+                              title="Approve"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                              onClick={() => handleAction("reject", user)}
+                              title="Reject"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -382,8 +462,11 @@ export default function UserApprovalPage() {
         {!loading && filteredUsers.length > 0 && (
           <div className="px-5 py-3 border-t border-border bg-muted/20">
             <p className="text-[11px] text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">{filteredUsers.length}</span> of{" "}
-              <span className="font-semibold text-foreground">{pendingUsers.length}</span> pending requests
+               Showing <span className="font-semibold text-foreground">{filteredUsers.length}</span> of{" "}
+              <span className="font-semibold text-foreground">
+                {activeTab === 'rejected' ? rejectedUsers.length : pendingUsers.length}
+              </span>{" "}
+              {activeTab === 'rejected' ? 'rejected' : 'pending'} requests
             </p>
           </div>
         )}
@@ -399,7 +482,7 @@ export default function UserApprovalPage() {
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                   <User className="w-6 h-6 text-primary" />
                 </div>
-                <div className="min-w-0 flex-1">
+                 <div className="min-w-0 flex-1">
                   <DialogTitle className="text-lg font-bold text-foreground">{selectedUser?.full_name}</DialogTitle>
                   <DialogDescription className="mt-1 flex flex-wrap items-center gap-2">
                     {selectedUser && getRoleBadge(selectedUser.role_code)}
@@ -408,6 +491,20 @@ export default function UserApprovalPage() {
                     </span>
                   </DialogDescription>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-primary/20 hover:border-primary/50 text-primary"
+                  onClick={() => {
+                    if (selectedUser) {
+                      fetchUserKyc(selectedUser.id);
+                      setIsKycDialogOpen(true);
+                    }
+                  }}
+                >
+                  <FileCheck className="w-4 h-4" />
+                  Review KYC
+                </Button>
               </div>
             </DialogHeader>
           </div>
@@ -511,32 +608,198 @@ export default function UserApprovalPage() {
               size="sm"
               className="text-muted-foreground"
               onClick={() => setIsDialogOpen(false)}
+             >
+              Cancel
+            </Button>
+             <div className="flex gap-2">
+              {activeTab === 'rejected' ? (
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 gap-1.5 shadow-sm"
+                  onClick={() => handleAction("restore", selectedUser)}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Restore User
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-500/10 gap-1.5"
+                    onClick={() => handleAction("reject", selectedUser)}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 gap-1.5 shadow-sm"
+                    onClick={() => handleAction("approve", selectedUser)}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Approve User
+                  </Button>
+                </>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Confirmation Dialog ────────────────────────── */}
+      <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md p-6 border border-border rounded-xl shadow-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                confirmDialog.type === 'approve' ? 'bg-emerald-500/10 text-emerald-600' :
+                confirmDialog.type === 'reject' ? 'bg-rose-500/10 text-rose-600' :
+                'bg-blue-500/10 text-blue-600'
+              }`}>
+                {confirmDialog.type === 'approve' ? <CheckCircle className="w-5 h-5" /> : 
+                 confirmDialog.type === 'reject' ? <XCircle className="w-5 h-5" /> :
+                 <RotateCcw className="w-5 h-5" />}
+              </div>
+              <DialogTitle className="text-xl font-bold">
+                Confirm {confirmDialog.type.charAt(0).toUpperCase() + confirmDialog.type.slice(1)}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-base text-muted-foreground mt-2">
+              Are you sure you want to <strong>{confirmDialog.type}</strong> registration for <strong>{confirmDialog.userName}</strong>?
+              {confirmDialog.type === 'approve' && " This will grant them immediate access to the platform."}
+              {confirmDialog.type === 'reject' && " They will be moved to the rejection list and won't be able to log in."}
+              {confirmDialog.type === 'restore' && " This user will be moved back to the pending list for review."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-8 flex gap-3">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
             >
               Cancel
             </Button>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-500/10 gap-1.5"
-                onClick={() => {
-                  handleReject(selectedUser.id);
-                }}
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                className="bg-primary hover:bg-primary/90 gap-1.5 shadow-sm"
-                onClick={() => {
-                  handleApprove(selectedUser.id);
-                }}
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                Approve User
-              </Button>
-            </div>
+            <Button
+              className={`flex-1 ${
+                confirmDialog.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                confirmDialog.type === 'reject' ? 'bg-rose-600 hover:bg-rose-700' :
+                'bg-blue-600 hover:bg-blue-700'
+              }`}
+              onClick={executeAction}
+            >
+              Confirm {confirmDialog.type.charAt(0).toUpperCase() + confirmDialog.type.slice(1)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── KYC Review Dialog ──────────────────────────── */}
+      <Dialog open={isKycDialogOpen} onOpenChange={setIsKycDialogOpen}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden border border-border gap-0 rounded-xl shadow-xl">
+          <div className="bg-muted/30 border-b border-border p-6">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold">KYC Documents Review</DialogTitle>
+                  <DialogDescription>Verify uploaded identity and business documents</DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+            {loadingKyc ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <RefreshCw className="w-8 h-8 animate-spin opacity-20" />
+                <p className="text-sm">Fetching documents...</p>
+              </div>
+            ) : kycDocs.length === 0 ? (
+              <div className="py-12 bg-muted/20 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ShieldAlert className="w-8 h-8 opacity-20" />
+                <p className="text-sm font-medium">No KYC documents uploaded yet</p>
+              </div>
+            ) : (
+              kycDocs.map((doc) => (
+                <div key={doc.id} className="p-4 border border-border rounded-xl bg-card transition-all hover:border-primary/20">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border overflow-hidden">
+                        {doc.doc_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                          <img src={doc.doc_url} alt={doc.doc_type} className="w-full h-full object-cover" />
+                        ) : (
+                          <FileText className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold uppercase tracking-tight">{doc.doc_type.replace(/_/g, " ")}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Uploaded on {formatDate(doc.uploaded_at)}</p>
+                        <div className="mt-2">
+                          <Badge variant="outline" className={`text-[10px] font-bold uppercase tracking-widest ${
+                            doc.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {doc.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 text-xs gap-1.5"
+                        asChild
+                      >
+                        <a href={doc.doc_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-3 h-3" />
+                          View Document
+                        </a>
+                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50"
+                          onClick={() => handleReviewKyc(doc.id, "rejected")}
+                          title="Reject Document"
+                          disabled={doc.status === 'rejected'}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-50"
+                          onClick={() => handleReviewKyc(doc.id, "approved")}
+                          title="Approve Document"
+                          disabled={doc.status === 'approved'}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {doc.review_note && (
+                    <div className="mt-3 p-2 bg-muted/50 rounded-lg text-xs text-muted-foreground flex gap-2 italic">
+                      <span className="font-semibold text-[10px] uppercase tracking-wider not-italic">Note:</span>
+                      "{doc.review_note}"
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter className="bg-muted/30 border-t border-border p-4">
+            <Button variant="ghost" size="sm" onClick={() => setIsKycDialogOpen(false)} className="w-full sm:w-auto">
+              Close KYC Review
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

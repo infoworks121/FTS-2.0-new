@@ -80,7 +80,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
   },
   {
-    title: "Products & Categories",
+    title: "B2B & Categories",
     icon: Package,
     requiredRole: "admin",
     submenu: [
@@ -97,7 +97,6 @@ export const sidebarNavItems: SidebarNavItem[] = [
     icon: ShoppingCart,
     requiredRole: "admin",
     submenu: [
-      { title: "B2C Orders", url: "/admin/orders/b2c" },
       { title: "Add B2C Product", url: "/admin/products/new?channel=B2C" },
       { title: "B2C Commission Structure", url: "/admin/commission/b2c" },
     ],
@@ -184,7 +183,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
     submenu: [
       { title: "All Orders", url: "/admin/orders" },
       { title: "B2B Orders", url: "/admin/orders/b2b" },
-      { title: "Bulk Orders", url: "/admin/orders/bulk" },
+      { title: "B2C Orders", url: "/admin/orders/b2c" },
       { title: "Order Returns & Refunds", url: "/admin/orders/refunds" },
     ],
   },

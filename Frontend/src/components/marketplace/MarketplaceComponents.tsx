@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import { 
-  Package, 
-  ShoppingCart, 
-  Zap, 
-  Star, 
-  Clock, 
-  TrendingUp, 
-  MapPin, 
+import {
+  Package,
+  ShoppingCart,
+  Zap,
+  Star,
+  Clock,
+  TrendingUp,
+  MapPin,
   Building2,
   ChevronRight,
   ChevronLeft,
@@ -46,14 +46,14 @@ export const formatCurrency = (amount: string | number) => {
   }).format(Number(amount));
 };
 
-export const ProductCardGrid = ({ 
-  product, 
-  onAddToCart, 
+export const ProductCardGrid = ({
+  product,
+  onAddToCart,
   onBuyNow,
   onQuickList
-}: { 
-  product: Product, 
-  onAddToCart: (p: any) => void, 
+}: {
+  product: Product,
+  onAddToCart: (p: any) => void,
   onBuyNow: (p: any) => void,
   onQuickList?: (p: any) => void
 }) => {
@@ -65,15 +65,15 @@ export const ProductCardGrid = ({
     <Card className="group relative overflow-hidden border-slate-200 hover:border-emerald-500/50 transition-all duration-300 hover:shadow-md rounded-xl bg-white shadow-sm">
       <div className="relative aspect-[4/3] overflow-hidden bg-slate-50 flex items-center justify-center p-4">
         {product.thumbnail_url ? (
-          <img 
-            src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
-            alt={product.name} 
+          <img
+            src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`}
+            alt={product.name}
             className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <Package className="h-10 w-10 text-slate-300" />
         )}
-        
+
         {/* Minimal Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1.5">
           {product.isNew && (
@@ -95,7 +95,7 @@ export const ProductCardGrid = ({
 
         {/* Hover Actions Bar */}
         <div className="absolute inset-x-0 bottom-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex gap-1.5">
-          <Button 
+          <Button
             size="sm"
             onClick={() => onAddToCart(product)}
             className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 h-8 text-[11px] font-semibold"
@@ -103,7 +103,7 @@ export const ProductCardGrid = ({
             <ShoppingCart className="h-3 w-3 mr-1.5" /> Cart
           </Button>
           {onQuickList && (
-            <Button 
+            <Button
               size="sm"
               onClick={() => onQuickList(product)}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[11px] font-semibold border-none"
@@ -139,7 +139,7 @@ export const ProductCardGrid = ({
               <span className="text-[11px] text-slate-400 line-through font-medium">{formatCurrency(product.mrp)}</span>
             )}
           </div>
-          <Button 
+          <Button
             size="sm"
             onClick={() => onBuyNow(product)}
             className="h-8 w-8 rounded-lg bg-slate-900 hover:bg-emerald-600 text-white p-0"
@@ -152,14 +152,14 @@ export const ProductCardGrid = ({
   );
 };
 
-export const ProductCardList = ({ 
-  product, 
-  onAddToCart, 
+export const ProductCardList = ({
+  product,
+  onAddToCart,
   onBuyNow,
   onQuickList
-}: { 
-  product: Product, 
-  onAddToCart: (p: any) => void, 
+}: {
+  product: Product,
+  onAddToCart: (p: any) => void,
   onBuyNow: (p: any) => void,
   onQuickList?: (p: any) => void
 }) => {
@@ -169,18 +169,18 @@ export const ProductCardList = ({
         <div className="flex gap-6">
           <div className="w-32 aspect-square bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-3 relative">
             {product.thumbnail_url ? (
-              <img 
-                src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`} 
-                alt={product.name} 
+              <img
+                src={product.thumbnail_url.startsWith('http') ? product.thumbnail_url : `${IMAGE_BASE_URL}${product.thumbnail_url}`}
+                alt={product.name}
                 className="w-full h-full object-contain"
               />
             ) : (
               <Package className="h-8 w-8 text-slate-200" />
             )}
             <div className="absolute top-1.5 left-1.5">
-               <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-500 uppercase tracking-tighter border border-slate-100 px-1.5 rounded">
-                 {product.category_name}
-               </span>
+              <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-500 uppercase tracking-tighter border border-slate-100 px-1.5 rounded">
+                {product.category_name}
+              </span>
             </div>
           </div>
 
@@ -216,7 +216,7 @@ export const ProductCardList = ({
                 </div>
                 <div className="w-1 h-1 rounded-full bg-slate-200" />
                 <div className="text-slate-500 text-[10px] font-semibold">
-                   {product.available_stock} items left
+                  {product.available_stock} items left
                 </div>
                 {product.isTrending && (
                   <>
@@ -230,15 +230,15 @@ export const ProductCardList = ({
             </div>
 
             <div className="flex items-center gap-2 pt-4">
-              <Button 
+              <Button
                 size="sm"
                 onClick={() => onBuyNow(product)}
                 className="bg-slate-900 hover:bg-emerald-600 text-white rounded-lg px-4 h-8 text-xs font-semibold shadow-sm"
               >
                 Buy Now
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => onAddToCart(product)}
                 className="rounded-lg px-4 h-8 border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
@@ -246,7 +246,7 @@ export const ProductCardList = ({
                 Add to Cart
               </Button>
               {onQuickList && (
-                <Button 
+                <Button
                   size="sm"
                   onClick={() => onQuickList(product)}
                   className="rounded-lg px-4 h-8 bg-emerald-600 hover:bg-emerald-700 text-white border-none text-xs font-semibold shadow-sm"
@@ -325,24 +325,24 @@ export const MarketplaceHero = () => {
         {/* Dots */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
           {slides.map((_, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className={cn(
                 "h-1 rounded-full transition-all duration-300",
                 selectedIndex === i ? "w-6 bg-slate-900" : "w-2 bg-slate-200"
-              )} 
+              )}
             />
           ))}
         </div>
 
         {/* Controls */}
-        <button 
+        <button
           onClick={() => emblaApi?.scrollPrev()}
           className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 backdrop-blur-sm text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <button 
+        <button
           onClick={() => emblaApi?.scrollNext()}
           className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 backdrop-blur-sm text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
         >
@@ -352,27 +352,27 @@ export const MarketplaceHero = () => {
 
       <div className="flex gap-4 border-b border-slate-100 pb-4 ml-1">
         <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Verified
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Verified
         </div>
         <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Real-time
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Real-time
         </div>
         <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Direct
+          <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Direct
         </div>
       </div>
     </div>
   );
 };
 
-export const CategoryStrip = ({ 
-  categories, 
-  selected, 
-  onSelect 
-}: { 
-  categories: any[], 
-  selected: string, 
-  onSelect: (id: string) => void 
+export const CategoryStrip = ({
+  categories,
+  selected,
+  onSelect
+}: {
+  categories: any[],
+  selected: string,
+  onSelect: (id: string) => void
 }) => {
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-4 -mx-1 px-1 scrollbar-hide no-scrollbar">
@@ -380,8 +380,8 @@ export const CategoryStrip = ({
         onClick={() => onSelect("all")}
         className={cn(
           "shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300",
-          selected === "all" 
-            ? "bg-slate-900 text-white shadow-sm" 
+          selected === "all"
+            ? "bg-slate-900 text-white shadow-sm"
             : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
         )}
       >
@@ -393,8 +393,8 @@ export const CategoryStrip = ({
           onClick={() => onSelect(cat.id.toString())}
           className={cn(
             "shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300",
-            selected === cat.id.toString() 
-              ? "bg-emerald-600 text-white shadow-sm" 
+            selected === cat.id.toString()
+              ? "bg-emerald-600 text-white shadow-sm"
               : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
           )}
         >

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
 import { navItems as coreBodyNavItems } from "@/pages/CoreBodyDashboard";
 import { sidebarNavItems as adminNavItems } from "@/config/sidebarConfig";
@@ -10,7 +10,10 @@ import { coreBodyApi } from "@/lib/coreBodyApi";
 import { UserProfileView } from "@/components/users/UserProfileView";
 
 export default function UnifiedMemberProfile() {
-  const { id, role: roleParam } = useParams<{ id: string, role?: string }>();
+  const { id: pathId, role: roleParam } = useParams<{ id: string, role?: string }>();
+  const [searchParams] = useSearchParams();
+  const queryId = searchParams.get("id");
+  const id = pathId || queryId;
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
@@ -36,7 +39,7 @@ export default function UnifiedMemberProfile() {
         
         // Refine role if not provided in URL
         if (!roleParam) {
-          const role = response.profile.role || response.profile.role_code || 'businessman';
+          const role = response.profile.role_code || response.profile.role || 'businessman';
           setUserRole(role);
         }
       } catch (error: any) {

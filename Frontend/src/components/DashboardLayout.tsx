@@ -115,12 +115,31 @@ function NavItemComponent({
 }) {
   const location = useLocation();
   const hasSubmenu = item.submenu && item.submenu.length > 0;
-  const isChildActive = item.submenu?.some(
-    (sub) => sub.url && location.pathname.startsWith(sub.url)
-  );
+  const currentFullUrl = location.pathname + location.search;
+
+  const checkActive = (url: string | undefined): boolean => {
+    if (!url) return false;
+    
+    // 1. Exact match (including query params)
+    if (currentFullUrl === url) return true;
+    
+    // 2. Exact pathname match
+    if (location.pathname === url) return true;
+
+    // 3. Prefix match for sub-resources (e.g. /admin/products/123)
+    // We only use prefix matching for simple paths UNLESS there is a query string present 
+    // in the current location that would match a more specific route elsewhere.
+    if (!url.includes('?') && location.pathname.startsWith(url + '/') && !location.search) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isChildActive = item.submenu?.some((sub) => checkActive(sub.url));
   const [isOpen, setIsOpen] = useState(item.isOpen || isChildActive || false);
 
-  const isActive = location.pathname === item.url;
+  const isActive = checkActive(item.url);
   const isDisabled = !!item.disabled;
   const IconComponent =
     typeof item.icon === "string"

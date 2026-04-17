@@ -28,13 +28,23 @@ export const orderApi = {
     return res.data;
   },
 
-  getMyOrders: async () => {
-    const res = await api.get('/orders');
+  getMyOrders: async (type?: string) => {
+    const res = await api.get('/orders', { params: { order_type: type } });
     return res.data;
   },
 
   getOrderDetails: async (orderId: string) => {
     const res = await api.get(`/orders/${orderId}`);
+    return res.data;
+  },
+
+  getRefundRequests: async () => {
+    const res = await api.get('/customer-service/returns');
+    return res.data;
+  },
+
+  getRefundTimeline: async (requestId: string) => {
+    const res = await api.get(`/customer-service/returns/${requestId}/timeline`);
     return res.data;
   }
 };

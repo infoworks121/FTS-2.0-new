@@ -7,6 +7,8 @@ router.get('/dashboard-stats', protect, adminOnly, adminController.getAdminDashb
 router.get('/pending-users', protect, adminController.getPendingUsers);
 router.post('/approve-user/:userId', protect, adminController.approveUser);
 router.delete('/reject-user/:userId', protect, adminController.rejectUser);
+router.get('/rejected-users', protect, adminController.getRejectedUsers);
+router.post('/restore-user/:userId', protect, adminController.restoreUser);
 router.get('/businessmen', protect, adminOnly, adminController.getAllBusinessmen);
 router.get('/corebodies', protect, adminOnly, adminController.getAllCoreBodies);
 router.get('/corebodies/:id', protect, adminOnly, adminController.getCoreBodyById);

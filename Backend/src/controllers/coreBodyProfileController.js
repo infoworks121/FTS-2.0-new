@@ -507,7 +507,10 @@ const getDirectoryUsers = async (req, res) => {
 
 const getDirectoryUserDetail = async (req, res) => {
   try {
-    let { id } = req.params;
+    let { id: rawId } = req.params;
+    let id = rawId;
+
+    console.log(`[DEBUG] getDirectoryUserDetail requested for ID: ${rawId}`);
 
     // Remove entity prefixes if present (e.g., BSM-, DLR-, CB-)
     if (typeof id === 'string') {
@@ -515,14 +518,48 @@ const getDirectoryUserDetail = async (req, res) => {
       if (id.startsWith('DLR-')) id = id.replace('DLR-', '');
       if (id.startsWith('CB-')) id = id.replace('CB-', '');
     }
+    
+    console.log(`[DEBUG] getDirectoryUserDetail using stripped ID: ${id}`);
 
     // 1. Fetch user and role
-    const userResult = await pool.query(`
+    let userResult = await pool.query(`
       SELECT u.id, u.full_name as name, u.email, u.phone, r.role_code
       FROM users u
       JOIN user_roles r ON u.role_id = r.id
-      WHERE u.id = $1
+      WHERE u.id::text = $1
     `, [id]);
+
+    // 1.1 If not found, try to resolve from profile tables (to support Profile IDs in URLs)
+    if (userResult.rows.length === 0) {
+      console.log(`[DEBUG] ID ${id} not found in users table, attempting profile resolution`);
+      try {
+        // Try core_body_profiles
+        const cbProfile = await pool.query('SELECT user_id FROM core_body_profiles WHERE id::text = $1', [id]);
+        if (cbProfile.rows.length > 0) {
+          id = cbProfile.rows[0].user_id;
+          console.log(`[DEBUG] Resolved ID ${id} from core_body_profiles`);
+        } else {
+          // Try businessman_profiles
+          const bsmProfile = await pool.query('SELECT user_id FROM businessman_profiles WHERE id::text = $1', [id]);
+          if (bsmProfile.rows.length > 0) {
+            id = bsmProfile.rows[0].user_id;
+            console.log(`[DEBUG] Resolved ID ${id} from businessman_profiles`);
+          }
+        }
+
+        // Re-fetch user with resolved ID
+        if (id) {
+          userResult = await pool.query(`
+            SELECT u.id, u.full_name as name, u.email, u.phone, r.role_code
+            FROM users u
+            JOIN user_roles r ON u.role_id = r.id
+            WHERE u.id::text = $1
+          `, [id]);
+        }
+      } catch (err) {
+        console.warn('[DEBUG] Profile resolution failed:', err.message);
+      }
+    }
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -535,6 +572,7 @@ const getDirectoryUserDetail = async (req, res) => {
       const profileResult = await pool.query(`
         SELECT 
           u.id, u.full_name as name, u.email, u.phone, u.profile_photo_url, u.is_approved, u.is_sph,
+          r.role_code,
           bp.id as profile_id, bp.type, bp.mode, bp.is_active,
           bp.business_name, bp.business_address, bp.gst_number, bp.pan_number,
           bp.bank_account, bp.ifsc_code,
@@ -543,9 +581,10 @@ const getDirectoryUserDetail = async (req, res) => {
           bp.created_at, bp.updated_at,
           d.name as district, d.id as district_id
         FROM users u
+        JOIN user_roles r ON u.role_id = r.id
         JOIN businessman_profiles bp ON u.id = bp.user_id
         LEFT JOIN districts d ON bp.district_id = d.id
-        WHERE u.id = $1
+        WHERE u.id::text = $1
       `, [id]);
 
       if (profileResult.rows.length === 0) {
@@ -575,10 +614,11 @@ const getDirectoryUserDetail = async (req, res) => {
       const dealerResult = await pool.query(`
         SELECT 
           u.id, u.full_name as name, u.email, u.phone, u.is_active,
-          u.created_at, d.name as district
+          u.created_at, d.name as district, r.role_code
         FROM users u
+        JOIN user_roles r ON u.role_id = r.id
         LEFT JOIN districts d ON u.district_id = d.id
-        WHERE u.id = $1
+        WHERE u.id::text = $1
       `, [id]);
       
       const profile = dealerResult.rows[0];
@@ -588,14 +628,16 @@ const getDirectoryUserDetail = async (req, res) => {
       const profileResult = await pool.query(`
         SELECT 
           u.id, u.full_name as name, u.email, u.phone, u.is_active, u.is_approved,
+          r.role_code,
           cp.type, cp.investment_amount, cp.ytd_earnings, cp.annual_cap,
           cp.created_at, d.name as district,
           (SELECT COUNT(*) FROM businessman_profiles WHERE assigned_core_body_id = cp.id) as businessman_count,
           (SELECT COUNT(*) FROM core_body_installments WHERE core_body_id = cp.id) as installment_count
         FROM users u
+        JOIN user_roles r ON u.role_id = r.id
         JOIN core_body_profiles cp ON u.id = cp.user_id
         LEFT JOIN districts d ON u.district_id = d.id
-        WHERE u.id = $1
+        WHERE u.id::text = $1
       `, [id]);
 
       if (profileResult.rows.length === 0) {
