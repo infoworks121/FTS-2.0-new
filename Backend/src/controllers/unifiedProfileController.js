@@ -5,10 +5,10 @@ const getUnifiedProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role_code;
-    
+
     let profileQuery = '';
     let profileParams = [userId];
-    
+
     // Base user info
     const baseQuery = `
       SELECT u.id, u.full_name, u.email, u.phone, u.role_code, u.is_active, 
@@ -17,15 +17,15 @@ const getUnifiedProfile = async (req, res) => {
       LEFT JOIN districts d ON u.district_id = d.id
       WHERE u.id = $1
     `;
-    
+
     const userResult = await pool.query(baseQuery, [userId]);
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     let profile = userResult.rows[0];
-    
+
     // Role-specific profile data
     switch (userRole) {
       case 'core_body_a':
@@ -43,7 +43,7 @@ const getUnifiedProfile = async (req, res) => {
         if (coreBodyResult.rows.length > 0) {
           const coreBodyData = coreBodyResult.rows[0];
           profile = { ...profile, ...coreBodyData };
-          
+
           // Group installments
           const installments = coreBodyResult.rows
             .filter(row => row.installment_no)
@@ -58,7 +58,7 @@ const getUnifiedProfile = async (req, res) => {
           profile.installments = installments;
         }
         break;
-        
+
       case 'businessman':
         const businessmanQuery = `
           SELECT bp.*, bt.name as business_type_name
@@ -71,7 +71,7 @@ const getUnifiedProfile = async (req, res) => {
           profile = { ...profile, ...businessmanResult.rows[0] };
         }
         break;
-        
+
       case 'stock_point':
         const stockPointQuery = `
           SELECT sp.*
@@ -83,7 +83,7 @@ const getUnifiedProfile = async (req, res) => {
           profile = { ...profile, ...stockPointResult.rows[0] };
         }
         break;
-        
+
       case 'retailer':
         const retailerQuery = `
           SELECT rp.*
@@ -95,12 +95,12 @@ const getUnifiedProfile = async (req, res) => {
           profile = { ...profile, ...retailerResult.rows[0] };
         }
         break;
-        
+
       case 'admin':
         // Admin doesn't have additional profile table
         break;
     }
-    
+
     res.json({ profile });
   } catch (error) {
     console.error('Get unified profile error:', error);
@@ -114,12 +114,12 @@ const updateUnifiedProfile = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role_code;
     const updateData = req.body;
-    
+
     const client = await pool.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       // Update base user info
       const { full_name, phone } = updateData;
       if (full_name || phone) {
@@ -129,7 +129,7 @@ const updateUnifiedProfile = async (req, res) => {
           [full_name, phone, userId]
         );
       }
-      
+
       // Role-specific updates
       switch (userRole) {
         case 'core_body_a':
@@ -147,10 +147,10 @@ const updateUnifiedProfile = async (req, res) => {
             );
           }
           break;
-          
+
         case 'businessman':
-          const { business_name, business_address, gst_number, pan_number, 
-                  bank_account, ifsc_code, monthly_target } = updateData;
+          const { business_name, business_address, gst_number, pan_number,
+            bank_account, ifsc_code, monthly_target } = updateData;
           await client.query(
             `UPDATE businessman_profiles 
              SET business_name = COALESCE($1, business_name),
@@ -162,11 +162,11 @@ const updateUnifiedProfile = async (req, res) => {
                  monthly_target = COALESCE($7, monthly_target),
                  updated_at = NOW()
              WHERE user_id = $8`,
-            [business_name, business_address, gst_number, pan_number, 
-             bank_account, ifsc_code, monthly_target, userId]
+            [business_name, business_address, gst_number, pan_number,
+              bank_account, ifsc_code, monthly_target, userId]
           );
           break;
-          
+
         case 'stock_point':
           const { warehouse_address, storage_capacity } = updateData;
           await client.query(
@@ -178,11 +178,11 @@ const updateUnifiedProfile = async (req, res) => {
             [warehouse_address, storage_capacity, userId]
           );
           break;
-          
+
         case 'retailer':
-          const { shop_name, shop_address, shop_type, gst_number: retailer_gst, 
-                  pan_number: retailer_pan, bank_account: retailer_bank, 
-                  ifsc_code: retailer_ifsc } = updateData;
+          const { shop_name, shop_address, shop_type, gst_number: retailer_gst,
+            pan_number: retailer_pan, bank_account: retailer_bank,
+            ifsc_code: retailer_ifsc } = updateData;
           await client.query(
             `UPDATE retailer_profiles 
              SET shop_name = COALESCE($1, shop_name),
@@ -194,22 +194,22 @@ const updateUnifiedProfile = async (req, res) => {
                  ifsc_code = COALESCE($7, ifsc_code),
                  updated_at = NOW()
              WHERE user_id = $8`,
-            [shop_name, shop_address, shop_type, retailer_gst, 
-             retailer_pan, retailer_bank, retailer_ifsc, userId]
+            [shop_name, shop_address, shop_type, retailer_gst,
+              retailer_pan, retailer_bank, retailer_ifsc, userId]
           );
           break;
       }
-      
+
       await client.query('COMMIT');
       res.json({ message: 'Profile updated successfully' });
-      
+
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
-    
+
   } catch (error) {
     console.error('Update unified profile error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -221,9 +221,9 @@ const getDashboardStats = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role_code;
-    
+
     let stats = {};
-    
+
     switch (userRole) {
       case 'core_body_a':
       case 'core_body_b':
@@ -240,11 +240,11 @@ const getDashboardStats = async (req, res) => {
         const coreBodyStats = await pool.query(coreBodyStatsQuery, [userId]);
         if (coreBodyStats.rows.length > 0) {
           const profile = coreBodyStats.rows[0];
-          const annualUtilization = profile.annual_cap ? 
+          const annualUtilization = profile.annual_cap ?
             ((profile.ytd_earnings / profile.annual_cap) * 100).toFixed(1) : 0;
-          const monthlyUtilization = profile.monthly_cap ? 
+          const monthlyUtilization = profile.monthly_cap ?
             ((profile.mtd_earnings / profile.monthly_cap) * 100).toFixed(1) : 0;
-          
+
           stats = {
             earnings: {
               ytd: profile.ytd_earnings,
@@ -263,7 +263,7 @@ const getDashboardStats = async (req, res) => {
           };
         }
         break;
-        
+
       case 'businessman':
         const businessmanStatsQuery = `
           SELECT bp.*,
@@ -277,9 +277,9 @@ const getDashboardStats = async (req, res) => {
         const businessmanStats = await pool.query(businessmanStatsQuery, [userId]);
         if (businessmanStats.rows.length > 0) {
           const profile = businessmanStats.rows[0];
-          const targetAchievement = profile.monthly_target ? 
+          const targetAchievement = profile.monthly_target ?
             ((profile.mtd_sales / profile.monthly_target) * 100).toFixed(1) : 0;
-          
+
           stats = {
             sales: {
               ytd: profile.ytd_sales,
@@ -290,7 +290,7 @@ const getDashboardStats = async (req, res) => {
           };
         }
         break;
-        
+
       case 'retailer':
         const retailerStatsQuery = `
           SELECT rp.*,
@@ -304,9 +304,9 @@ const getDashboardStats = async (req, res) => {
         const retailerStats = await pool.query(retailerStatsQuery, [userId]);
         if (retailerStats.rows.length > 0) {
           const profile = retailerStats.rows[0];
-          const targetAchievement = profile.monthly_target ? 
+          const targetAchievement = profile.monthly_target ?
             ((profile.mtd_sales / profile.monthly_target) * 100).toFixed(1) : 0;
-          
+
           stats = {
             sales: {
               ytd: profile.ytd_sales,
@@ -317,7 +317,7 @@ const getDashboardStats = async (req, res) => {
           };
         }
         break;
-        
+
       case 'stock_point':
         const stockPointStatsQuery = `
           SELECT sp.*,
@@ -372,7 +372,7 @@ const getDashboardStats = async (req, res) => {
         }
         break;
     }
-    
+
     res.json({ stats });
   } catch (error) {
     console.error('Get dashboard stats error:', error);

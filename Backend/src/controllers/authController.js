@@ -6,6 +6,7 @@ const { generateToken } = require('../utils/token');
 const { sendVerificationEmail } = require('../utils/email');
 
 const register = async (req, res) => {
+    console.log("[DEBUG] Backend register hit. Body:", { ...req.body, password: '***' });
     const { phone, email, full_name, password, role_code, district_id: body_district_id, subdivision_id, businessman_type, investment_amount, installment_count, installment_amounts, referral_code_used, kycDocuments, product_id } = req.body;
 
     const client = await pool.connect();
