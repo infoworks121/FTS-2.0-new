@@ -42,10 +42,9 @@ exports.assignOrder = async (req, res) => {
         // Set SLA Rule (e.g., 24 hours to dispatch)
         const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
         await client.query(
-            `INSERT INTO order_sla_log 
-             (order_id, stock_point_id, sla_type, sla_deadline) 
-             VALUES ($1, $2, 'dispatch', $3)`,
-            [order_id, stock_point_id, deadline]
+          `INSERT INTO order_sla_log (order_id, fulfiller_id, fulfiller_type, sla_type, sla_deadline) 
+           VALUES ($1, $2, 'stock_point', 'dispatch', $3)`,
+          [order_id, stock_point_id, deadline]
         );
 
         // Log Status
@@ -160,22 +159,64 @@ exports.updateFulfillmentStatus = async (req, res) => {
                     [isBreached, breachDuration, sla.id]
                 );
 
+                // --- Universal Penalty/Reward Logic ---
                 if (isBreached) {
-                    // Penalty: reduce sla_score in stock_point_profiles
+                    // Penalty: reduce sla_score (min 0)
+                    let table = 'stock_point_profiles';
+                    if (assignment.fulfiller_type === 'dealer') table = 'dealer_profiles';
+                    else if (assignment.fulfiller_type === 'core_body') table = 'core_body_profiles';
+
                     await client.query(
-                        `UPDATE stock_point_profiles SET sla_score = GREATEST(sla_score - 2.5, 0) WHERE id = $1`,
+                        `UPDATE ${table} SET sla_score = GREATEST(sla_score - 2.5, 0) WHERE id = $1`,
+                        [assignment.fulfiller_id]
+                    );
+                } else {
+                    // Reward: increase sla_score (max 100)
+                    let table = 'stock_point_profiles';
+                    if (assignment.fulfiller_type === 'dealer') table = 'dealer_profiles';
+                    else if (assignment.fulfiller_type === 'core_body') table = 'core_body_profiles';
+
+                    await client.query(
+                        `UPDATE ${table} SET sla_score = LEAST(sla_score + 0.5, 100.0) WHERE id = $1`,
                         [assignment.fulfiller_id]
                     );
                 }
             }
         }
 
-        // If delivered, update delivery tracking actual delivery
+        // If delivered, update delivery tracking actual delivery and deduct inventory
         if (status === 'delivered') {
             await client.query(
                 `UPDATE delivery_tracking SET current_status = 'delivered', actual_delivery = NOW(), last_updated_at = NOW() WHERE order_id = $1`,
                 [assignment.order_id]
             );
+
+            // --- Inventory Deduction Logic ---
+            const orderItems = await client.query('SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = $1', [assignment.order_id]);
+            
+            for (const item of orderItems.rows) {
+                // Deduct from fulfiller's balance
+                const updateRes = await client.query(
+                    `UPDATE inventory_balances 
+                     SET quantity_on_hand = quantity_on_hand - $1, last_updated_at = NOW()
+                     WHERE entity_type = $2 AND entity_id = $3 AND product_id = $4 AND (variant_id = $5 OR ($5 IS NULL AND variant_id IS NULL))`,
+                    [item.quantity, assignment.fulfiller_type, assignment.fulfiller_id, item.product_id, item.variant_id]
+                );
+
+                if (updateRes.rowCount === 0) {
+                    // Note: In some cases, we might want to allow "ghost" stock or negative, 
+                    // but according to the plan, they should have physical stock.
+                    // For now, we'll just log if it failed to update (optional error throwing)
+                    console.warn(`Internal Warning: No inventory row found to deduct for ${assignment.fulfiller_type} ${assignment.fulfiller_id}`);
+                }
+
+                // Log in Ledger
+                await client.query(
+                    `INSERT INTO inventory_ledger (product_id, variant_id, entity_type, entity_id, transaction_type, quantity, reference_type, reference_id, note, created_by)
+                     VALUES ($1, $2, $3, $4, 'delivery_out', $5, 'fulfillment_assignment', $6, $7, $8)`,
+                    [item.product_id, item.variant_id, assignment.fulfiller_type, assignment.fulfiller_id, -item.quantity, assignment.id, `Order Delivered: ${assignment.order_id}`, user.id]
+                );
+            }
         }
 
         // Log the status update

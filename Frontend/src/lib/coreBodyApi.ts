@@ -103,6 +103,14 @@ export const coreBodyApi = {
     const response = await api.get('/corebody-profile/district-performance');
     return response.data;
   },
+  getDistrictDealers: async () => {
+    const response = await api.get('/corebody-profile/district-dealers');
+    return response.data;
+  },
+  getCoreBodyInventory: async () => {
+    const response = await api.get('/corebody-profile/inventory');
+    return response.data;
+  },
 };
 
 export default coreBodyApi;

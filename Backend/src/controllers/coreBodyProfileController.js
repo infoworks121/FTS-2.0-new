@@ -781,6 +781,50 @@ const getDistrictPerformanceSnapshot = async (req, res) => {
 };
 
 
+// Get all dealers in the same district as the Core Body
+const getDistrictDealers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      SELECT 
+        dp.id, u.full_name, s.name as subdivision_name
+      FROM dealer_profiles dp
+      JOIN users u ON dp.user_id = u.id
+      JOIN subdivisions s ON dp.subdivision_id = s.id
+      WHERE dp.district_id = (SELECT district_id FROM users WHERE id = $1)
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    res.json({ dealers: result.rows });
+  } catch (error) {
+    console.error('Get district dealers error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get current Core Body's inventory balances
+const getCoreBodyInventory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      SELECT 
+        ib.product_id, p.name as product_name, p.sku, 
+        ib.quantity_on_hand as quantity
+      FROM inventory_balances ib
+      JOIN products p ON ib.product_id = p.id
+      WHERE ib.entity_id = $1 AND ib.entity_type = 'core_body'
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    res.json({ inventory: result.rows });
+  } catch (error) {
+    console.error('Get core body inventory error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getCoreBodyProfile,
   updateCoreBodyProfile,
@@ -791,4 +835,6 @@ module.exports = {
   getDirectoryUsers,
   getDirectoryUserDetail,
   getDistrictPerformanceSnapshot,
-};
+  getDistrictDealers,
+  getCoreBodyInventory
+};

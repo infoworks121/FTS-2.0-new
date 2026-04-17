@@ -3,8 +3,13 @@ const router = express.Router();
 const stockAllocationController = require('../controllers/stockAllocationController');
 const { protect } = require('../middleware/authMiddleware');
 
+const stockMovementController = require('../controllers/stockMovementController');
+
 // Core Body: Send Physical Stock to Dealer
 router.post('/transfer', protect, stockAllocationController.createPhysicalTransfer);
+
+// General: Get District Aggregated Stock
+router.get('/available-stock/:product_id', protect, stockMovementController.getDistrictStock);
 
 // Admin: Direct a Core Body to dispatch stock to a Dealer
 router.post('/admin/direct-dispatch', protect, stockAllocationController.requestDirectedDispatch);

@@ -10,53 +10,54 @@ const stockAllocationController = {
         try {
             await pool.query('BEGIN');
 
-            // 1. Get Core Body Profile
-            const coreBodyRes = await pool.query(
-                'SELECT id, district_id FROM core_body_profiles WHERE user_id = $1',
-                [from_user_id]
-            );
-            if (coreBodyRes.rows.length === 0) {
-                return res.status(403).json({ error: "Only Core Body can initiate transfers" });
-            }
-            const coreBody = coreBodyRes.rows[0];
+        // 1. Get Core Body Profile
+        const coreBodyRes = await pool.query(
+            'SELECT id, user_id, district_id FROM core_body_profiles WHERE user_id = $1',
+            [from_user_id]
+        );
+        if (coreBodyRes.rows.length === 0) {
+            return res.status(403).json({ error: "Only Core Body can initiate transfers" });
+        }
+        const coreBody = coreBodyRes.rows[0];
 
-            // 2. Verify Dealer belongs to the same district (Security Check)
-            const dealerRes = await pool.query(
-                'SELECT id FROM dealer_profiles WHERE id = $1 AND district_id = $2',
-                [to_dealer_id, coreBody.district_id]
-            );
-            if (dealerRes.rows.length === 0) {
-                return res.status(400).json({ error: "Dealer not found in your district" });
-            }
+        // 2. Verify Dealer belongs to the same district (Security Check)
+        const dealerRes = await pool.query(
+            'SELECT id, user_id FROM dealer_profiles WHERE id = $1 AND district_id = $2',
+            [to_dealer_id, coreBody.district_id]
+        );
+        if (dealerRes.rows.length === 0) {
+            return res.status(400).json({ error: "Dealer not found in your district" });
+        }
+        const dealer = dealerRes.rows[0];
 
-            // 3. Check Core Body has enough stock to transfer
-            const stockRes = await pool.query(
-                'SELECT quantity FROM inventory_balances WHERE entity_id = $1 AND product_id = $2',
-                [coreBody.id, product_id]
-            );
-            const currentStock = stockRes.rows[0]?.quantity || 0;
-            if (currentStock < quantity) {
-                return res.status(400).json({ error: "Insufficient stock for this transfer" });
-            }
+        // 3. Check Core Body has enough stock to transfer
+        const stockRes = await pool.query(
+            'SELECT quantity_on_hand FROM inventory_balances WHERE entity_id = $1 AND product_id = $2',
+            [coreBody.user_id, product_id]
+        );
+        const currentStock = stockRes.rows[0]?.quantity_on_hand || 0;
+        if (parseFloat(currentStock) < quantity) {
+            return res.status(400).json({ error: "Insufficient stock for this transfer" });
+        }
 
-            // 4. Create the Allocation/Transfer Record
-            const allocationId = uuidv4();
-            await pool.query(
-                `INSERT INTO stock_allocations (
-                    id, product_id, from_entity_type, from_entity_id, 
-                    to_entity_type, to_entity_id, quantity, status, 
-                    dispatched_at, note
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
-                [allocationId, product_id, 'core_body', coreBody.id, 'dealer', to_dealer_id, quantity, 'dispatched', note]
-            );
+        // 4. Create the Allocation/Transfer Record
+        const allocationId = uuidv4();
+        await pool.query(
+            `INSERT INTO stock_allocations (
+                id, product_id, from_entity_type, from_entity_id, 
+                to_entity_type, to_entity_id, quantity, status, 
+                dispatched_at, note
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
+            [allocationId, product_id, 'core_body', coreBody.id, 'dealer', to_dealer_id, quantity, 'dispatched', note]
+        );
 
-            // 5. Reduce Core Body's balance (Reserve it)
-            await pool.query(
-                `UPDATE inventory_balances 
-                 SET quantity = quantity - $1, updated_at = NOW()
-                 WHERE entity_id = $2 AND product_id = $3`,
-                [quantity, coreBody.id, product_id]
-            );
+        // 5. Reduce Core Body's balance (Reserve it)
+        await pool.query(
+            `UPDATE inventory_balances 
+             SET quantity_on_hand = quantity_on_hand - $1, last_updated_at = NOW()
+             WHERE entity_id = $2 AND product_id = $3`,
+            [quantity, coreBody.user_id, product_id]
+        );
 
             // 6. Log the OUT movement for Core Body
             await pool.query(
@@ -107,9 +108,9 @@ const stockAllocationController = {
             );
 
             // 4. Update Dealer's inventory balance
-            const balanceRes = await pool.query(
-                'INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity) VALUES ($1, $2, $3, $4) ON CONFLICT (entity_id, product_id) DO UPDATE SET quantity = inventory_balances.quantity + EXCLUDED.quantity, updated_at = NOW()',
-                ['dealer', dealerId, transfer.product_id, transfer.quantity]
+            await pool.query(
+                'INSERT INTO inventory_balances (entity_type, entity_id, product_id, quantity_on_hand) VALUES ($1, $2, $3, $4) ON CONFLICT (entity_type, entity_id, product_id, COALESCE(variant_id, \'00000000-0000-0000-0000-000000000000\')) DO UPDATE SET quantity_on_hand = inventory_balances.quantity_on_hand + EXCLUDED.quantity_on_hand, last_updated_at = NOW()',
+                ['dealer', dealer.user_id, transfer.product_id, transfer.quantity]
             );
 
             // 5. Log the IN movement for Dealer
