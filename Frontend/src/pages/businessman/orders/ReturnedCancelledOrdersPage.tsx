@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { CircleDollarSign, History, Info } from "lucide-react";
+import { CircleDollarSign, History, Info, RefreshCw, TriangleAlert } from "lucide-react";
+import { orderApi } from "@/lib/orderApi";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -61,70 +62,33 @@ type Row = {
   walletImpact: "Credit Reversed" | "No Impact";
 };
 
-const ROWS: Row[] = [
-  {
-    orderId: "RC-260221-011",
-    orderType: "B2B",
-    product: "Nitro Boost Fertilizer",
-    quantity: "90 Bags",
-    orderValue: 121500,
-    marginEarned: -9720,
-    fulfilmentBy: "South Stock Point",
-    fulfilmentMode: "Stock Point",
-    orderStatus: "Returned",
-    createdDate: "2026-02-21",
-    paymentStatus: "Refunded",
-    location: "Nadia / Kalyani",
-    customer: "Farm Link Traders",
-    returnReason: "Damaged package reported on delivery.",
-    refundStatus: "Refunded",
-    referralReversal: "Reversed",
-    walletImpact: "Credit Reversed",
-  },
-  {
-    orderId: "RC-260220-022",
-    orderType: "B2C",
-    product: "Micro Nutrient Pack",
-    quantity: "18 Units",
-    orderValue: 9360,
-    marginEarned: 0,
-    fulfilmentBy: "Self",
-    fulfilmentMode: "Self",
-    orderStatus: "Cancelled by Customer",
-    createdDate: "2026-02-20",
-    paymentStatus: "Pending",
-    location: "Hooghly / Serampore",
-    customer: "A. Dey",
-    returnReason: "Customer requested pre-dispatch cancellation.",
-    refundStatus: "No Refund",
-    referralReversal: "Not Applicable",
-    walletImpact: "No Impact",
-  },
-  {
-    orderId: "RC-260219-027",
-    orderType: "B2B",
-    product: "Shield Pro Pesticide",
-    quantity: "40 Bottles",
-    orderValue: 31400,
-    marginEarned: -2512,
-    fulfilmentBy: "West Stock Point",
-    fulfilmentMode: "Stock Point",
-    orderStatus: "Cancelled by Admin",
-    createdDate: "2026-02-19",
-    paymentStatus: "Refunded",
-    location: "Howrah / Uluberia",
-    customer: "Agro Grid",
-    returnReason: "Compliance exception flagged for order route.",
-    refundStatus: "Refund Initiated",
-    referralReversal: "Pending",
-    walletImpact: "Credit Reversed",
-  },
-];
-
 const PAGE_SIZE = 5;
 
+const parseAddress = (addr: any): string => {
+  if (!addr) return "Local";
+  try {
+    const parsed = typeof addr === "string" ? JSON.parse(addr) : addr;
+    return parsed?.city || parsed?.street || "Local";
+  } catch {
+    return String(addr) || "Local";
+  }
+};
+
+const mapStatus = (status: string, note?: string): ReturnedStatus => {
+  const s = status.toLowerCase();
+  if (s === "returned") return "Returned";
+  if (s === "cancelled") {
+    if (note?.toLowerCase().includes("admin")) return "Cancelled by Admin";
+    if (note?.toLowerCase().includes("system")) return "Cancelled by System";
+    return "Cancelled by Customer";
+  }
+  return "Cancelled by Customer";
+};
+
 export default function ReturnedCancelledOrdersPage() {
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dataRows, setDataRows] = useState<Row[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
   const [sortKey, setSortKey] = useState<keyof Row>("createdDate");
@@ -139,9 +103,53 @@ export default function ReturnedCancelledOrdersPage() {
     paymentStatus: "all",
   });
 
+  const fetchOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch specifically cancelled and returned if possible, or fetch all and filter
+      const res = await orderApi.getMyOrders();
+      if (!res || !res.orders) throw new Error("No data received");
+
+      const targetOrders = res.orders.filter((o: any) => 
+        ["cancelled", "returned"].includes((o.status || "").toLowerCase())
+      );
+
+      const mapped: Row[] = targetOrders.map((o: any) => ({
+        orderId: o.order_number || o.id,
+        orderType: (o.order_type || "B2B") as OrderType,
+        product: o.product_names || "Order Items",
+        quantity: o.total_quantity ? `${o.total_quantity} units` : "-",
+        orderValue: parseFloat(o.total_amount || 0),
+        marginEarned: parseFloat(o.total_profit || 0) * (o.status === 'returned' ? -1 : 0), // Simulation: reversal only if returned
+        fulfilmentBy: "Central Hub",
+        fulfilmentMode: "Stock Point",
+        orderStatus: mapStatus(o.status || "cancelled", o.notes),
+        createdDate: new Date(o.created_at).toISOString().split("T")[0],
+        paymentStatus: o.payment_method === 'wallet' ? "Refunded" : "Pending",
+        location: o.district_name || parseAddress(o.delivery_address),
+        customer: o.customer_name || "Self",
+        returnReason: o.notes || "Not specified",
+        refundStatus: o.payment_method === 'wallet' ? "Refunded" : "No Refund",
+        referralReversal: o.status === 'returned' ? "Reversed" : "Not Applicable",
+        walletImpact: o.status === 'returned' ? "Credit Reversed" : "No Impact",
+      }));
+      setDataRows(mapped);
+    } catch (err: any) {
+      console.error("Fetch error:", err);
+      setError(err?.message || "Failed to load filtered orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
   const filtered = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
-    const list = ROWS.filter((row) => {
+    const list = dataRows.filter((row) => {
       const ts = new Date(row.createdDate).getTime();
       const byFrom = !filters.fromDate || ts >= new Date(filters.fromDate).getTime();
       const byTo = !filters.toDate || ts <= new Date(filters.toDate).getTime();
@@ -209,10 +217,23 @@ export default function ReturnedCancelledOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Returned / Cancelled Orders</h1>
-        <p className="text-sm text-muted-foreground">Risk and reversal visibility across returns, refunds, and cancellation lifecycle.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Returned / Cancelled Orders</h1>
+          <p className="text-sm text-muted-foreground">Risk and reversal visibility across returns, refunds, and cancellation lifecycle.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={fetchOrders} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
+
+      {error && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600 flex items-center gap-2">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <span><strong>Error loading records:</strong> {error}</span>
+        </div>
+      )}
 
       <OrderTrackingFilters filters={filters} setFilters={(next) => { setPage(1); setFilters(next); }} />
 

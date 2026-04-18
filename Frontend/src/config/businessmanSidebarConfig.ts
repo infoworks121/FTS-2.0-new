@@ -129,6 +129,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
         { title: "Purchase History", url: "/businessman/purchase/purchase-history", icon: History },
       ],
     },
+    /*
     {
       key: "bulkOrders",
       title: "Bulk Orders",
@@ -141,6 +142,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
         { title: "Bulk Order History", url: "/businessman/bulk-orders/history", icon: History },
       ],
     },
+    */
     {
       key: "stockInventory",
       title: "Stock Inventory",

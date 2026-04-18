@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { orderApi } from "@/lib/orderApi";
-import { MessageCircle, RefreshCw, Route, TriangleAlert } from "lucide-react";
+import { MessageCircle, RefreshCw, Route, TriangleAlert, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -48,6 +49,7 @@ type Row = {
   progress: number;
   sla: string;
   delayed?: boolean;
+  realId: string;
 };
 
 const ROWS: Row[] = [
@@ -130,6 +132,7 @@ export default function ActiveOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const parseAddress = (addr: any): string => {
     if (!addr) return "Local";
@@ -182,6 +185,7 @@ export default function ActiveOrdersPage() {
           : o.status === "assigned" ? 50
           : 10,
         sla: "24:00:00",
+        realId: o.id, // Store real UUID for API calls
       }));
       setDataRows(mapped);
     } catch (err: any) {
@@ -189,6 +193,28 @@ export default function ActiveOrdersPage() {
       setError(err?.response?.data?.details || err?.response?.data?.error || err?.message || "Failed to load orders.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancel = async (orderId: string) => {
+    if (!window.confirm("Are you sure you want to cancel this order? This action cannot be undone.")) return;
+    
+    setCancellingId(orderId);
+    try {
+      // Find the row to get the internal ID if order_number is used
+      // Actually the backend endpoint needs the UUID ID. 
+      // In mapped rows, orderId is o.order_number || o.id.
+      // Let's ensure we have the real UUID in the Row type or fetch it.
+      // For now, I'll assume we used the ID.
+      
+      await orderApi.cancelOrder(orderId);
+      toast.success("Order cancelled successfully");
+      fetchOrders(); // Refresh list
+    } catch (err: any) {
+      console.error("Cancellation failed:", err);
+      toast.error(err?.response?.data?.error || "Failed to cancel order");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -355,6 +381,18 @@ export default function ActiveOrdersPage() {
                           <Button size="icon" variant="ghost" className="h-8 w-8" title="Track Shipment">
                             <Route className="h-4 w-4" />
                           </Button>
+                          {["Pending", "Confirmed"].includes(row.orderStatus) && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" 
+                              title="Cancel Order"
+                              onClick={() => handleCancel(row.realId)}
+                              disabled={cancellingId === row.realId}
+                            >
+                              <XCircle className={`h-4 w-4 ${cancellingId === row.realId ? "animate-spin" : ""}`} />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

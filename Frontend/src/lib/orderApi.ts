@@ -37,8 +37,13 @@ export const orderApi = {
     return res.data;
   },
 
-  getMyOrders: async (type?: string) => {
-    const res = await api.get('/orders', { params: { order_type: type } });
+  getMyOrders: async (type?: string, status?: string) => {
+    const res = await api.get('/orders', { params: { order_type: type, status } });
+    return res.data;
+  },
+
+  cancelOrder: async (orderId: string) => {
+    const res = await api.post(`/orders/${orderId}/cancel`);
     return res.data;
   },
 

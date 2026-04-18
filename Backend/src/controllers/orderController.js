@@ -661,3 +661,119 @@ exports.getOrderDetails = async (req, res) => {
   }
 };
 
+
+exports.cancelOrder = async (req, res) => {
+  const client = await db.pool.connect();
+  const { id } = req.params;
+  const user = req.user;
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch Order (Lock for update)
+    const orderResult = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      throw new Error('Order not found');
+    }
+
+    const order = orderResult.rows[0];
+
+    // 2. Authorization Check
+    // For now, only the customer who placed the order can cancel it through this endpoint
+    if (order.customer_id !== user.id && user.role_code !== 'admin') {
+      throw new Error('Unauthorized to cancel this order');
+    }
+
+    // 3. Status Check
+    const cancellableStatuses = ['pending', 'assigned', 'shortage'];
+    if (!cancellableStatuses.includes(order.status)) {
+      throw new Error(`Order cannot be cancelled in its current status: ${order.status}`);
+    }
+
+    // 4. Release Inventory Reservations
+    // Fetch all fulfillment assignments for this order
+    const assignmentsResult = await client.query(
+      `SELECT fulfiller_type, fulfiller_id, items FROM fulfillment_assignments WHERE order_id = $1`,
+      [id]
+    );
+
+    for (const assignment of assignmentsResult.rows) {
+      if (assignment.items && assignment.fulfiller_id) {
+        const items = Array.isArray(assignment.items) ? assignment.items : JSON.parse(assignment.items || '[]');
+        for (const item of items) {
+          // Release quantity_reserved
+          await client.query(
+            `UPDATE inventory_balances 
+             SET quantity_reserved = GREATEST(0, quantity_reserved - $1)
+             WHERE entity_type = $2 AND entity_id = $3 AND product_id = $4`,
+            [item.quantity, assignment.fulfiller_type, assignment.fulfiller_id, item.product_id]
+          );
+        }
+      }
+    }
+
+    // 5. Refund Wallet if paid via wallet
+    if (order.payment_method === 'wallet') {
+      // Find the user's main wallet
+      const walletRes = await client.query(
+        `SELECT w.id FROM wallets w
+         JOIN wallet_types wt ON w.wallet_type_id = wt.id
+         WHERE w.user_id = $1 AND wt.type_code = 'main'`,
+        [order.customer_id]
+      );
+
+      if (walletRes.rows.length > 0) {
+        const walletId = walletRes.rows[0].id;
+        const refundAmount = parseFloat(order.total_amount);
+
+        // Credit Wallet
+        await client.query(
+          `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2`,
+          [refundAmount, walletId]
+        );
+
+        // Log Refund Transaction
+        await client.query(
+          `INSERT INTO wallet_transactions 
+           (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, source_type, source_ref_id, description)
+           SELECT id, user_id, 'credit', $1, balance - $1, balance, 'order_refund', $2, $3
+           FROM wallets WHERE id = $4`,
+          [refundAmount, order.id, `Refund for cancelled order ${order.order_number}`, walletId]
+        );
+      }
+    }
+
+    // 6. Update Order Status
+    await client.query(
+      `UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // 7. Update Fulfillment Statuses
+    await client.query(
+      `UPDATE fulfillment_assignments SET status = 'cancelled' WHERE order_id = $1`,
+      [id]
+    );
+
+    // 8. Log Status Change
+    await client.query(
+      `INSERT INTO order_status_log (order_id, old_status, new_status, note, performed_by) 
+       VALUES ($1, $2, 'cancelled', 'Order cancelled by user', $3)`,
+      [id, order.status, user.id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Order cancelled successfully' });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Cancel Order Error:', error);
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};

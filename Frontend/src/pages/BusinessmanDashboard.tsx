@@ -138,7 +138,8 @@ function DashboardHome({ user }: { user: any }) {
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
           <h3 className="text-sm font-semibold text-card-foreground">Quick Actions</h3>
           {[
-            { label: "Place Bulk Order", icon: Package, desc: "Negotiate & order in bulk" },
+            // { label: "Place Bulk Order", icon: Package, desc: "Negotiate & order in bulk" },
+            { label: "Request Withdrawal", icon: ArrowUpRight, desc: "Min ₹500 • Instant" },
             { label: "Request Withdrawal", icon: ArrowUpRight, desc: "Min ₹500 • Instant" },
             { label: "Track Shipments", icon: Clock, desc: "4 active deliveries" },
             ...(user?.is_sph ? [{ label: "Browse Global Catalog", icon: ShoppingCart, desc: "Find new products to sell" }] : []),
@@ -206,7 +207,7 @@ export default function BusinessmanDashboard() {
 
   const navItems = getBusinessmanSidebarNavItems({
     isStockPoint: user?.is_sph || false,
-    bulkEnabled: true,
+    bulkEnabled: false,
     entryModeEnabled: true,
     advanceModeEnabled: true,
     businessmanType: user?.businessman_type,

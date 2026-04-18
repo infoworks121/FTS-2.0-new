@@ -17,4 +17,7 @@ router.get('/', protect, orderController.getMyOrders);
 // Get order details
 router.get('/:id', protect, orderController.getOrderDetails);
 
+// Cancel order
+router.post('/:id/cancel', protect, orderController.cancelOrder);
+
 module.exports = router;
