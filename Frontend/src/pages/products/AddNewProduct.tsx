@@ -39,6 +39,7 @@ import {
   PlusCircle,
   Layers,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { uploadApi } from "@/lib/uploadApi";
 import { Product, ProductFormData, ProductVariant } from "@/types/product";
 import { IMAGE_BASE_URL } from "@/lib/api";
@@ -113,6 +114,11 @@ export default function AddNewProduct() {
     isService: editingProduct?.is_service ?? false,
     is_dealer_routed: editingProduct?.is_dealer_routed ?? false,
     description: editingProduct?.description || "",
+    brand: (editingProduct as any)?.brand || "",
+    highlights: (editingProduct as any)?.highlights || [""],
+    specifications: (editingProduct as any)?.specifications || {},
+    is_returnable: (editingProduct as any)?.is_returnable ?? true,
+    return_policy_days: (editingProduct as any)?.return_policy_days || 7,
     thumbnailUrl: editingProduct?.thumbnail_url || "",
     imageUrls: editingProduct?.image_urls || [],
     variants: editingProduct?.variants || [],
@@ -147,7 +153,7 @@ export default function AddNewProduct() {
     const newVariant: ProductVariant = {
       variant_name: "",
       sku_suffix: "",
-      attributes: { "Weight": "" },
+      attributes: { },
       mrp: formData.mrp || 0,
       basePrice: formData.basePrice || 0,
       sellingPrice: formData.sellingPrice || 0,
@@ -162,15 +168,33 @@ export default function AddNewProduct() {
     handleInputChange("variants", newVariants);
   };
 
-  const handleAttributeChange = (vIdx: number, key: string, value: string) => {
+  const handleAttributeChange = (vIdx: number, key: string, value: string, oldKey?: string) => {
     const newVariants = [...(formData.variants || [])];
     const newAttrs = { ...newVariants[vIdx].attributes };
 
-    // Replace existing attribute as per consistent behavior
-    const existingKeys = Object.keys(newAttrs);
-    existingKeys.forEach(k => delete newAttrs[k]);
+    if (oldKey && oldKey !== key) {
+      delete newAttrs[oldKey];
+    }
 
-    newAttrs[key] = value;
+    if (key) {
+      newAttrs[key] = value;
+    }
+    
+    newVariants[vIdx].attributes = newAttrs;
+    handleInputChange("variants", newVariants);
+  };
+
+  const addAttribute = (vIdx: number) => {
+    const newVariants = [...(formData.variants || [])];
+    const newAttrs = { ...newVariants[vIdx].attributes, "": "" };
+    newVariants[vIdx].attributes = newAttrs;
+    handleInputChange("variants", newVariants);
+  };
+
+  const removeAttribute = (vIdx: number, key: string) => {
+    const newVariants = [...(formData.variants || [])];
+    const newAttrs = { ...newVariants[vIdx].attributes };
+    delete newAttrs[key];
     newVariants[vIdx].attributes = newAttrs;
     handleInputChange("variants", newVariants);
   };
@@ -318,6 +342,15 @@ export default function AddNewProduct() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="brand">Brand Name (Optional)</Label>
+                    <Input
+                      id="brand"
+                      placeholder="e.g. Samsung, Tata"
+                      value={formData.brand}
+                      onChange={(e) => handleInputChange("brand", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
                     <Select
                       value={formData.categoryId}
@@ -369,6 +402,110 @@ export default function AddNewProduct() {
                     rows={4}
                   />
                 </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Key Highlights (Bullet Points)</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="xs" 
+                      onClick={() => handleInputChange("highlights", [...(formData.highlights || []), ""])}
+                      className="h-7 text-[10px]"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add Point
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(formData.highlights || []).map((point, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input 
+                          placeholder={`Highlight ${idx + 1}`}
+                          value={point}
+                          onChange={(e) => {
+                            const newHighlights = [...(formData.highlights || [])];
+                            newHighlights[idx] = e.target.value;
+                            handleInputChange("highlights", newHighlights);
+                          }}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 h-9 w-9 shrink-0" 
+                          onClick={() => {
+                            const newHighlights = (formData.highlights || []).filter((_, i) => i !== idx);
+                            handleInputChange("highlights", newHighlights.length ? newHighlights : [""]);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Technical Specifications (Key-Value)</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="xs" 
+                      onClick={() => {
+                        const newSpecs = { ...formData.specifications, "": "" };
+                        handleInputChange("specifications", newSpecs);
+                      }}
+                      className="h-7 text-[10px]"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add Spec
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {Object.entries(formData.specifications || {}).map(([key, value], idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input 
+                          placeholder="Spec Name (e.g. Material)"
+                          value={key}
+                          className="flex-1"
+                          onChange={(e) => {
+                            const newSpecs = { ...formData.specifications };
+                            const newKey = e.target.value;
+                            if (newKey !== key) {
+                              newSpecs[newKey] = value;
+                              delete newSpecs[key];
+                              handleInputChange("specifications", newSpecs);
+                            }
+                          }}
+                        />
+                        <Input 
+                          placeholder="Value (e.g. Cotton)"
+                          value={value}
+                          className="flex-1"
+                          onChange={(e) => {
+                            const newSpecs = { ...formData.specifications };
+                            newSpecs[key] = e.target.value;
+                            handleInputChange("specifications", newSpecs);
+                          }}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 h-9 w-9 shrink-0" 
+                          onClick={() => {
+                            const newSpecs = { ...formData.specifications };
+                            delete newSpecs[key];
+                            handleInputChange("specifications", newSpecs);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {Object.keys(formData.specifications || {}).length === 0 && (
+                      <p className="text-xs text-muted-foreground italic text-center py-2">No technical specifications added.</p>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -419,21 +556,67 @@ export default function AddNewProduct() {
                           <Input className="h-7 max-w-[180px] font-bold text-xs" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
                           <Button variant="ghost" size="icon" className="text-red-500 h-6 w-6" onClick={() => removeVariant(idx)}><Trash2 className="h-3 w-3" /></Button>
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                          <div className="space-y-1"><Label className="text-[9px] uppercase">SKU Suffix</Label><Input className="h-7 text-[10px]" value={v.sku_suffix} onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} /></div>
-                          <div className="space-y-1"><Label className="text-[9px] uppercase">Attribute</Label>
-                            <Select value={Object.keys(v.attributes)[0]} onValueChange={(val) => handleAttributeChange(idx, val, Object.values(v.attributes)[0] || "")}>
-                              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="Weight">Weight</SelectItem><SelectItem value="Size">Size</SelectItem><SelectItem value="Color">Color</SelectItem></SelectContent>
-                            </Select></div>
-                          <div className="space-y-1"><Label className="text-[9px] uppercase">Value</Label><Input className="h-7 text-[10px]" value={Object.values(v.attributes)[0]} onChange={(e) => handleAttributeChange(idx, Object.keys(v.attributes)[0], e.target.value)} /></div>
+                        <div className="grid grid-cols-1 gap-3 mt-4 border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                              <Layers className="h-3 w-3" /> Attributes (e.g. Color, Size)
+                            </Label>
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="xs" 
+                              onClick={() => addAttribute(idx)} 
+                              className="h-6 text-[9px] px-2 shadow-sm"
+                            >
+                              <PlusCircle className="h-3 w-3 mr-1 text-primary" /> Add Attribute
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {Object.entries(v.attributes || {}).map(([key, val], aIdx) => (
+                              <div key={aIdx} className="flex gap-2 items-center animate-in fade-in slide-in-from-left-2">
+                                <Input 
+                                  className="h-8 text-[11px] flex-1 bg-muted/20 border-muted-foreground/10" 
+                                  placeholder="Key (e.g. Color)" 
+                                  value={key} 
+                                  onChange={(e) => handleAttributeChange(idx, e.target.value, val, key)} 
+                                />
+                                <Input 
+                                  className="h-8 text-[11px] flex-1 bg-muted/20 border-muted-foreground/10" 
+                                  placeholder="Value (e.g. Red)" 
+                                  value={val} 
+                                  onChange={(e) => handleAttributeChange(idx, key, e.target.value)} 
+                                />
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" 
+                                  onClick={() => removeAttribute(idx, key)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                            {Object.keys(v.attributes || {}).length === 0 && (
+                              <div className="text-[10px] text-center text-muted-foreground italic py-2 border border-dashed rounded bg-muted/10">
+                                No attributes added for this variant.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 border-t pt-4">
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">SKU Suffix</Label>
+                            <Input className="h-8 text-[10px]" value={v.sku_suffix} placeholder="-RED-XL" onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} />
+                          </div>
                           <div className="space-y-1">
                             <Label className="text-[9px] uppercase text-blue-600 font-bold">MRP ₹</Label>
-                            <Input className="h-7 text-[10px] border-blue-100" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
+                            <Input className="h-8 text-[10px] border-blue-100" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[9px] uppercase text-emerald-600 font-bold">Selling Price ₹</Label>
-                            <Input className="h-7 text-[10px] border-emerald-100" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
+                            <Input className="h-8 text-[10px] border-emerald-100" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
                           </div>
                         </div>
                       </div>
@@ -526,11 +709,34 @@ export default function AddNewProduct() {
               <CardDescription>Set your product pricing and margin settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
-                <div className="space-y-2">
-                  <Label>Admin Specific Margin %</Label>
-                  <Input type="number" value={formData.adminMarginPct || ""} onChange={(e) => handleInputChange("adminMarginPct", parseFloat(e.target.value) || 0)} />
+              <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-bold text-indigo-900">Return Policy</Label>
+                    <p className="text-xs text-muted-foreground">Define if this product can be returned by the customer.</p>
+                  </div>
+                  <Switch 
+                    checked={formData.is_returnable} 
+                    onCheckedChange={(val) => handleInputChange("is_returnable", val)}
+                  />
                 </div>
+                
+                {formData.is_returnable && (
+                  <div className="flex items-center gap-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Return Window (Days)</Label>
+                      <Input 
+                        type="number" 
+                        className="w-32 h-9" 
+                        value={formData.return_policy_days} 
+                        onChange={(e) => handleInputChange("return_policy_days", parseInt(e.target.value) || 0)} 
+                      />
+                    </div>
+                    <div className="bg-indigo-100/50 p-2 rounded-lg">
+                      <p className="text-[10px] text-indigo-700 font-medium">Customer can request return within {formData.return_policy_days} days of delivery.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

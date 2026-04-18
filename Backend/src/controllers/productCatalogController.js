@@ -319,6 +319,7 @@ exports.getProducts = async (req, res) => {
     const result = await db.query(`
       SELECT p.*, 
              c.name as category_name,
+             p.brand, p.highlights, p.specifications, p.is_returnable, p.return_policy_days,
              COALESCE(
                json_agg(
                  json_build_object(
@@ -363,18 +364,20 @@ exports.createProduct = async (req, res) => {
     const {
       // Basic Product Info
       category_id, name, sku, description, type = 'physical', unit,
-      is_subscription = false, // FUTURE IMPLEMENTATION: Currently not active
+      is_subscription = false, 
       thumbnail_url, image_urls = [], tags = [],
-      is_dealer_routed = false, // Added for Dealer Subdivision flow
+      is_dealer_routed = false, 
+      brand, highlights = [], specifications = {}, 
+      is_returnable = true, return_policy_days = 7,
 
       // Variants (optional)
       variants = [],
 
       // Pricing Info
-      mrp, base_price, selling_price, admin_margin_pct, bulk_price, min_order_quantity,
+      mrp, base_price, selling_price, bulk_price, min_order_quantity,
 
       // Profit Distribution (B2B/B2C)
-      profit_channel = 'B2C', // 'B2B' or 'B2C'
+      profit_channel = 'B2C', 
 
       // Initial Stock
       initial_stock_quantity = 0
@@ -401,12 +404,15 @@ exports.createProduct = async (req, res) => {
     const productResult = await client.query(
       `INSERT INTO products 
        (category_id, name, sku, description, type, unit, is_subscription, 
-        thumbnail_url, image_urls, tags, is_dealer_routed, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        thumbnail_url, image_urls, tags, is_dealer_routed, brand, highlights, 
+        specifications, is_returnable, return_policy_days, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
        RETURNING *`,
       [
         category_id, name, sku, description, type, unit, is_subscription,
-        thumbnail_url, JSON.stringify(image_urls), tags, is_dealer_routed, req.user.id
+        thumbnail_url, JSON.stringify(image_urls), tags, is_dealer_routed,
+        brand || null, highlights, JSON.stringify(specifications),
+        is_returnable, return_policy_days, req.user.id
       ]
     );
 
@@ -435,11 +441,11 @@ exports.createProduct = async (req, res) => {
           await client.query(
             `INSERT INTO product_pricing 
              (product_id, variant_id, mrp, base_price, selling_price, 
-              admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)`,
+              bulk_price, min_order_quantity, is_current, created_by) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
             [
               productId, variantId, variant.mrp, variant.base_price,
-              variant.selling_price || 0, variant.admin_margin_pct || 0,
+              variant.selling_price || 0,
               variant.bulk_price || null, variant.min_order_quantity || 1, req.user.id
             ]
           );
@@ -472,11 +478,11 @@ exports.createProduct = async (req, res) => {
     await client.query(
       `INSERT INTO product_pricing 
        (product_id, variant_id, mrp, base_price, selling_price, 
-        admin_margin_pct, bulk_price, min_order_quantity, is_current, created_by) 
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true, $8)`,
+        bulk_price, min_order_quantity, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, true, $7)`,
       [
         productId, mrp, base_price, selling_price,
-        admin_margin_pct || 0, bulk_price || null, min_order_quantity || 1, req.user.id
+        bulk_price || null, min_order_quantity || 1, req.user.id
       ]
     );
 
@@ -1099,6 +1105,7 @@ exports.getAdminProducts = async (req, res) => {
              pp.base_price,
              pp.selling_price,
              pp.bulk_price,
+             pp.min_order_quantity,
              pp.admin_margin_pct,
              pp.admin_margin_pct as min_margin_percent,
              pp.base_price as cost_price,
@@ -1139,6 +1146,7 @@ exports.getAdminProductById = async (req, res) => {
              pp.base_price,
              pp.selling_price,
              pp.bulk_price,
+             pp.min_order_quantity,
              pp.admin_margin_pct,
              pp.admin_margin_pct as min_margin_percent,
              pp.base_price as cost_price,
@@ -1151,6 +1159,40 @@ exports.getAdminProductById = async (req, res) => {
        LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
        WHERE p.id = $1`,
       [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    res.json({ product: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getIssuedProductBySku = async (req, res) => {
+  try {
+    const { sku } = req.params;
+    const result = await db.query(
+      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, 
+              p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
+             CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
+             p.type = 'digital' as is_digital, p.type = 'service' as is_service,
+             c.name as category_name,
+             pp.mrp,
+             pp.base_price,
+             pp.selling_price,
+             pp.bulk_price,
+             pp.min_order_quantity,
+             pp.admin_margin_pct,
+             pp.admin_margin_pct as min_margin_percent,
+             pp.base_price as cost_price,
+             CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
+             COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
+             true as stock_required
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
+       LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
+       WHERE p.sku = $1`,
+      [sku]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
     res.json({ product: result.rows[0] });
@@ -1717,8 +1759,9 @@ exports.getIssuedProducts = async (req, res) => {
     params.push(limit, offset);
     const result = await db.query(`
       SELECT p.id, p.name, p.sku, p.description, p.thumbnail_url, p.image_urls,
+             p.brand, p.highlights, p.specifications, p.is_returnable, p.return_policy_days,
              c.name as category_name,
-             pp.mrp, pp.selling_price, p.unit,
+             pp.mrp, pp.selling_price, pp.bulk_price, pp.min_order_quantity, p.unit,
              COALESCE(bp.business_name, u.full_name, 'FTS Official') as seller_name,
              COALESCE(bp.business_address, 'Main Hub') as business_address,
              COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,

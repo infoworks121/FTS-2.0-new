@@ -77,6 +77,8 @@ interface IssuedProduct {
   business_name: string;
   business_address: string;
   available_stock: number;
+  fulfiller_type?: string;
+  source_district_id?: number;
 }
 
 type SortOption = "relevance" | "trending" | "newest" | "price_low" | "price_high";
@@ -86,6 +88,7 @@ function MarketplaceContent() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState<SortOption>("relevance");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "local" | "admin">("all");
   const [quickListProduct, setQuickListProduct] = useState<any>(null);
   const { addToCart, setIsCartOpen } = useCart();
 
@@ -117,6 +120,14 @@ function MarketplaceContent() {
       rating: 4 + (Number(p.id) % 10) / 10
     }));
 
+    // Source Filtering Logic
+    if (sourceFilter !== "all") {
+      products = products.filter(p => {
+        const isLocalProduct = p.fulfiller_type !== 'admin' && user?.district_id === p.source_district_id;
+        return sourceFilter === "local" ? isLocalProduct : !isLocalProduct;
+      });
+    }
+
     switch (sortBy) {
       case "trending":
         return [...products].sort((a, b) => (b.isTrending ? 1 : 0) - (a.isTrending ? 1 : 0));
@@ -129,7 +140,7 @@ function MarketplaceContent() {
       default:
         return products;
     }
-  }, [rawProducts, sortBy]);
+  }, [rawProducts, sortBy, sourceFilter, user?.district_id]);
 
   const handleAddToCart = (product: any) => {
     addToCart({
@@ -172,6 +183,36 @@ function MarketplaceContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+             <button 
+               onClick={() => setSourceFilter("all")}
+               className={cn(
+                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
+                 sourceFilter === "all" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+               )}
+             >
+               All
+             </button>
+             <button 
+               onClick={() => setSourceFilter("local")}
+               className={cn(
+                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
+                 sourceFilter === "local" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+               )}
+             >
+               Local
+             </button>
+             <button 
+               onClick={() => setSourceFilter("admin")}
+               className={cn(
+                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
+                 sourceFilter === "admin" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+               )}
+             >
+               Admin
+             </button>
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto">

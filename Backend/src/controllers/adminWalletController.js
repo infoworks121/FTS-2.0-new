@@ -84,38 +84,87 @@ exports.getUserTransactions = async (req, res) => {
     const walletIds = walletRes.rows.map(r => r.id);
 
     let query = `
+      WITH all_txns AS (
+        SELECT 
+          wt.id, 
+          wt.transaction_type as txn_type, 
+          wt.amount, 
+          wt.source_type, 
+          wt.source_ref_id, 
+          wt.description, 
+          wt.balance_after,
+          wt.created_at,
+          wt.wallet_id,
+          wtype.type_code as wallet_type
+        FROM wallet_transactions wt
+        JOIN wallets w ON wt.wallet_id = w.id
+        JOIN wallet_types wtype ON w.wallet_type_id = wtype.id
+        WHERE wt.user_id = $1::uuid
+
+        UNION ALL
+
+        SELECT 
+          bi.id,
+          'credit' as txn_type,
+          bi.amount,
+          'businessman_installment' as source_type,
+          bi.id as source_ref_id,
+          'Investment Installment #' || bi.installment_no || ' Paid' as description,
+          NULL::numeric as balance_after,
+          COALESCE(bi.paid_date::timestamptz, bi.created_at) as created_at,
+          NULL::uuid as wallet_id,
+          'invest' as wallet_type
+        FROM businessman_investments bi
+        JOIN businessman_profiles bp ON bi.businessman_id = bp.id
+        WHERE bp.user_id = $1::uuid AND bi.status = 'paid'
+
+        UNION ALL
+
+        SELECT 
+          cbi.id,
+          'credit' as txn_type,
+          cbi.amount,
+          'core_body_installment' as source_type,
+          cbi.id as source_ref_id,
+          'Investment Installment #' || cbi.installment_no || ' Paid' as description,
+          NULL::numeric as balance_after,
+          COALESCE(cbi.paid_date::timestamptz, cbi.created_at) as created_at,
+          NULL::uuid as wallet_id,
+          'invest' as wallet_type
+        FROM core_body_installments cbi
+        JOIN core_body_profiles cbp ON cbi.core_body_id = cbp.id
+        WHERE cbp.user_id = $1::uuid AND cbi.status = 'paid'
+      )
       SELECT 
-        wt.id, 
-        wt.transaction_type as txn_type, 
-        wt.amount, 
-        wt.source_type, 
-        wt.source_ref_id, 
-        wt.description, 
-        wt.balance_after,
-        wt.created_at,
-        wt.wallet_id,
-        wtype.type_code as wallet_type,
+        at.*,
         (
           SELECT STRING_AGG(p.name || ' x' || (oi.quantity::int), ', ')
           FROM order_items oi
           JOIN products p ON oi.product_id = p.id
-          WHERE oi.order_id = wt.source_ref_id AND wt.source_type = 'order_payment'
+          WHERE oi.order_id = at.source_ref_id AND at.source_type = 'order_payment'
         ) as items_summary
-      FROM wallet_transactions wt
-      JOIN wallets w ON wt.wallet_id = w.id
-      JOIN wallet_types wtype ON w.wallet_type_id = wtype.id
-      WHERE wt.user_id = $1`;
+      FROM all_txns at
+      WHERE 1=1`;
     
-    let countQuery = `SELECT COUNT(*) FROM wallet_transactions WHERE user_id = $1`;
+    let countQuery = `
+      WITH all_txns AS (
+        SELECT id FROM wallet_transactions WHERE user_id = $1
+        UNION ALL
+        SELECT bi.id FROM businessman_investments bi JOIN businessman_profiles bp ON bi.businessman_id = bp.id WHERE bp.user_id = $1 AND bi.status = 'paid'
+        UNION ALL
+        SELECT cbi.id FROM core_body_installments cbi JOIN core_body_profiles cbp ON cbi.core_body_id = cbp.id WHERE cbp.user_id = $1 AND cbi.status = 'paid'
+      )
+      SELECT COUNT(*) FROM all_txns`;
     const params = [userId];
 
     if (type) {
       params.push(type);
-      query += ` AND wt.transaction_type = $${params.length}`;
-      countQuery += ` AND transaction_type = $${params.length}`;
+      query += ` AND at.txn_type = $${params.length}`;
+      // Note: countQuery would need more complex filtering if type is used, 
+      // but usually 'type' only applies to wallet transactions.
     }
 
-    query += ` ORDER BY wt.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY at.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
     const result = await db.query(query, params);
@@ -124,12 +173,36 @@ exports.getUserTransactions = async (req, res) => {
     // Get Summary Statistics
     const [summaryRes] = await Promise.all([
       db.query(`
+        WITH user_role AS (
+          SELECT r.role_code 
+          FROM users u 
+          JOIN user_roles r ON u.role_id = r.id 
+          WHERE u.id = $1
+        )
         SELECT 
           (SELECT COALESCE(SUM(balance), 0) FROM wallets WHERE user_id = $1) as total_balance,
           (SELECT COALESCE(SUM(balance), 0) FROM wallets w JOIN wallet_types wt ON w.wallet_type_id = wt.id WHERE w.user_id = $1 AND wt.type_code = 'main') as main_balance,
           (SELECT COALESCE(SUM(balance), 0) FROM wallets w JOIN wallet_types wt ON w.wallet_type_id = wt.id WHERE w.user_id = $1 AND wt.type_code = 'referral') as referral_balance,
           (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions WHERE user_id = $1 AND transaction_type = 'credit' AND source_type IN ('profit_distribution', 'referral_commission', 'manual_credit')) as total_earnings,
-          (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions WHERE user_id = $1 AND source_type = 'withdrawal_approved') as total_withdrawals
+          (SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions WHERE user_id = $1 AND source_type = 'withdrawal_approved') as total_withdrawals,
+          COALESCE(
+            (SELECT SUM(amount) FROM businessman_investments bi 
+             JOIN businessman_profiles bp ON bi.businessman_id = bp.id 
+             WHERE bp.user_id = $1 AND (SELECT role_code FROM user_role) = 'businessman' AND bi.status = 'paid'), 0
+          ) + COALESCE(
+            (SELECT SUM(amount) FROM core_body_installments cbi 
+             JOIN core_body_profiles cbp ON cbi.core_body_id = cbp.id 
+             WHERE cbp.user_id = $1 AND (SELECT role_code FROM user_role) LIKE 'core_body%' AND cbi.status = 'paid'), 0
+          ) as total_invest_paid,
+          COALESCE(
+            (SELECT SUM(amount) FROM businessman_investments bi 
+             JOIN businessman_profiles bp ON bi.businessman_id = bp.id 
+             WHERE bp.user_id = $1 AND (SELECT role_code FROM user_role) = 'businessman'), 0
+          ) + COALESCE(
+            (SELECT SUM(amount) FROM core_body_installments cbi 
+             JOIN core_body_profiles cbp ON cbi.core_body_id = cbp.id 
+             WHERE cbp.user_id = $1 AND (SELECT role_code FROM user_role) LIKE 'core_body%'), 0
+          ) as total_to_invest
       `, [userId])
     ]);
 

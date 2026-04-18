@@ -48,6 +48,7 @@ router.post('/stock/issue', protect, canIssueStock, productCatalogController.iss
 
 // Market Catalog (Issued Products) - Public/Authenticated
 router.get('/issued-products', productCatalogController.getIssuedProducts);
+router.get('/issued-products/sku/:sku', productCatalogController.getIssuedProductBySku);
 
 // Dealer Stock Permission — admin only
 router.post('/dealer/permission/grant', protect, adminOnly, productCatalogController.grantDealerStockPermission);

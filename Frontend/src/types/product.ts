@@ -29,7 +29,6 @@ export interface Product {
   selling_price: number;
   bulk_price: number | null;
   min_order_quantity: number;
-  admin_margin_pct: number;
   profit_channel: "B2B" | "B2C";
   margin_percent: number;
   min_margin_percent: number;
@@ -39,6 +38,11 @@ export interface Product {
   is_service: boolean;
   is_dealer_routed: boolean;
   description: string | null;
+  brand: string | null;
+  highlights: string[] | null;
+  specifications: Record<string, string> | null;
+  is_returnable: boolean;
+  return_policy_days: number;
   thumbnail_url: string | null;
   image_urls: string[] | null;
   status: ProductStatus;
@@ -59,7 +63,6 @@ export interface ProductFormData {
   sellingPrice: number;
   bulkPrice?: number;
   minOrderQuantity?: number;
-  adminMarginPct?: number;
   profitChannel: "B2B" | "B2C";
   minMarginPercent: number;
   stockRequired: boolean;
@@ -68,6 +71,11 @@ export interface ProductFormData {
   isService: boolean;
   is_dealer_routed?: boolean;
   description: string;
+  brand?: string;
+  highlights?: string[];
+  specifications?: Record<string, string>;
+  is_returnable?: boolean;
+  return_policy_days?: number;
   thumbnailUrl?: string;
   imageUrls?: string[];
   status?: string;
@@ -81,7 +89,6 @@ export interface ProductPricingUpdate {
   sellingPrice: number;
   bulkPrice?: number;
   minOrderQuantity?: number;
-  adminMarginPct?: number;  
   minMarginPercent: number;
 }
 

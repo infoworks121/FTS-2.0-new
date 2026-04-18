@@ -897,28 +897,40 @@ const approveCoreBodyInstallment = async (req, res) => {
                 WHERE id = $2
             `, [adminId, installment.user_id]);
 
-            // Add to wallet ledger if applicable - user wanted it transferred to corebody wallet
-            const walletQuery = await client.query(`
-                SELECT w.id, w.balance
+            // ADDED: Redirect investment amount to Superadmin's Invest Wallet
+            const adminWalletQuery = await client.query(`
+                SELECT w.id, w.balance, u.full_name
                 FROM wallets w 
                 JOIN wallet_types wt ON w.wallet_type_id = wt.id 
-                WHERE w.user_id = $1 AND wt.type_code = 'main'
-            `, [installment.user_id]);
-            let walletId;
+                JOIN users u ON w.user_id = u.id
+                WHERE w.user_id = $1 AND wt.type_code = 'invest'
+            `, [adminId]);
 
-            if (walletQuery.rows.length > 0) {
-                walletId = walletQuery.rows[0].id;
-                const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
+            if (adminWalletQuery.rows.length > 0) {
+                const adminWalletId = adminWalletQuery.rows[0].id;
+                const oldBalance = parseFloat(adminWalletQuery.rows[0].balance || 0);
                 const newBalance = oldBalance + parseFloat(installment.amount);
+
+                // Fetch user info for description
+                const userRes = await client.query('SELECT full_name FROM users WHERE id = $1', [installment.user_id]);
+                const userName = userRes.rows[0].full_name;
 
                 await client.query(`
                     UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
-                `, [newBalance, walletId]);
+                `, [newBalance, adminWalletId]);
 
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
-                    VALUES ($1, $2, 'credit', $3, $4, $5, 'Investment Installment Payment Approved', 'core_body_installment', $6)
-                `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
+                    VALUES ($1, $2, 'credit', $3, $4, $5, $6, 'core_body_installment', $7)
+                `, [
+                    adminWalletId, 
+                    adminId, 
+                    installment.amount, 
+                    oldBalance, 
+                    newBalance, 
+                    `Investment Installment #${installment.installment_no} from User: ${userName} (₹${parseFloat(installment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })})`,
+                    id
+                ]);
             }
 
             await client.query('COMMIT');
@@ -1012,27 +1024,40 @@ const approveBusinessmanInstallment = async (req, res) => {
                 WHERE id = $2
             `, [adminId, installment.user_id]);
 
-            // Add to wallet ledger
-            const walletQuery = await client.query(`
-                SELECT w.id, w.balance
+            // ADDED: Redirect investment amount to Superadmin's Invest Wallet
+            const adminWalletQuery = await client.query(`
+                SELECT w.id, w.balance, u.full_name
                 FROM wallets w 
                 JOIN wallet_types wt ON w.wallet_type_id = wt.id 
-                WHERE w.user_id = $1 AND wt.type_code = 'main'
-            `, [installment.user_id]);
+                JOIN users u ON w.user_id = u.id
+                WHERE w.user_id = $1 AND wt.type_code = 'invest'
+            `, [adminId]);
 
-            if (walletQuery.rows.length > 0) {
-                const walletId = walletQuery.rows[0].id;
-                const oldBalance = parseFloat(walletQuery.rows[0].balance || 0);
+            if (adminWalletQuery.rows.length > 0) {
+                const adminWalletId = adminWalletQuery.rows[0].id;
+                const oldBalance = parseFloat(adminWalletQuery.rows[0].balance || 0);
                 const newBalance = oldBalance + parseFloat(installment.amount);
+
+                // Fetch user info for description
+                const userRes = await client.query('SELECT full_name FROM users WHERE id = $1', [installment.user_id]);
+                const userName = userRes.rows[0].full_name;
 
                 await client.query(`
                     UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2
-                `, [newBalance, walletId]);
+                `, [newBalance, adminWalletId]);
 
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
-                    VALUES ($1, $2, 'credit', $3, $4, $5, 'Businessman Investment Installment Payment Approved', 'businessman_installment', $6)
-                `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
+                    VALUES ($1, $2, 'credit', $3, $4, $5, $6, 'businessman_installment', $7)
+                `, [
+                    adminWalletId, 
+                    adminId, 
+                    installment.amount, 
+                    oldBalance, 
+                    newBalance, 
+                    `Investment Installment #${installment.installment_no} from User: ${userName} (₹${parseFloat(installment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })})`,
+                    id
+                ]);
             }
 
             await client.query('COMMIT');
@@ -1157,6 +1182,45 @@ const getLowStockAlerts = async (req, res) => {
     }
 };
 
+const getInvestWalletBalance = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await db.query(`
+            SELECT w.balance 
+            FROM wallets w
+            JOIN wallet_types wt ON w.wallet_type_id = wt.id
+            WHERE w.user_id = $1 AND wt.type_code = 'invest'
+        `, [userId]);
+
+        if (result.rows.length === 0) {
+            return res.json({ balance: 0 });
+        }
+        res.json({ balance: result.rows[0].balance });
+    } catch (err) {
+        console.error('Get invest wallet balance error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getInvestWalletLedger = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await db.query(`
+            SELECT wt.* 
+            FROM wallet_transactions wt
+            JOIN wallets w ON wt.wallet_id = w.id
+            JOIN wallet_types wty ON w.wallet_type_id = wty.id
+            WHERE w.user_id = $1 AND wty.type_code = 'invest'
+            ORDER BY wt.created_at DESC
+        `, [userId]);
+
+        res.json({ transactions: result.rows });
+    } catch (err) {
+        console.error('Get invest wallet ledger error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     getPendingUsers,
     approveUser,
@@ -1178,5 +1242,7 @@ module.exports = {
     restoreUser,
     getLowStockAlerts,
     getPendingBusinessmanInstallments,
-    approveBusinessmanInstallment
+    approveBusinessmanInstallment,
+    getInvestWalletBalance,
+    getInvestWalletLedger
 };

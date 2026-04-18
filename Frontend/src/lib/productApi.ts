@@ -33,6 +33,12 @@ export const productApi = {
     return res.data;
   },
 
+  // Get issued product by SKU
+  getBySku: async (sku: string) => {
+    const res = await api.get(`/catalog/issued-products/sku/${sku}`);
+    return res.data;
+  },
+
   // Create product
   create: async (data: ProductFormData & { status?: string }) => {
     const payload = {
@@ -44,7 +50,6 @@ export const productApi = {
       mrp: data.mrp,
       selling_price: data.sellingPrice,
       bulk_price: data.bulkPrice,
-      admin_margin_pct: data.adminMarginPct,
       profit_channel: data.profitChannel,
       min_margin_percent: data.minMarginPercent,
       min_order_quantity: data.minOrderQuantity || 1,
@@ -53,6 +58,11 @@ export const productApi = {
       is_digital: data.isDigital,
       is_service: data.isService,
       description: data.description,
+      brand: data.brand,
+      highlights: data.highlights,
+      specifications: data.specifications,
+      is_returnable: data.is_returnable,
+      return_policy_days: data.return_policy_days,
       thumbnail_url: data.thumbnailUrl,
       image_urls: data.imageUrls,
       status: data.status ?? 'draft',
@@ -83,7 +93,6 @@ export const productApi = {
     if (data.mrp !== undefined) payload.mrp = data.mrp;
     if (data.sellingPrice !== undefined) payload.selling_price = data.sellingPrice;
     if (data.bulkPrice !== undefined) payload.bulk_price = data.bulkPrice;
-    if (data.adminMarginPct !== undefined) payload.admin_margin_pct = data.adminMarginPct;
     if (data.profitChannel !== undefined) payload.profit_channel = data.profitChannel;
     if (data.minMarginPercent !== undefined) payload.min_margin_percent = data.minMarginPercent;
     if (data.minOrderQuantity !== undefined) payload.min_order_quantity = data.minOrderQuantity;
@@ -92,6 +101,11 @@ export const productApi = {
     if (data.isDigital !== undefined) payload.is_digital = data.isDigital;
     if (data.isService !== undefined) payload.is_service = data.isService;
     if (data.description !== undefined) payload.description = data.description;
+    if (data.brand !== undefined) payload.brand = data.brand;
+    if (data.highlights !== undefined) payload.highlights = data.highlights;
+    if (data.specifications !== undefined) payload.specifications = data.specifications;
+    if (data.is_returnable !== undefined) payload.is_returnable = data.is_returnable;
+    if (data.return_policy_days !== undefined) payload.return_policy_days = data.return_policy_days;
     if (data.thumbnailUrl !== undefined) payload.thumbnail_url = data.thumbnailUrl;
     if (data.imageUrls !== undefined) payload.image_urls = data.imageUrls;
     if (data.status !== undefined) payload.status = data.status;

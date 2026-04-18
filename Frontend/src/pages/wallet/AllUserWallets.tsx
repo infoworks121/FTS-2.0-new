@@ -13,8 +13,7 @@ import {
   Eye,
   ArrowDownLeft,
   Calendar,
-
-
+  Landmark,
   Info as InfoIcon
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -303,7 +302,7 @@ export default function AllUserWallets() {
           </DialogHeader>
 
           {/* Statistics Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 pt-4 bg-muted/20 border-b">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-6 pt-4 bg-muted/20 border-b">
             <Card className="border-none shadow-sm">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="h-9 w-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -359,6 +358,20 @@ export default function AllUserWallets() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="border-none shadow-sm bg-gradient-to-br from-violet-50 to-purple-50 border border-purple-100">
+              <CardContent className="p-4 flex items-center gap-3 text-purple-700">
+                <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Landmark className="h-5 w-5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-bold text-purple-600/60 tracking-wider leading-none mb-1">Total Invested</span>
+                  <span className="text-lg font-mono font-bold whitespace-nowrap">
+                    ₹{summary ? parseFloat(summary.total_invest_paid).toLocaleString('en-IN') : '0'} / ₹{summary ? parseFloat(summary.total_to_invest).toLocaleString('en-IN') : '0'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="flex-1 overflow-auto p-0">
@@ -395,7 +408,11 @@ export default function AllUserWallets() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {['credit', 'deposit'].includes(txn.txn_type) ? (
+                        {txn.wallet_type === 'invest' ? (
+                          <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 flex items-center w-fit gap-1 py-0">
+                            <Landmark className="h-3 w-3" /> Investment
+                          </Badge>
+                        ) : ['credit', 'deposit'].includes(txn.txn_type) ? (
                           <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center w-fit gap-1 py-0">
                             <ArrowUpRight className="h-3 w-3" /> Credit
                           </Badge>
@@ -417,11 +434,15 @@ export default function AllUserWallets() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className={`text-right font-mono font-bold ${['credit', 'deposit'].includes(txn.txn_type) ? 'text-green-600' : 'text-red-600'}`}>
+                      <TableCell className={`text-right font-mono font-bold ${txn.wallet_type === 'invest' ? 'text-purple-600' : ['credit', 'deposit'].includes(txn.txn_type) ? 'text-green-600' : 'text-red-600'}`}>
                         {['credit', 'deposit'].includes(txn.txn_type) ? '+' : '-'}₹{parseFloat(txn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-right font-mono text-muted-foreground">
-                        ₹{parseFloat(txn.balance_after || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {txn.wallet_type === 'invest' ? (
+                          <span className="text-[10px] italic opacity-50">Flat (External)</span>
+                        ) : (
+                          `₹${parseFloat(txn.balance_after || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

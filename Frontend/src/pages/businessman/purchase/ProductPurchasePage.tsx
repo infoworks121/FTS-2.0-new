@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Search, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { AlertTriangle, Search, Loader2, ExternalLink, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +60,7 @@ const ADVANCE_LIMIT = 30000;
 
 export default function ProductPurchasePage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -65,6 +68,7 @@ export default function ProductPurchasePage() {
   const [category, setCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [availability, setAvailability] = useState<"all" | Availability>("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "local" | "admin">("all");
   const [selectedId, setSelectedId] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [purchaseType, setPurchaseType] = useState<PurchaseMode>("Direct");
@@ -191,9 +195,19 @@ export default function ProductPurchasePage() {
       const byCategory = category === "all" || item.category === category;
       const bySearch = item.name.toLowerCase().includes(search.toLowerCase()) || item.id.toLowerCase().includes(search.toLowerCase());
       const byAvailability = availability === "all" || item.availability === availability;
-      return byCategory && bySearch && byAvailability;
+      
+      let bySource = true;
+      const isLocal = item.fulfillerType !== 'admin' && userProfile?.district_id === item.sourceDistrictId;
+      
+      if (sourceFilter === "local") {
+        bySource = isLocal;
+      } else if (sourceFilter === "admin") {
+        bySource = !isLocal;
+      }
+      
+      return byCategory && bySearch && byAvailability && bySource;
     });
-  }, [products, availability, category, search]);
+  }, [products, availability, category, search, sourceFilter, userProfile]);
 
   const uniqueCategories = useMemo(() => Array.from(new Set(products.map(p => p.category))), [products]);
 
@@ -263,6 +277,18 @@ export default function ProductPurchasePage() {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label>Source Catalog</Label>
+            <Select value={sourceFilter} onValueChange={(v: any) => setSourceFilter(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="local">Local (District)</SelectItem>
+                <SelectItem value="admin">Admin / External</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -275,10 +301,14 @@ export default function ProductPurchasePage() {
             {filteredProducts.length === 0 ? (
                <p className="text-muted-foreground text-sm py-4 text-center border rounded border-dashed">No products available to buy.</p>
             ) : filteredProducts.map((item) => (
-              <button
+              <div
                 key={item.id}
-                onClick={() => setSelectedId(item.id)}
-                className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId === item.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+                onClick={() => navigate(`/businessman/purchase/products/${item.id}`)}
+                className={cn(
+                  "w-full rounded-2xl border p-4 text-left transition-all relative group cursor-pointer",
+                  "bg-white hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/10",
+                  selectedId === item.id ? "border-blue-500 ring-2 ring-blue-50" : "border-slate-100"
+                )}
               >
                 <div className="flex items-start gap-3">
                   <div className="h-10 w-10 text-xl flex items-center justify-center shrink-0">
@@ -290,12 +320,16 @@ export default function ProductPurchasePage() {
                         <p className="font-medium truncate">{item.name}</p>
                         {/* FTS SOURCE BADGES */}
                         {item.fulfillerType === 'admin' ? (
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Admin</Badge>
+                          <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-200">Admin</Badge>
                         ) : userProfile?.district_id === item.sourceDistrictId ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Local</Badge>
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Local (CoreBody)</Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Through Admin</Badge>
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Other District</Badge>
                         )}
+                        
+                        <div className="flex items-center gap-1 text-blue-600 font-bold text-[10px] uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                          VIEW DETAILS <ChevronRight className="h-3 w-3" />
+                        </div>
                       </div>
                       <Badge variant="secondary" className="opacity-70">{item.category}</Badge>
                     </div>
@@ -319,7 +353,7 @@ export default function ProductPurchasePage() {
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </CardContent>
         </Card>
