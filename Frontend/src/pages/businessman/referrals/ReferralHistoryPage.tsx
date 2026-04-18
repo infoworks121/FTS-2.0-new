@@ -53,16 +53,14 @@ export default function ReferralHistoryPage() {
 
   const historyRows: HistoryRow[] = useMemo(() => {
     return rawEarnings.map((row: ReferralEarningHistory) => {
-      // Basic mapping. Since ReferralEarnings API captures profit engine credits and reversals,
-      // we assume negative amount = Reversal, else Credit. 
-      // Also map API 'status' which might be 'Pending'/'Credited'/'Reversed' to FinalStatus
       const amount = parseFloat(row.gross_amount as string) || 0;
       const finalStat = row.status === "Reversed" ? "Reversed" : "Confirmed";
       
       return {
         id: row.id,
         dateTime: new Date(row.created_at).toISOString().replace("T", " ").slice(0, 16),
-        referenceId: `REF-LDG-${row.id.split("-")[0] || Math.floor(Math.random() * 9000 + 1000)}`, // Rough mock of ref ID
+        // Use real ID suffix for professional ledger format
+        referenceId: `LGR-${row.id.toUpperCase().slice(-8)}`, 
         eventType: amount < 0 ? "Reversal" : "Credit",
         relatedOrderId: row.order_id,
         amount: amount,
@@ -82,9 +80,40 @@ export default function ReferralHistoryPage() {
     });
   }, [historyRows, eventType, fromDate, status, toDate]);
 
+  const handleExportCSV = () => {
+    if (filtered.length === 0) return;
+    
+    const headers = ["Date & Time", "Reference ID", "Event Type", "Order ID", "Amount", "Status"];
+    const csvContent = [
+      headers.join(","),
+      ...filtered.map(row => [
+        row.dateTime,
+        row.referenceId,
+        row.eventType,
+        row.relatedOrderId,
+        row.amount,
+        row.finalStatus
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `referral_history_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-xl font-bold">Referral History</h1>
           <p className="text-sm text-muted-foreground">
@@ -92,18 +121,20 @@ export default function ReferralHistoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
             <FileSpreadsheet className="h-4 w-4" /> Export CSV
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportPDF}>
             <Download className="h-4 w-4" /> Export PDF
           </Button>
         </div>
       </div>
 
-      <ReferralRuleIndicators />
+      <div className="print:hidden">
+        <ReferralRuleIndicators />
+      </div>
 
-      <Card>
+      <Card className="print:hidden">
         <CardHeader>
           <CardTitle className="text-sm">Filters</CardTitle>
         </CardHeader>
@@ -141,18 +172,28 @@ export default function ReferralHistoryPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      {/* Hidden Print Header (Only visible in PDF/Print) */}
+      <div className="hidden print:block mb-8 border-b pb-4">
+        <h1 className="text-2xl font-bold">Referral Earnings Ledger</h1>
+        <p className="text-sm text-muted-foreground">Generated on: {new Date().toLocaleString()}</p>
+        <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+          <p><strong>Filter Period:</strong> {fromDate || "Earliest"} to {toDate || "Latest"}</p>
+          <p><strong>Total Entries:</strong> {filtered.length}</p>
+        </div>
+      </div>
+
+      <Card className="print:border-none print:shadow-none">
+        <CardHeader className="print:hidden">
           <CardTitle className="text-sm">Ledger Events (Read-only)</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex h-32 items-center justify-center">
+            <div className="flex h-32 items-center justify-center print:hidden">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : (
             <>
-              <div className="space-y-3 md:hidden">
+              <div className="space-y-3 md:hidden print:hidden">
             {filtered.map((row) => (
               <div key={row.id} className={`rounded-md border bg-card p-3 space-y-2 ${row.eventType === "Reversal" ? "border-rose-500/30" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
@@ -184,7 +225,7 @@ export default function ReferralHistoryPage() {
             )}
           </div>
 
-          <div className="hidden md:block rounded-md border overflow-x-auto">
+          <div className="hidden md:block print:block rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -199,8 +240,8 @@ export default function ReferralHistoryPage() {
               <TableBody>
                 {filtered.map((row) => (
                   <TableRow key={row.id} className={row.eventType === "Reversal" ? "bg-rose-500/5" : ""}>
-                    <TableCell className="font-mono text-xs">{row.dateTime}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.referenceId}</TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">{row.dateTime}</TableCell>
+                    <TableCell className="font-mono text-xs uppercase">{row.referenceId}</TableCell>
                     <TableCell>
                       <ReferralLedgerEventBadge event={row.eventType} />
                     </TableCell>

@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, IMAGE_BASE_URL } from '@/lib/api';
 import { 
   CheckCircle, 
   XCircle, 
@@ -438,7 +438,7 @@ export default function KYCReview() {
                         <div className="relative group rounded-xl border border-border overflow-hidden bg-muted aspect-video flex items-center justify-center">
                           {selectedDocForReview.doc_url?.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
                             <img 
-                              src={selectedDocForReview.doc_url} 
+                              src={selectedDocForReview.doc_url?.startsWith('http') ? selectedDocForReview.doc_url : `${IMAGE_BASE_URL}${selectedDocForReview.doc_url}`} 
                               alt="KYC Preview" 
                               className="w-full h-full object-contain"
                             />
@@ -450,7 +450,7 @@ export default function KYCReview() {
                           )}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Button variant="secondary" size="sm" asChild className="h-8 gap-2">
-                              <a href={selectedDocForReview.doc_url} target="_blank" rel="noopener noreferrer">
+                              <a href={selectedDocForReview.doc_url?.startsWith('http') ? selectedDocForReview.doc_url : `${IMAGE_BASE_URL}${selectedDocForReview.doc_url}`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="w-3.5 h-3.5" />
                                 Full Size View
                               </a>

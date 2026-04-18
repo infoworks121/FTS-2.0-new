@@ -449,7 +449,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
   );
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen w-full bg-background overflow-hidden transition-colors duration-300 print:h-auto print:overflow-visible">
 
       {/* ── MOBILE OVERLAY ── */}
       {isMobile && mobileOpen && (
@@ -462,7 +462,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
       {/* ── MOBILE SIDEBAR (drawer) ── */}
       {isMobile && (
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-300 print:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           {/* Close button */}
@@ -479,7 +479,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
       {/* ── DESKTOP SIDEBAR ── */}
       {!isMobile && (
         <aside className={cn(
-          "flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 shrink-0",
+          "flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 shrink-0 print:hidden",
           collapsed ? "w-16" : "w-64"
         )}>
           {sidebarContent}
@@ -489,7 +489,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
       {/* ── MAIN CONTENT ── */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
-        <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-6 shrink-0">
+        <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-6 shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             {/* Hamburger — mobile: open drawer | desktop: toggle collapse */}
             <Button
@@ -624,7 +624,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:overflow-visible">
           {children}
         </main>
       </div>

@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  User, Settings, DollarSign, TrendingUp, AlertTriangle, 
+import {
+  User, Settings, DollarSign, TrendingUp, AlertTriangle,
   Calendar, CheckCircle, Clock, Building2, CreditCard, Target,
   MapPin, Users, BarChart3, Package, Lock, ShieldCheck, ChevronRight
 } from "lucide-react";
@@ -88,14 +88,14 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
       let response = await fetch('http://localhost:5000/api/profile/profile', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         // Fallback to corebody profile endpoint
         response = await fetch('http://localhost:5000/api/corebody-profile/profile', {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
-      
+
       if (response.ok) {
         const data = await response.json();
         setProfile(data.profile);
@@ -108,7 +108,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
       // Show mock data from localStorage if possible, otherwise default to admin
       const storedUser = localStorage.getItem('user');
       const currentUser = storedUser ? JSON.parse(storedUser) : null;
-      
+
       const mockProfile = {
         id: currentUser?.id || 1,
         full_name: currentUser?.full_name || "Official User",
@@ -130,34 +130,34 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
       const token = localStorage.getItem('token');
       if (!token) {
         // Mock dashboard data
-      const storedUser = localStorage.getItem('user');
-      const currentUser = storedUser ? JSON.parse(storedUser) : null;
-      
-      const mockProfile = {
-        full_name: currentUser?.full_name || "Official User",
-        email: currentUser?.email || "user@example.com",
-        phone: currentUser?.phone || "+8801700000000",
-        district_name: currentUser?.district_name || "Central",
-        role_code: currentUser?.role_code || "admin",
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      setProfile(mockProfile);
+        const storedUser = localStorage.getItem('user');
+        const currentUser = storedUser ? JSON.parse(storedUser) : null;
+
+        const mockProfile = {
+          full_name: currentUser?.full_name || "Official User",
+          email: currentUser?.email || "user@example.com",
+          phone: currentUser?.phone || "+8801700000000",
+          district_name: currentUser?.district_name || "Central",
+          role_code: currentUser?.role_code || "admin",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setProfile(mockProfile);
       }
 
       // Try unified endpoint first, fallback to role-specific
       let response = await fetch('http://localhost:5000/api/profile/dashboard', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         // Fallback to corebody dashboard endpoint
         response = await fetch('http://localhost:5000/api/corebody-profile/dashboard', {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
-      
+
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats);
@@ -224,9 +224,9 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          installment_no: installmentNo, 
-          payment_ref: paymentRef 
+        body: JSON.stringify({
+          installment_no: installmentNo,
+          payment_ref: paymentRef
         })
       });
 
@@ -242,7 +242,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
 
   const getRoleDisplayName = (roleCode) => {
     if (!roleCode || typeof roleCode !== 'string') return 'User';
-    
+
     if (roleCode === 'businessman' && (profile as any)?.businessman_type) {
       return (profile as any).businessman_type.replace('_', ' ').toUpperCase();
     }
@@ -522,7 +522,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
           <Input
             id="full_name"
             value={formData.full_name || ''}
-            onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
           />
         ) : (
           <p className="mt-1 text-sm text-gray-900">{profile.full_name}</p>
@@ -538,7 +538,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
           <Input
             id="phone"
             value={formData.phone || ''}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
           />
         ) : (
           <p className="mt-1 text-sm text-gray-900">{profile.phone}</p>
@@ -582,7 +582,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
               id="investment_amount"
               type="number"
               value={formData.investment_amount || ''}
-              onChange={(e) => setFormData({...formData, investment_amount: parseFloat(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, investment_amount: parseFloat(e.target.value) })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">₹{profile.investment_amount?.toLocaleString()}</p>
@@ -597,7 +597,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
               min="1"
               max="4"
               value={formData.installment_count || ''}
-              onChange={(e) => setFormData({...formData, installment_count: parseInt(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, installment_count: parseInt(e.target.value) })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.installment_count}</p>
@@ -614,7 +614,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="business_name"
               value={formData.business_name || ''}
-              onChange={(e) => setFormData({...formData, business_name: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.business_name}</p>
@@ -626,7 +626,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Textarea
               id="business_address"
               value={formData.business_address || ''}
-              onChange={(e) => setFormData({...formData, business_address: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, business_address: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.business_address}</p>
@@ -638,7 +638,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="gst_number"
               value={formData.gst_number || ''}
-              onChange={(e) => setFormData({...formData, gst_number: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.gst_number}</p>
@@ -650,7 +650,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="pan_number"
               value={formData.pan_number || ''}
-              onChange={(e) => setFormData({...formData, pan_number: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, pan_number: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.pan_number}</p>
@@ -662,7 +662,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="bank_account"
               value={formData.bank_account || ''}
-              onChange={(e) => setFormData({...formData, bank_account: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.bank_account}</p>
@@ -674,7 +674,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="ifsc_code"
               value={formData.ifsc_code || ''}
-              onChange={(e) => setFormData({...formData, ifsc_code: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, ifsc_code: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.ifsc_code}</p>
@@ -687,7 +687,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
               id="monthly_target"
               type="number"
               value={formData.monthly_target || ''}
-              onChange={(e) => setFormData({...formData, monthly_target: parseFloat(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, monthly_target: parseFloat(e.target.value) })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">₹{profile.monthly_target?.toLocaleString()}</p>
@@ -704,7 +704,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="shop_name"
               value={formData.shop_name || ''}
-              onChange={(e) => setFormData({...formData, shop_name: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, shop_name: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.shop_name}</p>
@@ -716,7 +716,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Textarea
               id="shop_address"
               value={formData.shop_address || ''}
-              onChange={(e) => setFormData({...formData, shop_address: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, shop_address: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.shop_address}</p>
@@ -728,7 +728,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="shop_type"
               value={formData.shop_type || ''}
-              onChange={(e) => setFormData({...formData, shop_type: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, shop_type: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.shop_type}</p>
@@ -740,7 +740,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="gst_number"
               value={formData.gst_number || ''}
-              onChange={(e) => setFormData({...formData, gst_number: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.gst_number}</p>
@@ -752,7 +752,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="pan_number"
               value={formData.pan_number || ''}
-              onChange={(e) => setFormData({...formData, pan_number: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, pan_number: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.pan_number}</p>
@@ -764,7 +764,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="bank_account"
               value={formData.bank_account || ''}
-              onChange={(e) => setFormData({...formData, bank_account: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.bank_account}</p>
@@ -776,7 +776,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Input
               id="ifsc_code"
               value={formData.ifsc_code || ''}
-              onChange={(e) => setFormData({...formData, ifsc_code: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, ifsc_code: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.ifsc_code}</p>
@@ -793,7 +793,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             <Textarea
               id="warehouse_address"
               value={formData.warehouse_address || ''}
-              onChange={(e) => setFormData({...formData, warehouse_address: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, warehouse_address: e.target.value })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.warehouse_address}</p>
@@ -806,7 +806,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
               id="storage_capacity"
               type="number"
               value={formData.storage_capacity || ''}
-              onChange={(e) => setFormData({...formData, storage_capacity: parseFloat(e.target.value)})}
+              onChange={(e) => setFormData({ ...formData, storage_capacity: parseFloat(e.target.value) })}
             />
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile.storage_capacity}</p>
@@ -825,8 +825,8 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
           <Settings className="w-5 h-5 text-slate-400" />
           Profile Information
         </CardTitle>
-        <Button 
-          variant={editing ? "default" : "outline"} 
+        <Button
+          variant={editing ? "default" : "outline"}
           size="sm"
           onClick={() => editing ? handleSave() : setEditing(true)}
         >
@@ -851,9 +851,9 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
     if (!profile?.installments) {
       return (
         <div className="text-center py-20 bg-slate-50 rounded-xl border border-dashed">
-           <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3 animate-spin" />
-           <h3 className="text-lg font-semibold text-slate-700">Loading Installments...</h3>
-           <p className="text-slate-500 text-sm">Please wait while we fetch your payment schedule.</p>
+          <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3 animate-spin" />
+          <h3 className="text-lg font-semibold text-slate-700">Loading Installments...</h3>
+          <p className="text-slate-500 text-sm">Please wait while we fetch your payment schedule.</p>
         </div>
       );
     }
@@ -882,7 +882,7 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             {profile.installments.map((installment: any) => {
               const isPendingApproval = installment.status === 'pending_approval';
               const isPaid = installment.status === 'paid';
-              
+
               return (
                 <div key={installment.installment_no} className="flex items-center justify-between p-4 border rounded-xl bg-white hover:border-primary/30 transition-all shadow-sm">
                   <div className="flex items-center gap-4">
@@ -914,8 +914,8 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
                         <p className="text-xs text-gray-400 font-medium tracking-tight">Admin Review</p>
                       </div>
                     ) : (
-                      <Button 
-                        size="default" 
+                      <Button
+                        size="default"
                         className="font-bold shadow-sm"
                         onClick={() => handlePayInstallment(installment.installment_no)}
                       >
@@ -957,9 +957,9 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
             </InputOTP>
           </div>
         </div>
-        <Button 
-          className="w-full gap-2 h-12 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-all shadow-md" 
-          onClick={handleSetPin} 
+        <Button
+          className="w-full gap-2 h-12 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold transition-all shadow-md"
+          onClick={handleSetPin}
           disabled={isSubmittingPin || pinValue.length !== 6}
         >
           {isSubmittingPin ? <ShieldCheck className="w-4 h-4 animate-pulse" /> : <ShieldCheck className="w-4 h-4" />}

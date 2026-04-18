@@ -235,6 +235,7 @@ export default function Register() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    console.log(`[DEBUG] handleFileUpload triggered for: ${type}`);
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -284,6 +285,7 @@ export default function Register() {
   };
 
   const handleSubmit = async (e?: React.SyntheticEvent) => {
+    console.log("[DEBUG] handleSubmit called - Current Step:", currentStep);
     if (e) e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
@@ -391,6 +393,11 @@ export default function Register() {
   };
 
   const submitRegistration = async () => {
+    console.log("[DEBUG] submitRegistration starting...", {
+      role: formData.role_code,
+      type: formData.businessman_type || formData.core_body_type,
+      kycDocs: !!kycDocs.identityUrl && !!kycDocs.panUrl && !!kycDocs.bankUrl
+    });
     setIsLoading(true);
 
     const kycDocuments = [];

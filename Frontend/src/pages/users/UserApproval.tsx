@@ -30,7 +30,7 @@ import {
   ExternalLink,
   ShieldAlert,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, IMAGE_BASE_URL } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -730,7 +730,11 @@ export default function UserApprovalPage() {
                     <div className="flex gap-4">
                       <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border overflow-hidden">
                         {doc.doc_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
-                          <img src={doc.doc_url} alt={doc.doc_type} className="w-full h-full object-cover" />
+                          <img 
+                            src={doc.doc_url.startsWith('http') ? doc.doc_url : `${IMAGE_BASE_URL}${doc.doc_url}`} 
+                            alt={doc.doc_type} 
+                            className="w-full h-full object-cover" 
+                          />
                         ) : (
                           <FileText className="w-5 h-5 text-muted-foreground" />
                         )}
@@ -756,7 +760,7 @@ export default function UserApprovalPage() {
                         className="h-8 text-xs gap-1.5"
                         asChild
                       >
-                        <a href={doc.doc_url} target="_blank" rel="noopener noreferrer">
+                        <a href={doc.doc_url.startsWith('http') ? doc.doc_url : `${IMAGE_BASE_URL}${doc.doc_url}`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="w-3 h-3" />
                           View Document
                         </a>

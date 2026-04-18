@@ -273,10 +273,11 @@ exports.requestWithdrawal = async (req, res) => {
     // Create withdrawal request (pending admin approval)
     const result = await client.query(
       `INSERT INTO withdrawal_requests 
-       (user_id, wallet_id, requested_amount, bank_account_id, upi_id, status, notes)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+       (user_id, wallet_id, requested_amount, bank_account_id, upi_id, status, notes, 
+        tds_amount, processing_fee, net_payable)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9)
        RETURNING *`,
-      [userId, wallet.id, amount, bank_account_id || null, upi_id || null, notes || null]
+      [userId, wallet.id, amount, bank_account_id || null, upi_id || null, notes || null, 0, 0, amount]
     );
 
     // Reserve the amount (deduct from available balance)

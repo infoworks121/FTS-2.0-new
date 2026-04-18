@@ -35,6 +35,7 @@ const upload = multer({
 });
 
 exports.uploadSingle = (req, res) => {
+    console.log("[DEBUG] Backend uploadSingle hit. File:", req.file ? req.file.filename : 'none');
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
