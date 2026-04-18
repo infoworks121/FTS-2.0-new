@@ -31,4 +31,8 @@ router.get('/low-stock-alerts', protect, adminController.getLowStockAlerts);
 router.get('/stock/shortages', protect, adminOnly, require('../controllers/fulfillmentController').getShortageAssignments);
 router.get('/stock/core-body-inventory/:productId', protect, adminOnly, require('../controllers/fulfillmentController').getCoreBodyInventory);
 
+// Wallets & Finance
+router.get('/wallet/invest/balance', protect, adminOnly, adminController.getInvestWalletBalance);
+router.get('/wallet/invest/ledger', protect, adminOnly, adminController.getInvestWalletLedger);
+
 module.exports = router;

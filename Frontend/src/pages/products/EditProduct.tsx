@@ -38,7 +38,10 @@ import {
   Upload,
   Loader2,
   ChevronLeft,
+  Database,
+  Layers,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { uploadApi } from "@/lib/uploadApi";
 import { ProductsLayout } from "@/components/products";
 import { ProductType, ProductFormData, ProductStatus } from "@/types/product";
@@ -90,6 +93,11 @@ export default function EditProduct() {
     isService: false,
     is_dealer_routed: false,
     description: "",
+    brand: "",
+    highlights: [""],
+    specifications: {},
+    is_returnable: true,
+    return_policy_days: 7,
     thumbnailUrl: "",
     imageUrls: [],
   });
@@ -115,6 +123,11 @@ export default function EditProduct() {
         isService: product.is_service || false,
         is_dealer_routed: product.is_dealer_routed || false,
         description: product.description || "",
+        brand: (product as any).brand || "",
+        highlights: (product as any).highlights || [""],
+        specifications: (product as any).specifications || {},
+        is_returnable: (product as any).is_returnable ?? true,
+        return_policy_days: (product as any).return_policy_days || 7,
         thumbnailUrl: product.thumbnail_url || "",
         imageUrls: Array.isArray(product.image_urls) ? product.image_urls : [],
         status: product.status || "draft",
@@ -252,6 +265,17 @@ export default function EditProduct() {
                     className="h-12 rounded-xl border-slate-100 bg-slate-50/50 focus:bg-white transition-all font-bold text-base focus:ring-blue-500/20"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="brand" className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Brand Name</Label>
+                  <Input
+                    id="brand"
+                    placeholder="e.g. Samsung, Tata"
+                    value={formData.brand}
+                    onChange={(e) => handleInputChange("brand", e.target.value)}
+                    className="h-12 rounded-xl border-slate-100 bg-slate-50/50 focus:bg-white transition-all font-bold text-base"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -316,6 +340,108 @@ export default function EditProduct() {
                   rows={4}
                   className="rounded-2xl border-slate-100 bg-slate-50/50 focus:bg-white transition-all font-medium text-base p-4 md:p-6"
                 />
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Key Highlights</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleInputChange("highlights", [...(formData.highlights || []), ""])}
+                    className="rounded-xl h-8 text-[10px] font-black"
+                  >
+                    + ADD POINT
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {(formData.highlights || []).map((point, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <Input 
+                        placeholder={`Point ${idx + 1}`}
+                        value={point}
+                        onChange={(e) => {
+                          const newHighlights = [...(formData.highlights || [])];
+                          newHighlights[idx] = e.target.value;
+                          handleInputChange("highlights", newHighlights);
+                        }}
+                        className="rounded-xl border-slate-100 bg-slate-50/50"
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-red-500 hover:bg-red-50 shrink-0" 
+                        onClick={() => {
+                          const newHighlights = (formData.highlights || []).filter((_, i) => i !== idx);
+                          handleInputChange("highlights", newHighlights.length ? newHighlights : [""]);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Technical Specifications</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const newSpecs = { ...formData.specifications, "": "" };
+                      handleInputChange("specifications", newSpecs);
+                    }}
+                    className="rounded-xl h-8 text-[10px] font-black"
+                  >
+                    + ADD SPEC
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.entries(formData.specifications || {}).map(([key, value], idx) => (
+                    <div key={idx} className="flex gap-3">
+                      <Input 
+                        placeholder="Label"
+                        value={key}
+                        className="flex-1 rounded-xl border-slate-100 bg-slate-50/50 font-bold"
+                        onChange={(e) => {
+                          const newSpecs = { ...formData.specifications };
+                          const newKey = e.target.value;
+                          if (newKey !== key) {
+                            newSpecs[newKey] = value;
+                            delete newSpecs[key];
+                            handleInputChange("specifications", newSpecs);
+                          }
+                        }}
+                      />
+                      <Input 
+                        placeholder="Value"
+                        value={value}
+                        className="flex-1 rounded-xl border-slate-100 bg-slate-50/50"
+                        onChange={(e) => {
+                          const newSpecs = { ...formData.specifications };
+                          newSpecs[key] = e.target.value;
+                          handleInputChange("specifications", newSpecs);
+                        }}
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-red-500 hover:bg-red-50 shrink-0" 
+                        onClick={() => {
+                          const newSpecs = { ...formData.specifications };
+                          delete newSpecs[key];
+                          handleInputChange("specifications", newSpecs);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -540,17 +666,6 @@ export default function EditProduct() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="adminMarginPct" className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Admin Margin %</Label>
-                  <Input
-                    id="adminMarginPct"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.adminMarginPct || ""}
-                    onChange={(e) => handleInputChange("adminMarginPct", parseFloat(e.target.value) || 0)}
-                    className="h-12 rounded-xl text-base"
-                  />
-                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="profitChannel" className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Profit Channel *</Label>
@@ -566,6 +681,39 @@ export default function EditProduct() {
                       <SelectItem value="B2B">B2B (Bulk)</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-6 mt-6 border-t border-slate-100">
+                <div className="p-6 rounded-[2rem] border-2 border-slate-100 bg-slate-50/30 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-black text-slate-900 tracking-tight">Return Policy</Label>
+                      <p className="text-xs font-bold text-slate-400 mt-0.5 uppercase tracking-widest">Enable customer returns for this product</p>
+                    </div>
+                    <Switch 
+                      id="isReturnable"
+                      checked={formData.is_returnable} 
+                      onCheckedChange={(val) => handleInputChange("is_returnable", val)}
+                    />
+                  </div>
+                  {formData.is_returnable && (
+                    <div className="flex items-center gap-6 animate-in slide-in-from-top-2 duration-400">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Return Window (Days)</Label>
+                        <Input 
+                          type="number" 
+                          className="w-32 h-10 rounded-xl border-slate-100 bg-white font-black" 
+                          value={formData.return_policy_days} 
+                          onChange={(e) => handleInputChange("return_policy_days", parseInt(e.target.value) || 0)} 
+                        />
+                      </div>
+                      <div className="bg-slate-900 text-white rounded-2xl px-4 py-2 opacity-90 inline-flex items-center gap-2">
+                         <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                         <p className="text-[10px] font-black uppercase tracking-[0.1em]">Verified Policy</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

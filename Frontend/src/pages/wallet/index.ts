@@ -7,3 +7,4 @@ export { default as PendingApprovals } from "./PendingApprovals";
 export { default as WithdrawalHistory } from "./WithdrawalHistory";
 export { default as ManageDeposits } from "./ManageDeposits";
 export { default as AllUserWallets } from "./AllUserWallets";
+export { default as InvestWallet } from "./InvestWallet";

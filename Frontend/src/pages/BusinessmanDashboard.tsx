@@ -16,6 +16,7 @@ import ProductPurchasePage from "./businessman/purchase/ProductPurchasePage";
 import AdvanceRequestsPage from "./businessman/purchase/AdvanceRequestsPage";
 import AdvanceLedgerPage from "./businessman/purchase/AdvanceLedgerPage";
 import PurchaseHistoryPage from "./businessman/purchase/PurchaseHistoryPage";
+import BusinessmanProductDetails from "./businessman/purchase/BusinessmanProductDetails";
 import CreateBulkOrderPage from "./businessman/bulk-orders/CreateBulkOrderPage";
 import NegotiationRequestsPage from "./businessman/bulk-orders/NegotiationRequestsPage";
 import ApprovedBulkOrdersPage from "./businessman/bulk-orders/ApprovedBulkOrdersPage";
@@ -305,6 +306,9 @@ export default function BusinessmanDashboard() {
         return <AddNewProduct />;
 
       default:
+        if (location.pathname.startsWith("/businessman/purchase/products/")) {
+          return <BusinessmanProductDetails />;
+        }
         return <DashboardHome user={user} />;
     }
   };

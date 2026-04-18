@@ -127,7 +127,7 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import UnifiedMemberProfile from "./pages/shared/UnifiedMemberProfile";
 
 // Finance & Wallet Pages
-import { MainWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
+import { MainWallet, InvestWallet, ReferralWallet, TrustWallet, ReserveFundWallet, WithdrawalRequests, ManageDeposits, PendingApprovals, WithdrawalHistory, AllUserWallets } from "./pages/wallet";
 import { TDSConfiguration, ProcessingFeeRules } from "./pages/finance";
 import { AllOrders, B2BOrders, B2COrders, ReturnsRefunds, TransactionLogs, LedgerView } from "./pages/orders";
 import { AdminActivityLogs, FinancialAuditLogs, RuleChangeHistory, LoginAccessLogs } from "./pages/audit";
@@ -236,6 +236,7 @@ const App = () => {
             <Route path="/corebody/stock/current-inventory" element={<CurrentInventory />} />
 
             <Route path="/products-issued" element={<IssuedProducts />} />
+            <Route path="/products-issued/:sku" element={<BusinessmanProductDetails />} />
             
             {/* Service Catalog Routes */}
             <Route path="/admin/services" element={<ProductsPageLayout><AllServices /></ProductsPageLayout>} />
@@ -277,6 +278,7 @@ const App = () => {
 
             {/* Wallets & Finance Routes */}
             <Route path="/admin/wallet/main" element={<WalletPageLayout><MainWallet /></WalletPageLayout>} />
+            <Route path="/admin/wallet/invest" element={<WalletPageLayout><InvestWallet /></WalletPageLayout>} />
             <Route path="/admin/wallet/referral" element={<WalletPageLayout><ReferralWallet /></WalletPageLayout>} />
             <Route path="/admin/wallet/trust" element={<WalletPageLayout><TrustWallet /></WalletPageLayout>} />
             <Route path="/admin/wallet/reserve" element={<WalletPageLayout><ReserveFundWallet /></WalletPageLayout>} />

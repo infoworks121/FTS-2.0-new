@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Package,
   ShoppingCart,
@@ -13,7 +14,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ShieldCheck,
-  Truck
+  Truck,
+  ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,8 @@ interface Product {
   isNew?: boolean;
   isTrending?: boolean;
   rating?: number;
+  fulfiller_type?: string;
+  source_district_id?: number;
 }
 
 export const formatCurrency = (amount: string | number) => {
@@ -57,12 +61,17 @@ export const ProductCardGrid = ({
   onBuyNow: (p: any) => void,
   onQuickList?: (p: any) => void
 }) => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
+  const detailUrl = `/products-issued/${product.sku}`;
+
   const discount = product.mrp && Number(product.mrp) > Number(product.selling_price)
     ? Math.round(((Number(product.mrp) - Number(product.selling_price)) / Number(product.mrp)) * 100)
     : 0;
 
   return (
     <Card className="group relative overflow-hidden border-slate-200 hover:border-emerald-500/50 transition-all duration-300 hover:shadow-md rounded-xl bg-white shadow-sm">
+      <Link to={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${product.name}`} />
       <div className="relative aspect-[4/3] overflow-hidden bg-slate-50 flex items-center justify-center p-4">
         {product.thumbnail_url ? (
           <img
@@ -75,7 +84,7 @@ export const ProductCardGrid = ({
         )}
 
         {/* Minimal Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+        <div className="absolute top-2 left-2 flex flex-col gap-1.5 z-20">
           {product.isNew && (
             <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-blue-100">
               New
@@ -91,22 +100,35 @@ export const ProductCardGrid = ({
               {discount}% OFF
             </span>
           )}
+          {product.fulfiller_type === 'admin' ? (
+            <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-slate-200">
+              Admin
+            </span>
+          ) : isLocal ? (
+            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-blue-100">
+              Local
+            </span>
+          ) : (
+            <span className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-amber-100">
+              Other District
+            </span>
+          )}
         </div>
 
         {/* Hover Actions Bar */}
         <div className="absolute inset-x-0 bottom-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex gap-1.5">
           <Button
             size="sm"
-            onClick={() => onAddToCart(product)}
-            className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 h-8 text-[11px] font-semibold"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart(product); }}
+            className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 h-8 text-[11px] font-semibold relative z-20"
           >
             <ShoppingCart className="h-3 w-3 mr-1.5" /> Cart
           </Button>
           {onQuickList && (
             <Button
               size="sm"
-              onClick={() => onQuickList(product)}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[11px] font-semibold border-none"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickList(product); }}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[11px] font-semibold border-none relative z-20"
             >
               <TrendingUp className="h-3 w-3 mr-1.5" /> List
             </Button>
@@ -141,8 +163,8 @@ export const ProductCardGrid = ({
           </div>
           <Button
             size="sm"
-            onClick={() => onBuyNow(product)}
-            className="h-8 w-8 rounded-lg bg-slate-900 hover:bg-emerald-600 text-white p-0"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBuyNow(product); }}
+            className="h-8 w-8 rounded-lg bg-slate-900 hover:bg-emerald-600 text-white p-0 relative z-20"
           >
             <Zap className="h-3.5 w-3.5" />
           </Button>
@@ -163,8 +185,13 @@ export const ProductCardList = ({
   onBuyNow: (p: any) => void,
   onQuickList?: (p: any) => void
 }) => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
+  const detailUrl = `/products-issued/${product.sku}`;
+
   return (
-    <Card className="group overflow-hidden border-slate-200 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-sm bg-white shadow-sm rounded-xl">
+    <Card className="group overflow-hidden border-slate-200 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-sm bg-white shadow-sm rounded-xl relative">
+      <Link to={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${product.name}`} />
       <CardContent className="p-4">
         <div className="flex gap-6">
           <div className="w-32 aspect-square bg-slate-50 rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-3 relative">
@@ -181,6 +208,13 @@ export const ProductCardList = ({
               <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-500 uppercase tracking-tighter border border-slate-100 px-1.5 rounded">
                 {product.category_name}
               </span>
+              {product.fulfiller_type === 'admin' ? (
+                <span className="bg-slate-900 text-white text-[8px] font-bold px-1.5 rounded ml-1">ADMIN</span>
+              ) : isLocal ? (
+                <span className="bg-blue-600 text-white text-[8px] font-bold px-1.5 rounded ml-1">LOCAL</span>
+              ) : (
+                <span className="bg-amber-600 text-white text-[8px] font-bold px-1.5 rounded ml-1">DISTRICT</span>
+              )}
             </div>
           </div>
 
@@ -232,24 +266,24 @@ export const ProductCardList = ({
             <div className="flex items-center gap-2 pt-4">
               <Button
                 size="sm"
-                onClick={() => onBuyNow(product)}
-                className="bg-slate-900 hover:bg-emerald-600 text-white rounded-lg px-4 h-8 text-xs font-semibold shadow-sm"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBuyNow(product); }}
+                className="bg-slate-900 hover:bg-emerald-600 text-white rounded-lg px-4 h-8 text-xs font-semibold shadow-sm relative z-20"
               >
                 Buy Now
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onAddToCart(product)}
-                className="rounded-lg px-4 h-8 border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart(product); }}
+                className="rounded-lg px-4 h-8 border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold relative z-20"
               >
                 Add to Cart
               </Button>
               {onQuickList && (
                 <Button
                   size="sm"
-                  onClick={() => onQuickList(product)}
-                  className="rounded-lg px-4 h-8 bg-emerald-600 hover:bg-emerald-700 text-white border-none text-xs font-semibold shadow-sm"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickList(product); }}
+                  className="rounded-lg px-4 h-8 bg-emerald-600 hover:bg-emerald-700 text-white border-none text-xs font-semibold shadow-sm relative z-20"
                 >
                   List to B2C
                 </Button>

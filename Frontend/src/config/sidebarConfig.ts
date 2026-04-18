@@ -164,6 +164,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
     submenu: [
       { title: "All User Wallets", url: "/admin/wallet/user-wallets" },
       { title: "Main Wallet", url: "/admin/wallet/main" },
+      { title: "Invest Wallet", url: "/admin/wallet/invest" },
       { title: "Referral Wallet", url: "/admin/wallet/referral" },
       { title: "Trust Wallet", url: "/admin/wallet/trust" },
       { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve" },
