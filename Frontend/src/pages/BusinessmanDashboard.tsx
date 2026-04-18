@@ -39,6 +39,8 @@ import SlaStatusPage from "./businessman/performance/SlaStatusPage";
 import RiskWarningsPage from "./businessman/performance/RiskWarningsPage";
 import UpgradeEligibilityPage from "./businessman/performance/UpgradeEligibilityPage";
 import BusinessmanProfile from "./businessman/BusinessmanProfile";
+import KYCManagement from "./kyc/KYCManagement";
+import DeviceManagement from "./settings/DeviceManagement";
 
 // Marketplace Pages
 import B2CManager from "./sph/B2CManager";
@@ -284,8 +286,14 @@ export default function BusinessmanDashboard() {
       case "/businessman/performance/upgrade-eligibility":
         return <UpgradeEligibilityPage />;
         
+      case "/businessman/settings/devices":
+        return <DeviceManagement />;
+        
       case "/businessman/profile":
         return <BusinessmanProfile />;
+      
+      case "/businessman/kyc":
+        return <KYCManagement />;
       
       // Marketplace Routes
       case "/businessman/b2c-manager":

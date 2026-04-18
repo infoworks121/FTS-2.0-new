@@ -37,7 +37,7 @@ const uploadKYC = async (req, res) => {
 const getKYCStatus = async (req, res) => {
     try {
         const result = await db.query(
-            'SELECT id, doc_type, status, review_note, reviewed_at, uploaded_at FROM kyc_documents WHERE user_id = $1 ORDER BY uploaded_at DESC',
+            'SELECT id, doc_type, status, doc_url, doc_number_hash, review_note, reviewed_at, uploaded_at FROM kyc_documents WHERE user_id = $1 ORDER BY uploaded_at DESC',
             [req.user.id]
         );
 

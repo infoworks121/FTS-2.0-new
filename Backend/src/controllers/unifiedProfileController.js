@@ -12,9 +12,11 @@ const getUnifiedProfile = async (req, res) => {
     // Base user info
     const baseQuery = `
       SELECT u.id, u.full_name, u.email, u.phone, u.role_code, u.is_active, 
-             u.created_at, u.updated_at, d.name as district_name, d.id as district_id
+             u.created_at, u.updated_at, d.name as district_name, d.id as district_id,
+             s.name as subdivision_name, s.id as subdivision_id
       FROM users u
       LEFT JOIN districts d ON u.district_id = d.id
+      LEFT JOIN subdivisions s ON u.subdivision_id = s.id
       WHERE u.id = $1
     `;
 
@@ -121,12 +123,17 @@ const updateUnifiedProfile = async (req, res) => {
       await client.query('BEGIN');
 
       // Update base user info
-      const { full_name, phone } = updateData;
-      if (full_name || phone) {
+      const { full_name, phone, district_id, subdivision_id } = updateData;
+      if (full_name || phone || district_id || subdivision_id) {
         await client.query(
-          `UPDATE users SET full_name = COALESCE($1, full_name), 
-           phone = COALESCE($2, phone), updated_at = NOW() WHERE id = $3`,
-          [full_name, phone, userId]
+          `UPDATE users SET 
+            full_name = COALESCE($1, full_name), 
+            phone = COALESCE($2, phone), 
+            district_id = COALESCE($3, district_id),
+            subdivision_id = COALESCE($4, subdivision_id),
+            updated_at = NOW() 
+           WHERE id = $5`,
+          [full_name, phone, district_id || null, subdivision_id || null, userId]
         );
       }
 
@@ -134,18 +141,29 @@ const updateUnifiedProfile = async (req, res) => {
       switch (userRole) {
         case 'core_body_a':
         case 'core_body_b':
-        case 'dealer':
           const { investment_amount, installment_count } = updateData;
           if (investment_amount !== undefined || installment_count !== undefined) {
             await client.query(
               `UPDATE core_body_profiles 
                SET investment_amount = COALESCE($1, investment_amount),
                    installment_count = COALESCE($2, installment_count),
+                   district_id = COALESCE($3, district_id),
                    updated_at = NOW()
-               WHERE user_id = $3`,
-              [investment_amount, installment_count, userId]
+               WHERE user_id = $4`,
+              [investment_amount, installment_count, district_id, userId]
             );
           }
+          break;
+
+        case 'dealer':
+          await client.query(
+            `UPDATE dealer_profiles 
+             SET district_id = COALESCE($1, district_id),
+                 subdivision_id = COALESCE($2, subdivision_id),
+                 updated_at = NOW()
+             WHERE user_id = $3`,
+            [district_id, subdivision_id, userId]
+          );
           break;
 
         case 'businessman':
@@ -160,10 +178,12 @@ const updateUnifiedProfile = async (req, res) => {
                  bank_account = COALESCE($5, bank_account),
                  ifsc_code = COALESCE($6, ifsc_code),
                  monthly_target = COALESCE($7, monthly_target),
+                 district_id = COALESCE($8, district_id),
+                 subdivision_id = COALESCE($9, subdivision_id),
                  updated_at = NOW()
-             WHERE user_id = $8`,
+             WHERE user_id = $10`,
             [business_name, business_address, gst_number, pan_number,
-              bank_account, ifsc_code, monthly_target, userId]
+              bank_account, ifsc_code, monthly_target, district_id, subdivision_id, userId]
           );
           break;
 
@@ -173,9 +193,11 @@ const updateUnifiedProfile = async (req, res) => {
             `UPDATE stock_point_profiles 
              SET warehouse_address = COALESCE($1, warehouse_address),
                  storage_capacity = COALESCE($2, storage_capacity),
+                 district_id = COALESCE($3, district_id),
+                 subdivision_id = COALESCE($4, subdivision_id),
                  updated_at = NOW()
-             WHERE user_id = $3`,
-            [warehouse_address, storage_capacity, userId]
+             WHERE user_id = $5`,
+            [warehouse_address, storage_capacity, district_id, subdivision_id, userId]
           );
           break;
 
@@ -192,10 +214,12 @@ const updateUnifiedProfile = async (req, res) => {
                  pan_number = COALESCE($5, pan_number),
                  bank_account = COALESCE($6, bank_account),
                  ifsc_code = COALESCE($7, ifsc_code),
+                 district_id = COALESCE($8, district_id),
+                 subdivision_id = COALESCE($9, subdivision_id),
                  updated_at = NOW()
-             WHERE user_id = $8`,
+             WHERE user_id = $10`,
             [shop_name, shop_address, shop_type, retailer_gst,
-              retailer_pan, retailer_bank, retailer_ifsc, userId]
+              retailer_pan, retailer_bank, retailer_ifsc, district_id, subdivision_id, userId]
           );
           break;
       }

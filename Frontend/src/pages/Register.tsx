@@ -544,7 +544,7 @@ export default function Register() {
                       </Select>
                     </div>
 
-                    {(formData.role_code === "businessman" || formData.role_code === "stock_point" || formData.core_body_type === "dealer") && formData.district_id && (
+                    {formData.district_id && (
                       <div className="space-y-1.5 col-span-1 md:col-span-2">
                         <Label htmlFor="subdivision" className="text-[10px] font-bold uppercase text-slate-400">Subdivision / Area</Label>
                         <Select value={formData.subdivision_id} onValueChange={handleSubdivisionChange}>

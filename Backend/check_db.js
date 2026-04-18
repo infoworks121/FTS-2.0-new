@@ -1,46 +1,25 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { query } = require('./src/config/db');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+async function check() {
+    try {
+        const roles = await query('SELECT * FROM user_roles');
+        console.log('Roles:', roles.rows);
 
-async function checkDb() {
-  try {
-    const res = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema='public' 
-      AND table_name IN ('products', 'product_pricing', 'inventory_balances', 'admin_products')
-    `);
-    console.log("=== TABLES ===");
-    console.log(res.rows.map(r => r.table_name).join(', '));
-    
-    // Check columns of products table
-    const cols = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema='public' 
-      AND table_name='products'
-    `);
-    console.log("\n=== PRODUCTS TABLE ===");
-    cols.rows.forEach(c => console.log(`${c.column_name}: ${c.data_type}`));
-    
-    // Check columns of product_pricing
-    const ppCols = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_schema='public' 
-      AND table_name='product_pricing'
-    `);
-    console.log("\n=== PRODUCT_PRICING TABLE ===");
-    ppCols.rows.forEach(c => console.log(`${c.column_name}: ${c.data_type}`));
-    
-  } catch(e) {
-    console.error("DB Error:", e);
-  } finally {
-    pool.end();
-  }
+        const admin = await query('SELECT u.id, u.full_name, r.role_code FROM users u JOIN user_roles r ON u.role_id = r.id WHERE r.role_code = \'admin\' LIMIT 1');
+        console.log('Admin User:', admin.rows[0]);
+
+        const walletTypes = await query('SELECT * FROM wallet_types');
+        console.log('Wallet Types:', walletTypes.rows);
+
+        if (admin.rows[0]) {
+            const adminWallets = await query('SELECT w.*, wt.type_code FROM wallets w JOIN wallet_types wt ON w.wallet_type_id = wt.id WHERE w.user_id = $1', [admin.rows[0].id]);
+            console.log('Admin Wallets:', adminWallets.rows);
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        process.exit();
+    }
 }
 
-checkDb();
+check();

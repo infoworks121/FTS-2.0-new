@@ -371,8 +371,15 @@ exports.createB2COrder = async (req, res) => {
   const client = await db.pool.connect();
   
   try {
-    const { items, payment_method, notes, delivery_address, district_id, pincode_id, referral_code } = req.body;
+    const { items, payment_method, notes, delivery_address, district_id: body_district_id, pincode_id, referral_code } = req.body;
     const user = req.user;
+
+    // Fetch user's geographic profile if not provided in request
+    const userProfileQuery = await client.query('SELECT district_id, subdivision_id FROM users WHERE id = $1', [user.id]);
+    const userProfile = userProfileQuery.rows[0] || {};
+    
+    const district_id = body_district_id || userProfile.district_id;
+    const subdivision_id = userProfile.subdivision_id;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Order items are required.' });
@@ -439,13 +446,13 @@ exports.createB2COrder = async (req, res) => {
     const orderResult = await client.query(
       `INSERT INTO orders 
        (order_number, customer_id, order_type, status, subtotal, delivery_charge, total_amount, total_profit, 
-        payment_method, delivery_address, district_id, pincode_id, referral_code_used, referral_user_id, notes) 
-       VALUES ($1, $2, 'B2C', 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+        payment_method, delivery_address, district_id, subdivision_id, pincode_id, referral_code_used, referral_user_id, notes) 
+       VALUES ($1, $2, 'B2C', 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
        RETURNING *`,
       [
         order_number, user.id, subtotal, delivery_charge, total_amount, total_profit, 
-        payment_method || 'online', JSON.stringify(delivery_address), district_id || null, pincode_id || null,
-        referral_code || null, referral_user_id, notes || null
+        payment_method || 'online', JSON.stringify(delivery_address), district_id || null, subdivision_id || null,
+        pincode_id || null, referral_code || null, referral_user_id, notes || null
       ]
     );
 
@@ -470,13 +477,14 @@ exports.createB2COrder = async (req, res) => {
     // 4. Auto Assignment Engine (Find nearest stock point with FULL inventory)
     let assignedStockPoint = null;
     if (district_id) {
-       // Query Stock Points in the same district that have SLA score > 50
+       // Query Stock Points in the same district, prioritizing the same subdivision
        const spsResult = await client.query(
          `SELECT sp.id, sp.sla_score, sp.businessman_id 
           FROM stock_point_profiles sp 
+          JOIN users u ON sp.user_id = u.id
           WHERE sp.district_id = $1 AND sp.is_active = true AND sp.sla_score >= 50
-          ORDER BY sp.sla_score DESC`,
-         [district_id]
+          ORDER BY (u.subdivision_id = $2) DESC, sp.sla_score DESC`,
+         [district_id, subdivision_id]
        );
 
        // Check Inventory per Stock Point sequentially

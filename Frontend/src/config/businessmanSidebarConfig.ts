@@ -117,6 +117,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
       url: "/products-issued",
       icon: ShoppingCart,
     },
+    /*
     {
       key: "purchaseAdvance",
       title: "Purchase / Advance",
@@ -129,6 +130,7 @@ export function getBusinessmanSidebarNavItems(context: BusinessmanSidebarContext
         { title: "Purchase History", url: "/businessman/purchase/purchase-history", icon: History },
       ],
     },
+    */
     /*
     {
       key: "bulkOrders",

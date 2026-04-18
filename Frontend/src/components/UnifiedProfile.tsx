@@ -17,28 +17,61 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import walletApi from "@/lib/walletApi";
-import { AddressManager } from "./AddressManager";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import api from "@/lib/api";
 
 interface ProfileProps {
   variant?: "legacy" | "tabbed";
 }
 
 export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
-  const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [pinValue, setPinValue] = useState("");
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
+  const [districts, setDistricts] = useState<{ id: number; name: string }[]>([]);
+  const [subdivisions, setSubdivisions] = useState<{ id: number; name: string }[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchProfile();
     fetchDashboard();
+    fetchDistricts();
   }, []);
+
+  const fetchDistricts = async () => {
+    try {
+      const res = await api.get('/geography/states/1/districts');
+      setDistricts(res.data);
+    } catch (err) {
+      console.error('Error fetching districts:', err);
+    }
+  };
+
+  const fetchSubdivisions = async (districtId: string) => {
+    try {
+      const res = await api.get(`/geography/districts/${districtId}/subdivisions`);
+      setSubdivisions(res.data);
+    } catch (err) {
+      console.error('Error fetching subdivisions:', err);
+      setSubdivisions([]);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.district_id) {
+      fetchSubdivisions(formData.district_id);
+    }
+  }, [formData.district_id]);
 
   const fetchProfile = async () => {
     try {
@@ -545,8 +578,45 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
         )}
       </div>,
       <div key="district">
-        <Label>District</Label>
-        <p className="mt-1 text-sm text-gray-900">{profile.district_name}</p>
+        <Label htmlFor="district">District</Label>
+        {editing ? (
+          <Select
+            value={formData.district_id?.toString()}
+            onValueChange={(val) => setFormData({ ...formData, district_id: val, subdivision_id: "" })}
+          >
+            <SelectTrigger id="district" className="mt-1">
+              <SelectValue placeholder="Select District" />
+            </SelectTrigger>
+            <SelectContent>
+              {districts.map((d) => (
+                <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="mt-1 text-sm text-gray-900">{profile.district_name || 'N/A'}</p>
+        )}
+      </div>,
+      <div key="subdivision">
+        <Label htmlFor="subdivision">Subdivision / Area</Label>
+        {editing ? (
+          <Select
+            value={formData.subdivision_id?.toString()}
+            onValueChange={(val) => setFormData({ ...formData, subdivision_id: val })}
+            disabled={!formData.district_id}
+          >
+            <SelectTrigger id="subdivision" className="mt-1">
+              <SelectValue placeholder="Select Subdivision" />
+            </SelectTrigger>
+            <SelectContent>
+              {subdivisions.map((s) => (
+                <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="mt-1 text-sm text-gray-900">{profile.subdivision_name || 'N/A'}</p>
+        )}
       </div>,
       <div key="role">
         <Label>Role</Label>
