@@ -125,34 +125,48 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
     // 3. APPLY RULES (B2B vs B2C)
     if (order.order_type === 'B2B') {
       // RULE: B2B
-      // Total Profit = 100%
-      // Referral Network = rule.referral_share_pct (45%)
-      // FTS (Company) = rule.fts_share_pct (55%)
       
-      const ftsSharePct = parseFloat(rule.fts_share_pct || 55);
-      const refSharePct = parseFloat(rule.referral_share_pct || 45);
+      // 1. Check for Referrer first to decide the split (Fallback Logic)
+      const regResult = await client.query(
+        `SELECT referrer_id FROM referral_registrations WHERE referred_id = $1 LIMIT 1`,
+        [order.customer_id]
+      );
+      const hasReferrer = regResult.rows.length > 0;
+
+      let ftsSharePct, refSharePct, trustPct, adminPct, companyPoolPct;
+
+      if (hasReferrer) {
+        // Normal split (55/45)
+        ftsSharePct = parseFloat(rule.fts_share_pct || 55);
+        refSharePct = parseFloat(rule.referral_share_pct || 45);
+        trustPct = parseFloat(rule.trust_fund_pct || 10);
+        adminPct = parseFloat(rule.admin_pct || 1);
+        companyPoolPct = parseFloat(rule.core_body_pool_pct || 44);
+      } else {
+        // FALLBACK: 55% becomes 100% since there's no referral network to pay
+        ftsSharePct = 100;
+        refSharePct = 0;
+        trustPct = parseFloat(rule.trust_fund_pct || 10); // Standard 10%
+        adminPct = parseFloat(rule.admin_pct || 1); // Standard 1%
+        companyPoolPct = 100 - trustPct - adminPct; // Remainder (usually 89%) goes to Company Pool
+      }
 
       const ftsAmount = (totalCalculatedProfit * ftsSharePct) / 100;
       const refAmount = (totalCalculatedProfit * refSharePct) / 100;
 
       // --- 1. Referral Network ---
-      await addLineItem('referral_network', refAmount, refSharePct);
-      // Find the referrer
-      const regResult = await client.query(
-        `SELECT referrer_id FROM referral_registrations WHERE referred_id = $1 LIMIT 1`,
-        [order.customer_id]
-      );
-
-      if (regResult.rows.length > 0) {
+      if (hasReferrer) {
+        await addLineItem('referral_network', refAmount, refSharePct);
         const referrerId = regResult.rows[0].referrer_id;
+        
         // Insert into referral_earnings table
-        const refEarningRes = await client.query(
+        await client.query(
           `INSERT INTO referral_earnings (referrer_id, order_id, referred_user_id, gross_amount, status)
-           VALUES ($1, $2, $3, $4, 'processed') RETURNING id`,
+           VALUES ($1, $2, $3, $4, 'processed')`,
           [referrerId, orderId, order.customer_id, refAmount]
         );
         
-        // CREDIT MAIN WALLET (AS PER USER REQUEST)
+        // CREDIT MAIN WALLET
         await walletService.creditWallet(
           referrerId, 
           'main', 
@@ -165,11 +179,7 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
       }
 
       // --- 2. FTS Share Breakdown ---
-      const trustPct = parseFloat(rule.trust_fund_pct || 10);
-      const adminPct = parseFloat(rule.admin_pct || 1);
-      const companyPoolPct = parseFloat(rule.core_body_pool_pct || 44); // This holds (70% core body, 30% reserve) of company pool
-
-      const trustAmount = (totalCalculatedProfit * trustPct) / 100; // or (ftsAmount * trustPct)/100 ? Schema implies percentage of TOTAL
+      const trustAmount = (totalCalculatedProfit * trustPct) / 100;
       const adminAmount = (totalCalculatedProfit * adminPct) / 100;
       const poolAmount  = (totalCalculatedProfit * companyPoolPct) / 100;
 
