@@ -57,7 +57,11 @@ export default function B2CManager() {
     l.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const basePath = location.pathname.startsWith("/stockpoint") ? "/stockpoint" : "/businessman";
+  const basePath = location.pathname.startsWith("/stockpoint") 
+    ? "/stockpoint" 
+    : location.pathname.startsWith("/corebody") 
+    ? "/corebody" 
+    : "/businessman";
   
   return (
     <div className="space-y-6">

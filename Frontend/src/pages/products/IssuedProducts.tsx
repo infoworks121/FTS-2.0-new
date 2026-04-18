@@ -91,7 +91,7 @@ function MarketplaceContent() {
 
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : null;
-  const isStockPoint = user?.role_code === "stock_point";
+  const isStockPoint = user?.role_code === "stock_point" || !!user?.is_sph;
 
   const { data: categoriesData } = useQuery({
     queryKey: ["categories"],
@@ -340,13 +340,19 @@ export default function IssuedProducts() {
         return {
           role: "corebody" as const,
           roleLabel: `CORE BODY TYPE ${type}`,
-          navItems: getCoreBodyFlatNavItems(type as any) as NavItem[]
+          navItems: getCoreBodyFlatNavItems({
+            coreBodyType: type as any,
+            isSPH: !!user?.is_sph
+          }) as NavItem[]
         };
       case "dealer":
         return {
           role: "dealer" as const,
           roleLabel: "SUBDIVISION DEALER",
-          navItems: getCoreBodyFlatNavItems("Dealer") as NavItem[]
+          navItems: getCoreBodyFlatNavItems({
+            coreBodyType: "Dealer",
+            isSPH: !!user?.is_sph
+          }) as NavItem[]
         };
       default:
         return null;

@@ -13,6 +13,9 @@ const {
   getDistrictPerformanceSnapshot,
   getDistrictDealers,
   getCoreBodyInventory,
+  getCoreBodyStockLedger,
+  blockCoreBodyStock,
+  releaseCoreBodyStock,
 } = require('../controllers/coreBodyProfileController');
 
 // Core Body profile routes
@@ -27,5 +30,8 @@ router.get('/directory-users/:id', protect, getDirectoryUserDetail);
 router.get('/district-performance', protect, getDistrictPerformanceSnapshot);
 router.get('/district-dealers', protect, getDistrictDealers);
 router.get('/inventory', protect, getCoreBodyInventory);
+router.get('/inventory-ledger', protect, getCoreBodyStockLedger);
+router.post('/block-stock', protect, blockCoreBodyStock);
+router.post('/release-stock', protect, releaseCoreBodyStock);
 
 module.exports = router;

@@ -811,7 +811,8 @@ const getCoreBodyInventory = async (req, res) => {
     const query = `
       SELECT 
         ib.product_id, p.name as product_name, p.sku, 
-        ib.quantity_on_hand as quantity
+        ib.quantity_on_hand as quantity,
+        ib.quantity_reserved as reserved
       FROM inventory_balances ib
       JOIN products p ON ib.product_id = p.id
       WHERE ib.entity_id = $1 AND ib.entity_type = 'core_body'
@@ -821,6 +822,143 @@ const getCoreBodyInventory = async (req, res) => {
     res.json({ inventory: result.rows });
   } catch (error) {
     console.error('Get core body inventory error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Block stock manually
+const blockCoreBodyStock = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { product_id, quantity, note } = req.body;
+    const userId = req.user.id;
+
+    if (!product_id || !quantity || quantity <= 0) {
+      return res.status(400).json({ message: 'Product ID and positive quantity are required' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Check current stock
+    const invRes = await client.query(
+      `SELECT id, quantity_on_hand, quantity_reserved 
+       FROM inventory_balances 
+       WHERE entity_type = 'core_body' AND entity_id = $1 AND product_id = $2 FOR UPDATE`,
+      [userId, product_id]
+    );
+
+    if (invRes.rows.length === 0) {
+      throw new Error('Inventory record not found for this product');
+    }
+
+    const { quantity_on_hand, quantity_reserved } = invRes.rows[0];
+    const available = parseFloat(quantity_on_hand) - parseFloat(quantity_reserved);
+
+    if (available < quantity) {
+      throw new Error(`Insufficient available stock. Current available: ${available}`);
+    }
+
+    // 2. Increment reserved
+    await client.query(
+      `UPDATE inventory_balances SET quantity_reserved = quantity_reserved + $1, last_updated_at = NOW() WHERE id = $2`,
+      [quantity, invRes.rows[0].id]
+    );
+
+    // 3. Log in ledger
+    await client.query(
+      `INSERT INTO inventory_ledger (product_id, entity_type, entity_id, transaction_type, quantity, note, created_by)
+       VALUES ($1, 'core_body', $2, 'stock_manual_block', $3, $4, $5)`,
+      [product_id, userId, quantity, note || 'Manual block', userId]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Stock blocked successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Block stock error:', error);
+    res.status(400).json({ message: error.message || 'Server error' });
+  } finally {
+    client.release();
+  }
+};
+
+// Release blocked stock manually
+const releaseCoreBodyStock = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { product_id, quantity, note } = req.body;
+    const userId = req.user.id;
+
+    if (!product_id || !quantity || quantity <= 0) {
+      return res.status(400).json({ message: 'Product ID and positive quantity are required' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Check current reserved stock
+    const invRes = await client.query(
+      `SELECT id, quantity_reserved 
+       FROM inventory_balances 
+       WHERE entity_type = 'core_body' AND entity_id = $1 AND product_id = $2 FOR UPDATE`,
+      [userId, product_id]
+    );
+
+    if (invRes.rows.length === 0) {
+      throw new Error('Inventory record not found for this product');
+    }
+
+    const { quantity_reserved } = invRes.rows[0];
+
+    if (parseFloat(quantity_reserved) < quantity) {
+      throw new Error(`Insufficient blocked stock. Current blocked: ${quantity_reserved}`);
+    }
+
+    // 2. Decrement reserved
+    await client.query(
+      `UPDATE inventory_balances SET quantity_reserved = quantity_reserved - $1, last_updated_at = NOW() WHERE id = $2`,
+      [quantity, invRes.rows[0].id]
+    );
+
+    // 3. Log in ledger
+    await client.query(
+      `INSERT INTO inventory_ledger (product_id, entity_type, entity_id, transaction_type, quantity, note, created_by)
+       VALUES ($1, 'core_body', $2, 'stock_manual_release', $3, $4, $5)`,
+      [product_id, userId, -quantity, note || 'Manual release', userId]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Stock released successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Release stock error:', error);
+    res.status(400).json({ message: error.message || 'Server error' });
+  } finally {
+    client.release();
+  }
+};
+
+// Get Core Body's stock ledger (historical transactions)
+const getCoreBodyStockLedger = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const query = `
+      SELECT 
+        il.*, 
+        p.name as product_name, 
+        p.sku as product_sku,
+        pv.variant_name
+      FROM inventory_ledger il
+      JOIN products p ON il.product_id = p.id
+      LEFT JOIN product_variants pv ON il.variant_id = pv.id
+      WHERE il.entity_id = $1 AND il.entity_type = 'core_body'
+      ORDER BY il.created_at DESC
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    res.json({ ledger: result.rows });
+  } catch (error) {
+    console.error('Get core body stock ledger error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -836,5 +974,8 @@ module.exports = {
   getDirectoryUserDetail,
   getDistrictPerformanceSnapshot,
   getDistrictDealers,
-  getCoreBodyInventory
+  getCoreBodyInventory,
+  getCoreBodyStockLedger,
+  blockCoreBodyStock,
+  releaseCoreBodyStock
 };

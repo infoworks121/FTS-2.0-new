@@ -71,9 +71,10 @@ export default function AddNewProduct() {
 
   const getRedirectPath = () => {
     const basePath = window.location.pathname;
-    if (basePath.startsWith('/admin')) return "/admin/products";
-    if (basePath.startsWith('/stockpoint') || user?.is_sph) return "/stockpoint/b2c-manager/listings";
+    if (basePath.startsWith('/stockpoint')) return "/stockpoint/b2c-manager/listings";
+    if (basePath.startsWith('/corebody')) return "/corebody/b2c-manager/listings";
     if (basePath.startsWith('/businessman')) return "/businessman/b2c-manager/listings";
+    if (user?.is_sph) return "/stockpoint/b2c-manager/listings";
     return "/admin/products"; // Default
   };
 

@@ -111,6 +111,45 @@ export const coreBodyApi = {
     const response = await api.get('/corebody-profile/inventory');
     return response.data;
   },
+  getCoreBodyStockLedger: async (): Promise<{ ledger: StockLedgerEntry[] }> => {
+    const response = await api.get('/corebody-profile/inventory-ledger');
+    return response.data;
+  },
+  blockStock: async (data: { product_id: string; quantity: number; note?: string }) => {
+    const response = await api.post('/corebody-profile/block-stock', data);
+    return response.data;
+  },
+  releaseStock: async (data: { product_id: string; quantity: number; note?: string }) => {
+    const response = await api.post('/corebody-profile/release-stock', data);
+    return response.data;
+  },
 };
+
+export interface StockLedgerEntry {
+  id: string;
+  product_id: string;
+  variant_id: string | null;
+  product_name: string;
+  product_sku: string;
+  variant_name: string | null;
+  entity_type: string;
+  entity_id: string;
+  transaction_type: string;
+  quantity: string;
+  unit: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  note: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CoreBodyInventoryItem {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  quantity: string | number;
+  reserved: string | number;
+}
 
 export default coreBodyApi;

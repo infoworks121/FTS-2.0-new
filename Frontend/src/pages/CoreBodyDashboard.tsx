@@ -17,17 +17,22 @@ import { useState, useEffect } from "react";
 
 import { getCoreBodyFlatNavItems } from "@/config/coreBodySidebarConfig";
 
-const getUserType = () => {
+export const getUserContext = (providedUser?: any) => {
   try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.role_code === 'core_body_b') return 'B';
-    if (user.role_code === 'dealer') return 'Dealer';
-    return 'A';
+    const user = providedUser || JSON.parse(localStorage.getItem('user') || '{}');
+    const type = user.role_code === 'core_body_b' ? 'B' : (user.role_code === 'dealer' ? 'Dealer' : 'A');
+    return {
+      coreBodyType: type as any,
+      isSPH: (!!user.is_sph && String(user.is_sph).toLowerCase() !== 'false' && String(user.is_sph) !== '0')
+    };
   } catch {
-    return 'A';
+    return { coreBodyType: 'A' as any, isSPH: false };
   }
 };
-export const navItems = getCoreBodyFlatNavItems(getUserType() as any);
+
+export const getNavItems = () => getCoreBodyFlatNavItems(getUserContext());
+
+export const navItems = getNavItems();
 
 const earningsData = [
   { week: "W1", earnings: 8200 },
@@ -137,6 +142,9 @@ export default function CoreBodyDashboard() {
   const capLabel = isTypeA ? "Annual Cap" : "Monthly Cap";
   const typeStr = stats?.profile?.type ? `Type ${stats.profile.type}` : "Type A";
   const distName = stats?.profile?.district_name || "North";
+
+  const context = getUserContext();
+  const navItems = getCoreBodyFlatNavItems(context);
 
   return (
     <DashboardLayout role="corebody" navItems={navItems as any} roleLabel={`Core Body — District ${distName}`}>

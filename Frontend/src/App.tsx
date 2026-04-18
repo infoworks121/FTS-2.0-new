@@ -8,7 +8,8 @@ import React, { useState } from "react";
 import SplashScreen from "./components/SplashScreen";
 import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
-import CoreBodyDashboard, { navItems as coreBodyNavItems } from "./pages/CoreBodyDashboard";
+import CoreBodyDashboard, { getUserContext } from "./pages/CoreBodyDashboard";
+import { getCoreBodyFlatNavItems } from "./config/coreBodySidebarConfig";
 import BusinessmanDashboard from "./pages/BusinessmanDashboard";
 import SPHDashboard from "./pages/SPHDashboard";
 import MyReferralsPage from "./pages/businessman/referrals/MyReferralsPage";
@@ -23,6 +24,7 @@ import SelectRole from "./pages/SelectRole";
 import GoogleRedirect from "./pages/GoogleRedirect";
 import { CartProvider } from "./context/CartContext";
 import { PinSetupGuard } from "./components/auth/PinSetupGuard";
+import api from "./lib/api";
 
 // Settings Layout
 import { SettingsLayout } from "./components/settings/SettingsLayout";
@@ -54,6 +56,8 @@ import StockPointShareRules from "./pages/commission/StockPointShareRules";
 // Products & Categories Pages
 import AllProducts from "./pages/products/AllProducts";
 import AddNewProduct from "./pages/products/AddNewProduct";
+import B2CManageView from "./pages/sph/B2CManager";
+import CatalogPickView from "./pages/sph/CatalogPicker";
 
 import ProductPricing from "./pages/products/ProductPricing";
 import ProductStatus from "./pages/products/ProductStatus";
@@ -84,7 +88,7 @@ import EarningsReport from "./pages/corebody/reports/EarningsReport";
 import StockMovementReport from "./pages/corebody/reports/StockMovementReport";
 import OrderReport from "./pages/corebody/reports/OrderReport";
 import DealerPerformanceReport from "./pages/corebody/reports/DealerPerformanceReport";
-import { StockAdjustment, StockSettings } from "./pages/corebody/stock";
+import { StockAdjustment, StockSettings, StockLedger, StockBlockRelease } from "./pages/corebody/stock";
 import AllDealers from "./pages/corebody/dealers-businessmen/AllDealers";
 import CoreBodyAllBusinessmen from "./pages/corebody/dealers-businessmen/AllBusinessmen";
 import StatusActiveInactive from "./pages/corebody/dealers-businessmen/StatusActiveInactive";
@@ -158,6 +162,22 @@ const queryClient = new QueryClient();
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem('user') || 'null'));
+
+  const syncSession = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await api.get('/auth/me');
+      if (response.data && response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      console.error("Session sync failed:", error);
+    }
+  };
 
   // Only show splash on landing page
   React.useEffect(() => {
@@ -166,7 +186,18 @@ const App = () => {
       setLoading(false);
       setShowSplash(false);
     }
+    syncSession();
   }, []);
+
+  const CoreBodyLayout = ({ children }: { children: React.ReactNode }) => {
+    const context = getUserContext(user);
+    const navItems = getCoreBodyFlatNavItems(context);
+    return (
+      <DashboardLayout role="corebody" navItems={navItems as any}>
+        {children}
+      </DashboardLayout>
+    );
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -325,6 +356,8 @@ const App = () => {
             <Route path="/corebody/reports/orders" element={<OrderReport />} />
             <Route path="/corebody/reports/dealer-performance" element={<DealerPerformanceReport />} />
             <Route path="/corebody/stock/adjustment" element={<StockAdjustment />} />
+            <Route path="/corebody/stock/ledger" element={<StockLedger />} />
+            <Route path="/corebody/stock/block-release" element={<StockBlockRelease />} />
             <Route path="/corebody/stock/settings" element={<StockSettings />} />
             <Route path="/corebody/stock/demand-signals" element={<DemandSignals />} />
             <Route path="/corebody/stock/physical-transfer" element={<PhysicalTransfer />} />
@@ -352,11 +385,16 @@ const App = () => {
             <Route path="/corebody/wallet/withdrawals" element={<CoreBodyWithdrawalHistory />} />
             <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyWithdrawalRequest />} />
 
-            {/* Core Body Referral Routes */}
-            <Route path="/corebody/referrals" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><MyReferralsPage /></DashboardLayout>} />
-            <Route path="/corebody/referrals/my-referrals" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><MyReferralsPage /></DashboardLayout>} />
-            <Route path="/corebody/referrals/earnings" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><ReferralEarningsPage /></DashboardLayout>} />
-            <Route path="/corebody/referrals/history" element={<DashboardLayout role="corebody" navItems={coreBodyNavItems as any}><ReferralHistoryPage /></DashboardLayout>} />
+             {/* Core Body Referral Routes */}
+             <Route path="/corebody/referrals" element={<CoreBodyLayout><MyReferralsPage /></CoreBodyLayout>} />
+             <Route path="/corebody/referrals/my-referrals" element={<CoreBodyLayout><MyReferralsPage /></CoreBodyLayout>} />
+             <Route path="/corebody/referrals/earnings" element={<CoreBodyLayout><ReferralEarningsPage /></CoreBodyLayout>} />
+             <Route path="/corebody/referrals/history" element={<CoreBodyLayout><ReferralHistoryPage /></CoreBodyLayout>} />
+
+             {/* Core Body B2C Manager (SPH) Routes */}
+             <Route path="/corebody/b2c-manager/listings" element={<CoreBodyLayout><B2CManageView /></CoreBodyLayout>} />
+             <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayout><CatalogPickView /></CoreBodyLayout>} />
+             <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayout><AddNewProduct /></CoreBodyLayout>} />
 
             {/* Other Routes */}
             <Route path="/stockpoint/*" element={<SPHDashboard />} />

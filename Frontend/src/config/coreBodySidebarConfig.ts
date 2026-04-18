@@ -41,6 +41,7 @@ import {
   Download,
   ClipboardCheck,
   Settings,
+  UserPlus,
   LucideIcon,
 } from "lucide-react";
 
@@ -60,6 +61,7 @@ export interface CoreBodySubMenuItem {
   badge?: CoreBodyBadge;
   readOnly?: boolean;
   coreBodyAOnly?: boolean;
+  isSPHOnly?: boolean;
 }
 
 export interface CoreBodyNavGroup {
@@ -115,7 +117,13 @@ export const defaultCapData: CapData = {
 
 // ─── Navigation Groups ──────────────────────────────────────────────────────
 
-export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGroup[] {
+export interface CoreBodySidebarContext {
+  coreBodyType: CoreBodyType;
+  isSPH: boolean;
+}
+
+export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyNavGroup[] {
+  const { coreBodyType, isSPH } = context;
   return [
     // ── 1) DASHBOARD ──
     {
@@ -189,6 +197,7 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               title: "Stock Inventory",
               url: "/corebody/stock/current-inventory",
               readOnly: coreBodyType === "B",
+              isSPHOnly: true, // Custom flag to handle in getCoreBodyFlatNavItems if needed, or I can just filter here
             },
             {
               title: "Stock Ledger",
@@ -219,19 +228,15 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               url: "/corebody/stock/directed-tasks",
               badge: { count: 1, variant: "danger", label: "Admin Request" }
             },
-            {
-              title: "Demand Signals",
-              url: "/corebody/stock/demand-signals",
-              badge: { count: 1, variant: "warning", label: "New messages" }
-            },
+
           ],
           safety: "control",
         },
       ],
     },
 
-    // ── 3) B2C MANAGEMENT ──
-    {
+    // ── 3) B2C MANAGEMENT (SPH ONLY) ──
+    ...(isSPH ? [{
       groupLabel: "B2C Management",
       groupIcon: Truck,
       purpose: "B2C fulfillment tracking, delivery performance, and return management.",
@@ -279,7 +284,7 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
           safety: "control",
         },
       ],
-    },
+    }] : []),
 
     // ── 3) USER MANAGEMENT ──
     {
@@ -474,13 +479,33 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
         },
       ],
     },
+    // ── 8) B2C MARKET MANAGER (SPH ONLY) ──
+    ...(isSPH ? [{
+      groupLabel: "B2C Market Manager",
+      groupIcon: ShoppingCart,
+      purpose: "Manage listings, browse catalog, and add custom products for B2C marketplace.",
+      items: [
+        {
+          key: "b2cMarketplace",
+          title: "B2C Market Manager",
+          url: "/corebody/b2c-manager",
+          icon: ShoppingCart,
+          submenu: [
+            { title: "My B2C Listings", url: "/corebody/b2c-manager/listings", icon: ListChecks },
+            { title: "Browse Bulk Catalog", url: "/corebody/b2c-manager/browse", icon: Package },
+            { title: "Add Custom Product", url: "/corebody/b2c-manager/add-custom", icon: UserPlus },
+          ],
+        },
+      ],
+    }] : []),
   ];
 }
 
 // ─── Flat nav items for simple sidebar (backward compat) ─────────────────────
 
-export function getCoreBodyFlatNavItems(coreBodyType: CoreBodyType): CoreBodyNavItem[] {
-  const groups = getCoreBodyNavGroups(coreBodyType);
+export function getCoreBodyFlatNavItems(context: CoreBodySidebarContext): CoreBodyNavItem[] {
+  const { coreBodyType } = context;
+  const groups = getCoreBodyNavGroups(context);
   return groups.flatMap((group) =>
     group.items
       .filter((item) => {
@@ -496,6 +521,7 @@ export function getCoreBodyFlatNavItems(coreBodyType: CoreBodyType): CoreBodyNav
             ...item,
             submenu: item.submenu.filter((sub) => {
               if (sub.coreBodyAOnly && coreBodyType !== "A") return false;
+              if (sub.isSPHOnly && !context.isSPH) return false;
               return true;
             }),
           };
