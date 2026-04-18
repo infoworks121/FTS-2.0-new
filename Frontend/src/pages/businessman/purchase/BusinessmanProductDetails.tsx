@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { productApi } from "@/lib/productApi";
 import { orderApi } from "@/lib/orderApi";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { NavItem } from "@/components/DashboardLayout";
+import { sidebarNavItems as adminNavItems } from "@/config/sidebarConfig";
 import { getBusinessmanSidebarNavItems } from "@/config/businessmanSidebarConfig";
 import { getSPHSidebarNavItems } from "@/config/sphSidebarConfig";
-import { NavItem } from "@/types/nav";
+import { getCoreBodyFlatNavItems } from "@/config/coreBodySidebarConfig";
 import { 
   ArrowLeft, ShoppingCart, ShieldCheck, 
   Truck, Star, ChevronRight, Info, 
@@ -150,20 +152,77 @@ export default function BusinessmanProductDetails() {
 
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : null;
-  const navItems = user?.role_code === 'stock_point' 
-    ? getSPHSidebarNavItems({ permissions: user?.permissions || [] })
-    : getBusinessmanSidebarNavItems({ permissions: user?.permissions || [] });
+  const roleCode = user?.role_code || "guest";
+  const layoutProps = useMemo(() => {
+    switch (roleCode) {
+      case "admin":
+        return {
+          role: "admin" as const,
+          roleLabel: "Super Admin",
+          navItems: adminNavItems as NavItem[]
+        };
+      case "businessman":
+        return {
+          role: "businessman" as const,
+          roleLabel: `Businessman — ${user?.full_name || 'Business'}`,
+          navItems: getBusinessmanSidebarNavItems({
+            isStockPoint: user?.is_sph || false,
+            bulkEnabled: true,
+            entryModeEnabled: true,
+            advanceModeEnabled: true,
+            businessmanType: user?.businessman_type,
+            permissions: user?.permissions || [],
+            blockedMenus: {},
+          }) as NavItem[]
+        };
+      case "stock_point":
+        return {
+          role: "stock_point" as const,
+          roleLabel: "STOCK POINT HOLDER",
+          navItems: getSPHSidebarNavItems({
+            permissions: user?.permissions || [],
+          }) as NavItem[]
+        };
+      case "core_body":
+      case "core_body_a":
+      case "core_body_b":
+        const type = user?.core_body_type || (roleCode === "core_body_a" ? "A" : "B");
+        return {
+          role: "corebody" as const,
+          roleLabel: `CORE BODY TYPE ${type}`,
+          navItems: getCoreBodyFlatNavItems({
+            coreBodyType: type as any,
+            isSPH: !!user?.is_sph
+          }) as NavItem[]
+        };
+      case "dealer":
+        return {
+          role: "dealer" as const,
+          roleLabel: "SUBDIVISION DEALER",
+          navItems: getCoreBodyFlatNavItems({
+            coreBodyType: "Dealer",
+            isSPH: !!user?.is_sph
+          }) as NavItem[]
+        };
+      default:
+        return null;
+    }
+  }, [roleCode, user]);
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-[600px] w-full rounded-xl" /></div>;
   if (error || !product) return <div className="p-8 text-center text-red-500">Product not found.</div>;
 
-  return (
-    <DashboardLayout 
-      role={user?.role_code || "businessman"} 
-      roleLabel={`${(user?.role_code || "businessman").replace("_", " ").toUpperCase()}`} 
-      navItems={navItems as NavItem[]}
-    >
+  if (!layoutProps) {
+    return (
       <div className="bg-white min-h-screen">
+        {/* Breadcrumb row could go here */}
+      </div>
+    );
+  }
+
+  return (
+    <DashboardLayout {...layoutProps}>
+      <div className="bg-white">
         {/* Top Breadcrumb & Back */}
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">

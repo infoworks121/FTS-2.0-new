@@ -289,7 +289,14 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
 
   const location = useLocation();
   const navigate = useNavigate();
-  const RoleIcon = roleIcons[role];
+  const normalizeRole = (r: string): UserRole => {
+    if (r.startsWith("core_body")) return "corebody";
+    return r as UserRole;
+  };
+
+  const normalizedRole = normalizeRole(role);
+  const RoleIcon = roleIcons[normalizedRole] || Shield;
+  const roleColor = roleColors[normalizedRole] || "text-slate-400";
   const { theme, toggleTheme } = useTheme();
   const [balance, setBalance] = useState<number | null>(null);
 
@@ -408,7 +415,7 @@ export function DashboardLayout({ children, role, navItems, roleLabel }: Dashboa
           "flex items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-2",
           collapsed && !isMobile && "justify-center px-0"
         )}>
-          <RoleIcon className={cn("h-4 w-4 shrink-0", roleColors[role])} />
+          <RoleIcon className={cn("h-4 w-4 shrink-0", roleColor)} />
           {(!collapsed || isMobile) && (
             <span className="text-[11px] font-bold text-sidebar-accent-foreground truncate">
               {finalRoleLabel} - {userName}

@@ -15,6 +15,7 @@ import SPHDashboard from "./pages/SPHDashboard";
 import MyReferralsPage from "./pages/businessman/referrals/MyReferralsPage";
 import ReferralEarningsPage from "./pages/businessman/referrals/ReferralEarningsPage";
 import ReferralHistoryPage from "./pages/businessman/referrals/ReferralHistoryPage";
+import BusinessmanProductDetails from "./pages/businessman/purchase/BusinessmanProductDetails";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/LoginNew";
 import Register from "./pages/Register";
