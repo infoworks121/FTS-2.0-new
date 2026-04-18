@@ -72,6 +72,14 @@ export const walletApi = {
     return response.data as { users: UserWalletBalance[], total: number, page: number, limit: number };
   },
 
+  getUserTransactions: async (userId: string, page: number = 1, limit: number = 50) => {
+    const response = await api.get(`/wallet/admin/users/${userId}/transactions`, { 
+      params: { page, limit } 
+    });
+    return response.data as { transactions: any[], total: number, page: number, limit: number };
+  },
+
+
   updateDepositStatus: async (id: string, status: 'approved' | 'rejected', admin_note?: string) => {
     const response = await api.put(`/wallet/admin/deposit-requests/${id}/status`, {
       status,

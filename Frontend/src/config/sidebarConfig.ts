@@ -169,7 +169,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
       { title: "Reserve Fund Wallet", url: "/admin/wallet/reserve" },
       { title: "Withdrawal Requests", url: "/admin/wallet/withdrawals" },
       { title: "Deposit Requests", url: "/admin/wallet/deposits" },
-      { title: "Pending Approvals", url: "/admin/wallet/approvals" },
+      { title: "Installment Approval", url: "/admin/wallet/approvals" },
       { title: "Approved / Rejected History", url: "/admin/wallet/history" },
       { title: "TDS Configuration", url: "/admin/finance/tds" },
       { title: "Processing Fee Rules", url: "/admin/finance/fees" },

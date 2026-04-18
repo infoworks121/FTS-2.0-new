@@ -34,5 +34,10 @@ export const stockApi = {
   confirmReceipt: async (allocationId: string) => {
     const res = await api.put(`/stock/receive/${allocationId}`);
     return res.data;
+  },
+  
+  getCurrentInventory: async () => {
+    const res = await api.get('/stock/current-inventory');
+    return res.data;
   }
 };

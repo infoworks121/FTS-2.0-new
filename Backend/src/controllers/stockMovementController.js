@@ -161,3 +161,58 @@ exports.getDistrictStock = async (req, res) => {
 
 exports.getDistrictAggregatedStock = getDistrictAggregatedStock;
 exports.findBestDealerForAllocation = findBestDealerForAllocation;
+
+/**
+ * Get comprehensive inventory for a Core Body user (Personal + District Aggregated)
+ */
+exports.getCoreBodyInventory = async (req, res) => {
+    try {
+        const user = req.user;
+        
+        // 1. Get Core Body District
+        const profileQuery = `SELECT district_id FROM core_body_profiles WHERE user_id = $1`;
+        const profile = await db.query(profileQuery, [user.id]);
+        const district_id = profile.rows[0]?.district_id;
+
+        if (!district_id) {
+            return res.status(400).json({ error: 'Core Body profile or district not found' });
+        }
+
+        // 2. Fetch all active products with personal stock and district aggregated stock
+        const query = `
+            SELECT 
+                p.id, 
+                p.name, 
+                p.sku, 
+                c.name as category_name,
+                p.base_price,
+                COALESCE(ib.quantity_on_hand, 0) as my_stock,
+                (
+                    SELECT COALESCE(SUM(dist_ib.quantity_on_hand), 0)
+                    FROM inventory_balances dist_ib
+                    LEFT JOIN core_body_profiles dist_cbp ON dist_ib.entity_id = dist_cbp.user_id AND dist_ib.entity_type = 'core_body'
+                    LEFT JOIN dealer_profiles dist_dp ON dist_ib.entity_id = dist_ib.entity_id AND dist_ib.entity_type = 'dealer'
+                    WHERE dist_ib.product_id = p.id
+                      AND (dist_cbp.district_id = $2 OR dist_dp.district_id = $2)
+                ) as district_stock,
+                ib.last_updated_at
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN inventory_balances ib ON p.id = ib.product_id 
+                AND ib.entity_id = $1 
+                AND ib.entity_type = 'core_body'
+            WHERE p.is_active = true
+            ORDER BY p.name ASC
+        `;
+        
+        const result = await db.query(query, [user.id, district_id]);
+        res.json({ 
+            inventory: result.rows,
+            district_id,
+            timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('Error fetching Core Body inventory:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

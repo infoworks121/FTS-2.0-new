@@ -9,6 +9,7 @@ import {
   UserCheck,
   UserX,
   ShoppingCart,
+  ShoppingBag,
   Truck,
   Clock,
   Wallet,
@@ -168,30 +169,27 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
       ],
     },
 
-    // ── 2) ORDER & INVENTORY MANAGEMENT ──
+    // ── 2) B2B MANAGEMENT ──
     {
-      groupLabel: "Order & Inventory",
-      groupIcon: Package,
-      purpose: "Consolidated district inventory controls and order fulfillment monitoring.",
+      groupLabel: "B2B Management",
+      groupIcon: ShoppingBag,
+      purpose: "District-level B2B operations, bulk inventory controls, and dealer routing.",
       items: [
         {
-          title: "Order & Inventory Management",
-          icon: Package,
-          badge: (coreBodyBadgeState.pendingOrders + coreBodyBadgeState.pendingFulfilments) > 0
+          title: "B2B Operations",
+          icon: ShoppingBag,
+          badge: coreBodyBadgeState.pendingOrders > 0
             ? {
-                count: coreBodyBadgeState.pendingOrders + coreBodyBadgeState.pendingFulfilments,
-                variant: coreBodyBadgeState.pendingFulfilments > 0 ? "warning" : "default",
+                count: coreBodyBadgeState.pendingOrders,
+                variant: "default",
               }
             : undefined,
           submenu: [
-            // Stock Operations
-
             {
               title: "Stock Inventory",
               url: "/corebody/stock/current-inventory",
               readOnly: coreBodyType === "B",
             },
-
             {
               title: "Stock Ledger",
               url: "/corebody/stock/ledger",
@@ -203,9 +201,14 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               coreBodyAOnly: true,
             },
             {
-              title: "Demand Signals",
-              url: "/corebody/stock/demand-signals",
-              badge: { count: 1, variant: "warning", label: "New messages" }
+              title: "B2B Orders",
+              url: "/corebody/orders/b2b-orders",
+              badge: coreBodyBadgeState.pendingOrders > 0
+                ? {
+                    count: coreBodyBadgeState.pendingOrders,
+                    variant: "default",
+                  }
+                : undefined,
             },
             {
               title: "Dispatch Stock",
@@ -216,17 +219,33 @@ export function getCoreBodyNavGroups(coreBodyType: CoreBodyType): CoreBodyNavGro
               url: "/corebody/stock/directed-tasks",
               badge: { count: 1, variant: "danger", label: "Admin Request" }
             },
-            // Order Operations
             {
-              title: "B2B Orders",
-              url: "/corebody/orders/b2b-orders",
-              badge: coreBodyBadgeState.pendingOrders > 0
-                ? {
-                    count: coreBodyBadgeState.pendingOrders,
-                    variant: "default",
-                  }
-                : undefined,
+              title: "Demand Signals",
+              url: "/corebody/stock/demand-signals",
+              badge: { count: 1, variant: "warning", label: "New messages" }
             },
+          ],
+          safety: "control",
+        },
+      ],
+    },
+
+    // ── 3) B2C MANAGEMENT ──
+    {
+      groupLabel: "B2C Management",
+      groupIcon: Truck,
+      purpose: "B2C fulfillment tracking, delivery performance, and return management.",
+      items: [
+        {
+          title: "B2C Operations",
+          icon: Truck,
+          badge: coreBodyBadgeState.pendingFulfilments > 0
+            ? {
+                count: coreBodyBadgeState.pendingFulfilments,
+                variant: "warning",
+              }
+            : undefined,
+          submenu: [
             {
               title: "B2C Fulfillment",
               url: "/corebody/orders/b2c-fulfillment",
