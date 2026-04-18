@@ -36,7 +36,7 @@ exports.getBulkCatalogForSPH = async (req, res) => {
     
     params.push(limit, offset);
     const result = await db.query(`
-      SELECT p.id, p.name, p.sku, p.thumbnail_url, c.name as category_name,
+      SELECT p.id, p.name, p.sku, p.slug, p.thumbnail_url, c.name as category_name,
              pp.mrp, pp.base_price as bulk_price, pp.selling_price as recommended_retail_price
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
@@ -119,7 +119,7 @@ exports.getMyB2CListings = async (req, res) => {
     const { search, category_id } = req.query;
 
     let query = `
-      SELECT ml.*, p.name, p.sku, p.thumbnail_url, c.name as category_name,
+      SELECT ml.*, p.name, p.sku, p.slug, p.thumbnail_url, c.name as category_name,
              pp.mrp, pp.base_price as bulk_price
       FROM market_listings ml
       JOIN products p ON ml.product_id = p.id
@@ -217,12 +217,16 @@ exports.createCustomSPHProduct = async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Create Product
+    const slug = name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') + '-' + sku.toLowerCase();
+
     const productResult = await client.query(
       `INSERT INTO products 
-       (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8) 
+       (category_id, name, sku, slug, description, type, thumbnail_url, image_urls, is_active, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9) 
        RETURNING id`,
-      [category_id, name, sku, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id]
+      [category_id, name, sku, slug, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id]
     );
     const productId = productResult.rows[0].id;
 

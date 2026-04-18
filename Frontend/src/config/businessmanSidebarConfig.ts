@@ -75,7 +75,8 @@ export const businessmanSidebarBadgeState = {
   slaWarnings: 1,
 };
 
-const hasPermission = (permissions: string[], permission: string) => permissions.includes(permission);
+const hasPermission = (permissions: string[], permission: string) => 
+  permissions.includes("*") || permissions.includes(permission);
 
 const withBlockedState = (
   item: BusinessmanNavItem,

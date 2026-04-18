@@ -79,6 +79,7 @@ interface IssuedProduct {
   available_stock: number;
   fulfiller_type?: string;
   source_district_id?: number;
+  slug?: string;
 }
 
 type SortOption = "relevance" | "trending" | "newest" | "price_low" | "price_high";
@@ -343,6 +344,7 @@ export default function IssuedProducts() {
           roleLabel: "Super Admin",
           navItems: adminNavItems as NavItem[]
         };
+      case "retailer":
       case "businessman":
         return {
           role: "businessman" as const,
@@ -396,6 +398,21 @@ export default function IssuedProducts() {
           }) as NavItem[]
         };
       default:
+        if (user?.id) {
+           return {
+             role: "businessman" as const,
+             roleLabel: user?.full_name || 'User',
+             navItems: getBusinessmanSidebarNavItems({
+               isStockPoint: user?.is_sph || false,
+               bulkEnabled: true,
+               entryModeEnabled: true,
+               advanceModeEnabled: true,
+               businessmanType: user?.businessman_type,
+               permissions: user?.permissions || [],
+               blockedMenus: {},
+             }) as NavItem[]
+           };
+        }
         return null;
     }
   }, [roleCode, user]);

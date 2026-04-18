@@ -268,7 +268,7 @@ const App = () => {
             <Route path="/corebody/stock/current-inventory" element={<CurrentInventory />} />
 
             <Route path="/products-issued" element={<IssuedProducts />} />
-            <Route path="/products-issued/:sku" element={<BusinessmanProductDetails />} />
+            <Route path="/products-issued/:slug" element={<BusinessmanProductDetails />} />
             
             {/* Service Catalog Routes */}
             <Route path="/admin/services" element={<ProductsPageLayout><AllServices /></ProductsPageLayout>} />

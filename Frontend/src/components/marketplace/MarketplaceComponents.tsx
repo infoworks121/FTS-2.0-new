@@ -26,6 +26,8 @@ import { IMAGE_BASE_URL } from "@/lib/api";
 interface Product {
   id: string;
   name: string;
+  sku: string;
+  slug: string;
   category_name: string;
   thumbnail_url: string;
   selling_price: string;
@@ -63,7 +65,12 @@ export const ProductCardGrid = ({
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
-  const detailUrl = `/products-issued/${product.sku}`;
+  const detailUrl = (() => {
+    if (product.slug) return `/products-issued/${product.slug}`;
+    const cleanName = (product.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const suffix = product.sku ? `-${product.sku.toLowerCase()}` : '';
+    return `/products-issued/${cleanName}${suffix}`;
+  })();
 
   const discount = product.mrp && Number(product.mrp) > Number(product.selling_price)
     ? Math.round(((Number(product.mrp) - Number(product.selling_price)) / Number(product.mrp)) * 100)
@@ -187,7 +194,7 @@ export const ProductCardList = ({
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
-  const detailUrl = `/products-issued/${product.sku}`;
+  const detailUrl = `/products-issued/${product.slug || product.sku}`;
 
   return (
     <Card className="group overflow-hidden border-slate-200 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-sm bg-white shadow-sm rounded-xl relative">

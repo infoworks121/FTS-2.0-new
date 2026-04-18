@@ -65,6 +65,12 @@ export default function AddNewProduct() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
+  // SKU & Slug Validation States
+  const [skuStatus, setSkuStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const [isSlugManual, setIsSlugManual] = useState(false);
+  const [slug, setSlug] = useState(editingProduct?.slug || "");
+
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
@@ -141,7 +147,49 @@ export default function AddNewProduct() {
   const handleInputChange = (field: keyof ProductFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
+
+    // Auto-generate slug if not manual
+    if (!isSlugManual && (field === "name" || field === "sku")) {
+      const newName = field === "name" ? value : formData.name;
+      const newSku = field === "sku" ? value : formData.sku;
+      if (newName && newSku) {
+        const base = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const newSlug = `${base}-${newSku.toLowerCase()}`;
+        setSlug(newSlug);
+      }
+    }
   };
+
+  // Debounced Availability Check
+  useEffect(() => {
+    if (!formData.sku && !slug) {
+      setSkuStatus('idle');
+      setSlugStatus('idle');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (formData.sku) setSkuStatus('checking');
+      if (slug) setSlugStatus('checking');
+
+      try {
+        const res = await productApi.checkAvailability({
+          sku: formData.sku || undefined,
+          slug: slug || undefined,
+          excludeId: editingProduct?.id
+        });
+
+        if (formData.sku) setSkuStatus(res.sku ? 'available' : 'taken');
+        if (slug) setSlugStatus(res.slug ? 'available' : 'taken');
+      } catch (err) {
+        console.error("Availability check failed", err);
+        setSkuStatus('error');
+        setSlugStatus('error');
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.sku, slug, editingProduct?.id]);
 
   const handleVariantChange = (index: number, field: keyof ProductVariant, value: any) => {
     const newVariants = [...(formData.variants || [])];
@@ -216,10 +264,10 @@ export default function AddNewProduct() {
     setError(null);
     try {
       if (editingProduct?.id) {
-        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'active' });
+        await productApi.update(editingProduct.id, { ...formData, slug, mrp: formData.mrp || 0, status: 'active' });
       } else {
         const isAdmin = window.location.pathname.startsWith('/admin');
-        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'active' };
+        const finalData = { ...formData, slug, mrp: formData.mrp || 0, status: 'active' };
         if (isAdmin) {
           await productApi.create(finalData);
         } else {
@@ -241,10 +289,10 @@ export default function AddNewProduct() {
     setError(null);
     try {
       if (editingProduct?.id) {
-        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'draft' });
+        await productApi.update(editingProduct.id, { ...formData, slug, mrp: formData.mrp || 0, status: 'draft' });
       } else {
         const isAdmin = window.location.pathname.startsWith('/admin');
-        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'draft' };
+        const finalData = { ...formData, slug, mrp: formData.mrp || 0, status: 'draft' };
         if (isAdmin) {
           await productApi.create(finalData);
         } else {
@@ -286,7 +334,7 @@ export default function AddNewProduct() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.name && formData.sku && formData.categoryId && formData.type;
+        return formData.name && formData.sku && formData.categoryId && formData.type && skuStatus === 'available' && slugStatus === 'available';
       case 2:
         return true;
       case 3:
@@ -333,13 +381,60 @@ export default function AddNewProduct() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sku">SKU / Code *</Label>
+                    <Label htmlFor="sku" className={cn(skuStatus === 'taken' && "text-red-500")}>SKU / Code *</Label>
+                    <div className="relative">
+                      <Input
+                        id="sku"
+                        placeholder="e.g., WBH-001"
+                        value={formData.sku}
+                        onChange={(e) => handleInputChange("sku", e.target.value)}
+                        className={cn(
+                          skuStatus === 'taken' && "border-red-500 focus-visible:ring-red-500",
+                          skuStatus === 'available' && "border-green-500 focus-visible:ring-green-500"
+                        )}
+                      />
+                      {skuStatus === 'checking' && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                      {skuStatus === 'available' && <Check className="absolute right-3 top-3 h-4 w-4 text-green-500" />}
+                      {skuStatus === 'taken' && <AlertTriangle className="absolute right-3 top-3 h-4 w-4 text-red-500" />}
+                    </div>
+                    {skuStatus === 'taken' && <p className="text-[10px] font-bold text-red-500">Please change this SKU name, it's already in database</p>}
+                    {skuStatus === 'available' && <p className="text-[10px] font-bold text-green-600">SKU is available</p>}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                   <div className="flex items-center justify-between">
+                     <Label htmlFor="slug" className={cn(slugStatus === 'taken' && "text-red-500")}>URL Slug (Auto-generated)</Label>
+                     <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setIsSlugManual(!isSlugManual)}
+                      className="h-6 text-[10px] uppercase tracking-tighter"
+                     >
+                       {isSlugManual ? "Auto Generate" : "Edit Manually"}
+                     </Button>
+                   </div>
+                   <div className="relative">
                     <Input
-                      id="sku"
-                      placeholder="e.g., WBH-001"
-                      value={formData.sku}
-                      onChange={(e) => handleInputChange("sku", e.target.value)}
+                      id="slug"
+                      value={slug}
+                      readOnly={!isSlugManual}
+                      onChange={(e) => {
+                        setSlug(e.target.value);
+                        setIsSlugManual(true);
+                      }}
+                      className={cn(
+                        "bg-muted/30 font-mono text-xs",
+                        !isSlugManual && "opacity-70",
+                        slugStatus === 'taken' && "border-red-500 focus-visible:ring-red-500",
+                        slugStatus === 'available' && "border-green-500 focus-visible:ring-green-500"
+                      )}
                     />
+                    {slugStatus === 'checking' && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                    {slugStatus === 'available' && <Check className="absolute right-3 top-3 h-4 w-4 text-green-500" />}
+                    {slugStatus === 'taken' && <AlertTriangle className="absolute right-3 top-3 h-4 w-4 text-red-500" />}
+                   </div>
+                   {slugStatus === 'taken' && <p className="text-[10px] font-bold text-red-500">This URL slug is already taken, try a different name or SKU</p>}
+                   {!isSlugManual && <p className="text-[10px] text-muted-foreground italic">Generated from name and SKU for SEO.</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="brand">Brand Name (Optional)</Label>

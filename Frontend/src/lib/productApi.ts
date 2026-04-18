@@ -237,4 +237,15 @@ export const productApi = {
     const res = await api.post('/sph/products/custom', payload);
     return res.data;
   },
+
+  // Check SKU / Slug availability
+  checkAvailability: async (params: { sku?: string; slug?: string; excludeId?: string }) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val) query.append(key, val);
+    });
+    const res = await api.get(`/catalog/check-availability?${query.toString()}`);
+    return res.data; // returns { sku: boolean, slug: boolean }
+  },
 };
+

@@ -383,6 +383,7 @@ const login = async (req, res) => {
                 core_body_type,
                 is_sph: user.is_sph,
                 has_transaction_pin,
+                permissions: ['*'] // Default allow-all for now
             },
             token,
         });
@@ -443,10 +444,38 @@ const getMe = async (req, res) => {
         );
 
         if (userResult.rows.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'User found' });
         }
 
-        res.json(userResult.rows[0]);
+        const user = userResult.rows[0];
+        
+        // Fetch profiles
+        let businessman_type = null;
+        let core_body_type = null;
+
+        if (user.role_code === 'businessman') {
+            const bProfile = await db.query('SELECT type FROM businessman_profiles WHERE user_id = $1', [user.id]);
+            if (bProfile.rows.length > 0) businessman_type = bProfile.rows[0].type;
+        } else if (user.role_code.startsWith('core_body')) {
+            const cProfile = await db.query('SELECT type FROM core_body_profiles WHERE user_id = $1', [user.id]);
+            if (cProfile.rows.length > 0) core_body_type = cProfile.rows[0].type;
+        }
+
+        // Return structured user object inside 'user' key for consistency
+        res.json({
+            user: {
+                id: user.id,
+                phone: user.phone,
+                email: user.email,
+                full_name: user.full_name,
+                role_code: user.role_code,
+                businessman_type,
+                core_body_type,
+                is_sph: user.is_sph,
+                has_transaction_pin: user.has_transaction_pin,
+                permissions: ['*'] // Default allow-all for now
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });

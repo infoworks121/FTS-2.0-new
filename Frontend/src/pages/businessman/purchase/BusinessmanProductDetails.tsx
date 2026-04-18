@@ -48,7 +48,7 @@ import {
 import { Label } from "@/components/ui/label";
 
 export default function BusinessmanProductDetails() {
-  const { sku } = useParams<{ sku: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeImage, setActiveImage] = useState<string | null>(null);
@@ -64,9 +64,9 @@ export default function BusinessmanProductDetails() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["product-public", sku],
-    queryFn: () => productApi.getBySku(sku!),
-    enabled: !!sku,
+    queryKey: ["product-public", slug],
+    queryFn: () => productApi.getBySku(slug!),
+    enabled: !!slug,
   });
 
   const product = data?.product;
@@ -161,6 +161,7 @@ export default function BusinessmanProductDetails() {
           roleLabel: "Super Admin",
           navItems: adminNavItems as NavItem[]
         };
+      case "retailer":
       case "businessman":
         return {
           role: "businessman" as const,
@@ -205,6 +206,22 @@ export default function BusinessmanProductDetails() {
           }) as NavItem[]
         };
       default:
+        // Fallback for any logged in user to at least show the businessman layout if they are on this page
+        if (user?.id) {
+           return {
+             role: "businessman" as const,
+             roleLabel: user?.full_name || 'User',
+             navItems: getBusinessmanSidebarNavItems({
+               isStockPoint: user?.is_sph || false,
+               bulkEnabled: true,
+               entryModeEnabled: true,
+               advanceModeEnabled: true,
+               businessmanType: user?.businessman_type,
+               permissions: user?.permissions || [],
+               blockedMenus: {},
+             }) as NavItem[]
+           };
+        }
         return null;
     }
   }, [roleCode, user]);
