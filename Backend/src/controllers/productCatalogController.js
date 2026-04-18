@@ -1173,6 +1173,8 @@ exports.getIssuedProductBySku = async (req, res) => {
     const result = await db.query(
       `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, 
               p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
+              p.brand, p.highlights, p.specifications, p.is_returnable, p.return_policy_days,
+              p.unit,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
@@ -1181,17 +1183,22 @@ exports.getIssuedProductBySku = async (req, res) => {
              pp.selling_price,
              pp.bulk_price,
              pp.min_order_quantity,
-             pp.admin_margin_pct,
-             pp.admin_margin_pct as min_margin_percent,
-             pp.base_price as cost_price,
+             COALESCE(bp.business_name, u.full_name, 'FTS Official') as seller_name,
+             COALESCE(bp.business_address, 'Main Hub') as business_address,
+             COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,
+             ib.entity_type as fulfiller_type,
+             ib.entity_id as fulfiller_id,
+             u.district_id as source_district_id,
              CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
-             COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
              true as stock_required
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
-       LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
-       WHERE p.sku = $1`,
+       LEFT JOIN inventory_balances ib ON p.id = ib.product_id
+       LEFT JOIN users u ON ib.entity_id = u.id
+       LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+       WHERE p.sku = $1
+       LIMIT 1`,
       [sku]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });

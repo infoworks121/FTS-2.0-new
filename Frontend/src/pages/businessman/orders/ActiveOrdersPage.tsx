@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { orderApi } from "@/lib/orderApi";
-import { MessageCircle, RefreshCw, Route, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, MessageCircle, RefreshCw, Route, TriangleAlert, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +30,7 @@ import {
   SortableColumnHeader,
 } from "@/components/businessman/OrderTrackingPrimitives";
 
-type ActiveStatus = "Pending" | "Confirmed" | "Packed" | "Out for Delivery";
+type ActiveStatus = "Pending" | "Confirmed" | "Packing" | "Dispatched" | "Delivered" | "Received";
 
 type Row = {
   orderId: string;
@@ -50,79 +50,11 @@ type Row = {
   sla: string;
   delayed?: boolean;
   realId: string;
+  address?: string;
+  phone?: string;
 };
 
-const ROWS: Row[] = [
-  {
-    orderId: "AO-260222-001",
-    orderType: "B2B",
-    product: "Premium Wheat Seed",
-    quantity: "120 Bags",
-    orderValue: 156000,
-    marginEarned: 12480,
-    fulfilmentBy: "North Stock Point",
-    fulfilmentMode: "Stock Point",
-    orderStatus: "Packed",
-    createdDate: "2026-02-22",
-    paymentStatus: "Paid",
-    location: "Kolkata / Salt Lake",
-    customer: "Arjun Traders",
-    progress: 70,
-    sla: "08:21:12",
-  },
-  {
-    orderId: "AO-260222-002",
-    orderType: "B2C",
-    product: "Drip Irrigation Kit",
-    quantity: "8 Units",
-    orderValue: 46400,
-    marginEarned: 3712,
-    fulfilmentBy: "Self",
-    fulfilmentMode: "Self",
-    orderStatus: "Out for Delivery",
-    createdDate: "2026-02-22",
-    paymentStatus: "Pending",
-    location: "Howrah / Liluah",
-    customer: "M. Roy",
-    progress: 90,
-    sla: "01:05:44",
-    delayed: true,
-  },
-  {
-    orderId: "AO-260221-004",
-    orderType: "B2B",
-    product: "Bio Soil Conditioner",
-    quantity: "75 Bags",
-    orderValue: 82500,
-    marginEarned: 6600,
-    fulfilmentBy: "East Stock Point",
-    fulfilmentMode: "Stock Point",
-    orderStatus: "Confirmed",
-    createdDate: "2026-02-21",
-    paymentStatus: "Paid",
-    location: "Nadia / Ranaghat",
-    customer: "Kisan Mart",
-    progress: 40,
-    sla: "12:44:08",
-  },
-  {
-    orderId: "AO-260220-007",
-    orderType: "B2C",
-    product: "Crop Care Spray",
-    quantity: "30 Bottles",
-    orderValue: 17400,
-    marginEarned: 1392,
-    fulfilmentBy: "Self",
-    fulfilmentMode: "Self",
-    orderStatus: "Pending",
-    createdDate: "2026-02-20",
-    paymentStatus: "Pending",
-    location: "Hooghly / Chinsurah",
-    customer: "S. Ghosh",
-    progress: 15,
-    sla: "18:02:25",
-  },
-];
+const ROWS: Row[] = [];
 
 const PAGE_SIZE = 5;
 
@@ -132,9 +64,43 @@ export default function ActiveOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<any>(null);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  const parseAddress = (addr: any): string => {
+  const fetchOrderDetails = async (id: string) => {
+    setFetchingDetails(true);
+    try {
+      const data = await orderApi.getOrderDetails(id);
+      setSelectedDetails(data);
+    } catch (err) {
+      console.error("Failed to fetch order details:", err);
+      toast.error("Could not load timeline details");
+    } finally {
+      setFetchingDetails(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selected?.realId) {
+      fetchOrderDetails(selected.realId);
+    } else {
+      setSelectedDetails(null);
+    }
+  }, [selected]);
+
+  const formatAddress = (addr: any): string => {
+    if (!addr) return "N/A";
+    try {
+      const p = typeof addr === "string" ? JSON.parse(addr) : addr;
+      return `${p.street || p.address || ""}, ${p.city || ""}${p.pincode ? " - " + p.pincode : ""}, ${p.district || ""}, ${p.state || ""}`.replace(/^, |, $/g, "");
+    } catch {
+      return String(addr);
+    }
+  };
+
+  const parseAddressCity = (addr: any): string => {
     if (!addr) return "Local";
     try {
       const parsed = typeof addr === "string" ? JSON.parse(addr) : addr;
@@ -145,9 +111,15 @@ export default function ActiveOrdersPage() {
   };
 
   const mapStatus = (status: string): ActiveStatus => {
-    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    const valid: ActiveStatus[] = ["Pending", "Confirmed", "Packed", "Out for Delivery"];
-    return valid.includes(s as ActiveStatus) ? (s as ActiveStatus) : "Pending";
+    const s = status.toLowerCase();
+    if (s === 'pending') return "Pending";
+    if (s === 'accepted') return "Confirmed";
+    if (s === 'assigned') return "Confirmed";
+    if (s === 'packing') return "Packing";
+    if (s === 'dispatched') return "Dispatched";
+    if (s === 'delivered') return "Delivered";
+    if (s === 'received') return "Received";
+    return "Pending";
   };
 
   const fetchOrders = async () => {
@@ -159,34 +131,40 @@ export default function ActiveOrdersPage() {
         setError("No response from server.");
         return;
       }
-      // Active = NOT delivered/cancelled/returned/closed
+      // Active = NOT received/cancelled/returned/closed
       const activeOrders = res.orders.filter((o: any) =>
-        !["delivered", "cancelled", "returned", "closed"].includes((o.status || "").toLowerCase())
+        !["received", "cancelled", "returned", "closed"].includes((o.status || "").toLowerCase())
       );
-      const mapped: Row[] = activeOrders.map((o: any) => ({
-        orderId: o.order_number || o.id,
-        orderType: (o.order_type || "B2B") as OrderType,
-        product: o.product_names || "Order Items",
-        quantity: o.total_quantity ? `${o.total_quantity} units` : "-",
-        orderValue: parseFloat(o.total_amount || 0),
-        marginEarned: parseFloat(o.total_profit || 0),
-        fulfilmentBy: o.status === "assigned" ? "Stock Point" : "Admin (Central)",
-        fulfilmentMode: "Stock Point",
-        orderStatus: mapStatus(o.status || "pending"),
-        createdDate: new Date(o.created_at).toISOString().split("T")[0],
-        paymentStatus: o.payment_method === "wallet" ? "Paid" : "Pending",
-        location: o.district_name || parseAddress(o.delivery_address),
-        customer: o.customer_name || "Self",
-        progress:
-          o.status === "pending" ? 15
-          : o.status === "confirmed" ? 40
-          : o.status === "packed" ? 70
-          : o.status === "out_for_delivery" ? 85
-          : o.status === "assigned" ? 50
-          : 10,
-        sla: "24:00:00",
-        realId: o.id, // Store real UUID for API calls
-      }));
+      const mapped: Row[] = activeOrders.map((o: any) => {
+        const status = (o.status || "pending").toLowerCase();
+        let progress = 10;
+        if (status === 'accepted' || status === 'assigned') progress = 30;
+        else if (status === 'packing') progress = 50;
+        else if (status === 'dispatched') progress = 75;
+        else if (status === 'delivered') progress = 95;
+        else if (status === 'received') progress = 100;
+
+        return {
+          orderId: o.order_number || o.id,
+          orderType: (o.order_type || "B2B") as OrderType,
+          product: o.product_names || "Order Items",
+          quantity: o.total_quantity ? `${o.total_quantity} units` : "-",
+          orderValue: parseFloat(o.total_amount || 0),
+          marginEarned: parseFloat(o.total_profit || 0),
+          fulfilmentBy: status === "assigned" ? "Stock Point" : "Admin (Central)",
+          fulfilmentMode: "Stock Point",
+          orderStatus: mapStatus(status),
+          createdDate: new Date(o.created_at).toISOString().split("T")[0],
+          paymentStatus: o.payment_method === "wallet" ? "Paid" : "Pending",
+          location: o.district_name || parseAddressCity(o.delivery_address),
+          customer: o.customer_name || "Self",
+          progress,
+          sla: "24:00:00",
+          realId: o.id,
+          address: formatAddress(o.delivery_address),
+          phone: o.customer_phone,
+        };
+      });
       setDataRows(mapped);
     } catch (err: any) {
       console.error("Failed to load orders:", err);
@@ -201,20 +179,30 @@ export default function ActiveOrdersPage() {
     
     setCancellingId(orderId);
     try {
-      // Find the row to get the internal ID if order_number is used
-      // Actually the backend endpoint needs the UUID ID. 
-      // In mapped rows, orderId is o.order_number || o.id.
-      // Let's ensure we have the real UUID in the Row type or fetch it.
-      // For now, I'll assume we used the ID.
-      
       await orderApi.cancelOrder(orderId);
       toast.success("Order cancelled successfully");
-      fetchOrders(); // Refresh list
+      fetchOrders();
     } catch (err: any) {
       console.error("Cancellation failed:", err);
       toast.error(err?.response?.data?.error || "Failed to cancel order");
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleConfirmReceipt = async (orderId: string) => {
+    if (!window.confirm("Please confirm that you have received all items in good condition.")) return;
+    
+    setConfirmingId(orderId);
+    try {
+      await orderApi.confirmOrderReceipt(orderId);
+      toast.success("Order received and transaction completed!");
+      fetchOrders();
+    } catch (err: any) {
+      console.error("Confirmation failed:", err);
+      toast.error(err?.response?.data?.error || "Failed to confirm receipt");
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -280,7 +268,20 @@ export default function ActiveOrdersPage() {
         createdDate: selected.createdDate,
         paymentStatus: selected.paymentStatus,
         location: selected.location,
-        timeline: ["Order Created", "Order Confirmed", "Packed", selected.orderStatus],
+        address: selected.address,
+        phone: selected.phone,
+        trackingInfo: selectedDetails?.assignments?.[0] ? {
+          carrier: selectedDetails.assignments[0].carrier,
+          trackingNumber: selectedDetails.assignments[0].tracking_number,
+          invoiceUrl: selectedDetails.assignments[0].invoice_url
+        } : undefined,
+        timeline: selectedDetails?.status_log?.map((log: any) => ({
+          status: log.new_status,
+          date: log.created_at,
+          note: log.note
+        })) || [
+          { status: "Processing Order", date: selected.createdDate + "T00:00:00Z" }
+        ],
         walletImpact: "Margin will be credited after successful delivery and return-window closure.",
       }
     : null;
@@ -381,6 +382,18 @@ export default function ActiveOrdersPage() {
                           <Button size="icon" variant="ghost" className="h-8 w-8" title="Track Shipment">
                             <Route className="h-4 w-4" />
                           </Button>
+                          {row.orderStatus === "Delivered" && (
+                            <Button 
+                              size="sm" 
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white" 
+                              title="Confirm Receipt"
+                              onClick={() => handleConfirmReceipt(row.realId)}
+                              disabled={confirmingId === row.realId}
+                            >
+                              <CheckCircle2 className={`mr-2 h-4 w-4 ${confirmingId === row.realId ? "animate-spin" : ""}`} />
+                              Confirm Receipt
+                            </Button>
+                          )}
                           {["Pending", "Confirmed"].includes(row.orderStatus) && (
                             <Button 
                               size="icon" 

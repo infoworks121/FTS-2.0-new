@@ -5,11 +5,12 @@ const walletService = require('./walletService');
  * Automatically calculates and distributes profit for a given order
  * based on the predefined profit rules (B2B / B2C)
  */
-exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
-  const client = await db.pool.connect();
+exports.calculateAndDistributeProfit = async (orderId, processedByUserId, providedClient = null) => {
+  const client = providedClient || await db.pool.connect();
+  const isInternalTransaction = !providedClient;
 
   try {
-    await client.query('BEGIN');
+    if (isInternalTransaction) await client.query('BEGIN');
 
     // 1. Fetch Order Details (Lock for update)
     const orderResult = await client.query(`
@@ -415,13 +416,13 @@ exports.calculateAndDistributeProfit = async (orderId, processedByUserId) => {
     // Finally updating total_profit in orders
     await client.query(`UPDATE orders SET total_profit = $1 WHERE id = $2`, [totalCalculatedProfit, orderId]);
 
-    await client.query('COMMIT');
+    if (isInternalTransaction) await client.query('COMMIT');
     return { success: true, message: 'Profit successfully distributed' };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (isInternalTransaction) await client.query('ROLLBACK');
     console.error('Profit Distribution Error:', error);
     throw error;
   } finally {
-    client.release();
+    if (isInternalTransaction) client.release();
   }
 };

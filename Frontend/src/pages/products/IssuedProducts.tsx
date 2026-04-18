@@ -301,7 +301,7 @@ function MarketplaceContent() {
             {processedProducts.map((product) => (
               viewMode === "grid" ? (
                 <ProductCardGrid
-                  key={product.id}
+                  key={`${product.id}-${product.fulfiller_id}-${product.fulfiller_type}`}
                   product={product}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}
@@ -309,7 +309,7 @@ function MarketplaceContent() {
                 />
               ) : (
                 <ProductCardList
-                  key={product.id}
+                  key={`${product.id}-${product.fulfiller_id}-${product.fulfiller_type}`}
                   product={product}
                   onAddToCart={handleAddToCart}
                   onBuyNow={handleBuyNow}

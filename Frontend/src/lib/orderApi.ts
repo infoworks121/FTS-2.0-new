@@ -52,6 +52,16 @@ export const orderApi = {
     return res.data;
   },
 
+  updateFulfillmentStatus: async (assignmentId: string, statusData: { status: string; tracking_number?: string; carrier?: string; invoice_url?: string }) => {
+    const res = await api.put(`/fulfillments/${assignmentId}/status`, statusData);
+    return res.data;
+  },
+
+  confirmOrderReceipt: async (orderId: string) => {
+    const res = await api.post(`/orders/${orderId}/receive`);
+    return res.data;
+  },
+
   getRefundRequests: async () => {
     const res = await api.get('/customer-service/returns');
     return res.data;

@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { AlertTriangle, CalendarRange, Search } from "lucide-react";
+import { AlertTriangle, CalendarRange, Search, ExternalLink, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +48,14 @@ export type OrderDetailsData = {
   createdDate: string;
   paymentStatus: PaymentStatus;
   location: string;
-  timeline: string[];
+  address?: string;
+  phone?: string;
+  trackingInfo?: {
+    carrier?: string;
+    trackingNumber?: string;
+    invoiceUrl?: string;
+  };
+  timeline: { status: string; date: string; note?: string }[];
   walletImpact: string;
 };
 
@@ -290,6 +297,7 @@ export function OrderDetailsDialog({
               <KeyValue label="Order ID" value={<span className="font-mono text-xs">{order.orderId}</span>} />
               <KeyValue label="Order Type" value={<OrderTypeBadge value={order.orderType} />} />
               <KeyValue label="Order Status" value={order.status} />
+              {order.phone && <KeyValue label="Contact Number" value={order.phone} />}
               <KeyValue label="Created Date" value={<span className="font-mono text-xs">{order.createdDate}</span>} />
             </Section>
 
@@ -304,15 +312,54 @@ export function OrderDetailsDialog({
               <KeyValue label="Payment Status" value={<PaymentStatusBadge value={order.paymentStatus} />} />
             </Section>
 
-            <Section title="Fulfilment Source">
-              <KeyValue label="Fulfilment By" value={order.fulfilmentBy} />
-              <KeyValue label="Location" value={order.location} />
-            </Section>
+            {order.trackingInfo && (order.trackingInfo.carrier || order.trackingInfo.trackingNumber) && (
+              <Section title="Tracking & Logistics">
+                {order.trackingInfo.carrier && <KeyValue label="Carrier" value={order.trackingInfo.carrier} />}
+                {order.trackingInfo.trackingNumber && <KeyValue label="Tracking ID" value={<span className="font-bold text-blue-500">{order.trackingInfo.trackingNumber}</span>} />}
+                {order.trackingInfo.invoiceUrl && (
+                  <div className="mt-3 flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full h-8 text-[11px] gap-2 border-primary/40 hover:bg-primary/5"
+                      onClick={() => window.open(order.trackingInfo?.invoiceUrl, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3" /> View Invoice
+                    </Button>
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="w-full h-8 text-[11px] gap-2"
+                      onClick={() => toast.info(`Tracking with ${order.trackingInfo?.carrier}...`)}
+                    >
+                      <Truck className="h-3 w-3" /> Track Order
+                    </Button>
+                  </div>
+                )}
+              </Section>
+            )}
 
-            <Section title="Timeline (Created → Delivered / Returned)">
-              <div className="space-y-1">
-                {order.timeline.map((item) => (
-                  <p key={item} className="text-muted-foreground">• {item}</p>
+            <Section title="Order Journey Timeline">
+              <div className="space-y-4 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border/60">
+                {order.timeline.map((item, idx) => (
+                  <div key={idx} className="pl-6 relative">
+                    <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-emerald-500 bg-background shadow-sm" />
+                    <div className="flex flex-col">
+                      <p className="font-semibold text-xs capitalize text-foreground">{item.status}</p>
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <CalendarRange className="h-2.5 w-2.5" /> 
+                        {new Date(item.date).toLocaleString('en-IN', {
+                           day: '2-digit', month: 'short', year: 'numeric',
+                           hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                      {item.note && (
+                        <p className="text-[11px] mt-1 italic text-muted-foreground/80 bg-muted/40 p-1.5 rounded border border-dashed">
+                          "{item.note}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </Section>

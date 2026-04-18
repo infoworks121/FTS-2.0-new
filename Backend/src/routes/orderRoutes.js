@@ -20,4 +20,7 @@ router.get('/:id', protect, orderController.getOrderDetails);
 // Cancel order
 router.post('/:id/cancel', protect, orderController.cancelOrder);
 
+// Confirm receipt
+router.post('/:id/receive', protect, orderController.confirmReceipt);
+
 module.exports = router;
