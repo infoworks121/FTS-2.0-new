@@ -61,12 +61,6 @@ export default function MainWallet() {
 
   const stats = [
     { 
-      label: "Company Pool", 
-      value: overview ? `₹${parseFloat(overview.company_pool).toLocaleString()}` : "₹0.00", 
-      type: "neutral" as const, 
-      icon: "neutral" as const 
-    },
-    { 
       label: "Total Distributed", 
       value: overview ? `₹${parseFloat(overview.total_distributed).toLocaleString()}` : "₹0.00", 
       type: "positive" as const, 
@@ -75,12 +69,18 @@ export default function MainWallet() {
     { 
       label: "Withdrawals Paid", 
       value: overview ? `₹${parseFloat(overview.total_withdrawals_paid).toLocaleString()}` : "₹0.00", 
-      type: "negative" as const, 
-      icon: "down" as const 
+      type: "positive" as const, 
+      icon: "up" as const 
     },
     { 
       label: "Pending Payouts", 
       value: overview ? `₹${parseFloat(overview.pending_withdrawals).toLocaleString()}` : "₹0.00", 
+      type: "neutral" as const, 
+      icon: "neutral" as const 
+    },
+    { 
+      label: "Reserve Fund", 
+      value: overview ? `₹${parseFloat(overview.reserve_fund).toLocaleString()}` : "₹0.00", 
       type: "neutral" as const, 
       icon: "neutral" as const 
     },
@@ -89,7 +89,7 @@ export default function MainWallet() {
   return (
     <FinanceLayout
       title="Master Wallet Overview"
-      description="Platform-wide financial health and pool allocation"
+      description="Platform-wide financial health and system fund allocation"
       icon="wallet"
       stats={stats}
     >
@@ -116,30 +116,24 @@ export default function MainWallet() {
 
       {/* Balance Cards */}
       <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <BalanceCard
-            title="Company Pool (Total)"
+            title="Company Pool"
             amount={overview ? parseFloat(overview.company_pool) : 0}
             type="available"
             subtext="Core Body & Reserve Share"
           />
           <BalanceCard
-            title="Total Distributed"
-            amount={overview ? parseFloat(overview.total_distributed) : 0}
+            title="Trust Fund"
+            amount={overview ? parseFloat(overview.trust_fund) : 0}
             type="credit"
-            subtext="Earnings sent to users"
+            subtext="System Social Security Fund"
           />
           <BalanceCard
-            title="Total Withdrawals"
-            amount={overview ? parseFloat(overview.total_withdrawals_paid) : 0}
-            type="debit"
-            subtext="Successfully paid out"
-          />
-          <BalanceCard
-            title="Pending Payouts"
-            amount={overview ? parseFloat(overview.pending_withdrawals) : 0}
-            type="blocked"
-            subtext="Requests awaiting approval"
+            title="Admin Fee"
+            amount={overview ? parseFloat(overview.admin_fees) : 0}
+            type="available"
+            subtext="Total platform fees collected"
           />
         </div>
 

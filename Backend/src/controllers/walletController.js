@@ -11,7 +11,7 @@ const bcrypt = require('bcryptjs');
  */
 exports.getAdminWalletOverview = async (req, res) => {
   try {
-    const [trust, reserve, pool, distributed, withdrawals] = await Promise.all([
+    const [trust, reserve, pool, distributed, withdrawals, adminFees] = await Promise.all([
       db.query(`SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance FROM trust_fund_log`),
       db.query(`SELECT COALESCE(SUM(credit_amount) - SUM(COALESCE(debit_amount, 0)), 0) AS balance FROM reserve_fund_log`),
       db.query(`SELECT COALESCE(SUM(total_pool_amount), 0) AS total FROM company_pool_log`),
@@ -21,7 +21,8 @@ exports.getAdminWalletOverview = async (req, res) => {
           COALESCE(SUM(requested_amount) FILTER (WHERE status = 'approved'), 0) as paid,
           COALESCE(SUM(requested_amount) FILTER (WHERE status = 'pending'), 0) as pending
         FROM withdrawal_requests
-      `)
+      `),
+      db.query(`SELECT COALESCE(SUM(amount), 0) AS total FROM wallet_transactions WHERE source_type IN ('B2B_Admin', 'B2C_Admin')`)
     ]);
 
     res.json({
@@ -31,6 +32,7 @@ exports.getAdminWalletOverview = async (req, res) => {
       total_distributed: parseFloat(distributed.rows[0].total || 0),
       total_withdrawals_paid: parseFloat(withdrawals.rows[0].paid || 0),
       pending_withdrawals: parseFloat(withdrawals.rows[0].pending || 0),
+      admin_fees: parseFloat(adminFees.rows[0].total || 0),
     });
   } catch (err) {
     console.error('Admin wallet overview error:', err);

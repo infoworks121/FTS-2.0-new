@@ -12,9 +12,9 @@ exports.getProfitRuleByChannel = async (req, res) => {
         if (result.rows.length === 0) {
             // Create a default rule if not found
             const defaultRule = await db.query(
-                `INSERT INTO profit_rules (channel, rule_name, percentage, is_current, created_at)
-                 VALUES ($1, $2, $3, TRUE, NOW()) RETURNING *`,
-                [channel, `${channel.charAt(0).toUpperCase() + channel.slice(1)} Default Rule`, 10]
+                `INSERT INTO profit_rules (channel, rule_name, percentage, settings, is_current, created_at)
+                 VALUES ($1, $2, $3, $4, TRUE, NOW()) RETURNING *`,
+                [channel, `${channel.charAt(0).toUpperCase() + channel.slice(1)} Default Rule`, 10, {}]
             );
             return res.json({ rule: defaultRule.rows[0] });
         }
@@ -61,9 +61,9 @@ exports.updateProfitRule = async (req, res) => {
 
         // 4. Create new current rule
         const newRuleResult = await client.query(
-            `INSERT INTO profit_rules (channel, rule_name, percentage, is_current, created_by, created_at, effective_from)
-             VALUES ($1, $2, $3, TRUE, $4, NOW(), NOW()) RETURNING *`,
-            [channel, name || `${channel} Update`, percentage, adminId]
+            `INSERT INTO profit_rules (channel, rule_name, percentage, settings, is_current, created_by, created_at, effective_from)
+             VALUES ($1, $2, $3, $4, TRUE, $5, NOW(), NOW()) RETURNING *`,
+            [channel, name || `${channel} Update`, percentage, settings || {}, adminId]
         );
 
         await client.query('COMMIT');

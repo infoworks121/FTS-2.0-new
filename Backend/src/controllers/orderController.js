@@ -18,7 +18,7 @@ exports.createB2BOrder = async (req, res) => {
     const user = req.user;
 
     // 1. Verify Authorization (Role Check)
-    const allowedRoles = ['core_body_a', 'core_body_b', 'businessman', 'dealer'];
+    const allowedRoles = ['core_body_a', 'core_body_b', 'businessman', 'dealer', 'stock_point', 'admin'];
     if (!allowedRoles.includes(user.role_code)) {
       return res.status(403).json({ error: 'Only B2B users can place B2B orders.' });
     }
@@ -34,6 +34,9 @@ exports.createB2BOrder = async (req, res) => {
     } else if (user.role_code.startsWith('core_body')) {
         const cbpRes = await client.query('SELECT district_id FROM core_body_profiles WHERE user_id = $1', [user.id]);
         if (cbpRes.rows.length > 0) userGeography.district_id = cbpRes.rows[0].district_id;
+    } else if (user.role_code === 'stock_point') {
+        const spRes = await client.query('SELECT district_id, subdivision_id FROM stock_point_profiles WHERE user_id = $1', [user.id]);
+        if (spRes.rows.length > 0) userGeography = spRes.rows[0];
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {

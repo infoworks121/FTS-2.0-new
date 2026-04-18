@@ -122,6 +122,7 @@ export default function ReferralRules() {
         const mappedData = {
           ...initialData,
           referralPercentage: parseFloat(response.rule.percentage),
+          ...(response.rule.settings || {})
         };
         setData(mappedData);
         setOriginalData(mappedData);
@@ -132,11 +133,11 @@ export default function ReferralRules() {
         id: h.id,
         version: h.snapshot.version || 'v' + h.id.substring(0,4),
         effectiveFrom: new Date(h.snapshot.created_at).toLocaleDateString(),
-        effectiveTo: new Date(h.archived_at).toLocaleDateString(),
-        status: "archived" as const,
-        changes: `Updated by ${h.changed_by}`,
-        changedBy: h.changed_by,
-        changedAt: new Date(h.archived_at).toLocaleString(),
+        effectiveTo: h.archived_at ? new Date(h.archived_at).toLocaleDateString() : '—',
+        status: h.archived_at ? "archived" as const : "active" as const,
+        changes: `Updated by ${h.changed_by || 'Admin'}`,
+        changedBy: h.changed_by || 'Admin',
+        changedAt: h.archived_at ? new Date(h.archived_at).toLocaleString() : 'Current',
         details: [
           { field: "Percentage", oldValue: "N/A", newValue: `${h.snapshot.percentage}%` }
         ]
@@ -190,6 +191,20 @@ export default function ReferralRules() {
         newValue: `${data.returnWindowDays} days`,
       });
     }
+    if (data.minOrderValue !== originalData.minOrderValue) {
+      changes.push({
+        field: "Min Order Value",
+        oldValue: `₹${originalData.minOrderValue}`,
+        newValue: `₹${data.minOrderValue}`,
+      });
+    }
+    if (data.maxReferralEarning !== originalData.maxReferralEarning) {
+      changes.push({
+        field: "Max Earning Cap",
+        oldValue: `₹${originalData.maxReferralEarning}`,
+        newValue: `₹${data.maxReferralEarning}`,
+      });
+    }
     
     return changes;
   };
@@ -197,9 +212,11 @@ export default function ReferralRules() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const { referralPercentage, ...settings } = data;
       await adminApi.updateProfitRule('referral', {
-        name: `Referral Rule ${data.referralPercentage}%`,
-        percentage: data.referralPercentage
+        name: `Referral Rule ${referralPercentage}%`,
+        percentage: referralPercentage,
+        settings
       });
       toast({
         title: "Success",
