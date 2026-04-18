@@ -19,6 +19,8 @@ router.get('/admin/profit-distributions', authenticate, authorize('admin'), wall
 
 // New: Get all user wallets overview for admin
 router.get('/admin/user-wallets', authenticate, authorize('admin'), adminWalletController.getAllUserWallets);
+router.get('/admin/users/:userId/transactions', authenticate, authorize('admin'), adminWalletController.getUserTransactions);
+
 
 router.get('/admin/profit-rules', authenticate, authorize('admin'), walletController.getProfitRules);
 router.put('/admin/profit-rules/:id', authenticate, authorize('admin'), walletController.updateProfitRule);

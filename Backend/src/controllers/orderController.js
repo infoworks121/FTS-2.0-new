@@ -43,6 +43,10 @@ exports.createB2BOrder = async (req, res) => {
       return res.status(400).json({ error: 'Order items are required.' });
     }
 
+    if (!delivery_address) {
+      return res.status(400).json({ error: 'Delivery address is required for B2B orders.' });
+    }
+
     await client.query('BEGIN');
 
     let subtotal = 0;
@@ -577,8 +581,23 @@ exports.getMyOrders = async (req, res) => {
     const params = [];
     const conditions = [];
 
-    // 1. Authorization Filter: Admins/CoreBodies see all, others see their own
-    if (roleCode !== 'admin' && !roleCode.startsWith('core_body')) {
+    // 1. Authorization Filter: Admins see all, CoreBodies see District, others see their own
+    if (roleCode === 'admin') {
+      // Admin sees everything
+    } else if (roleCode.startsWith('core_body')) {
+      // Core Body members see orders in their district
+      const cbProfile = await db.query('SELECT district_id FROM core_body_profiles WHERE user_id = $1', [user.id]);
+      const districtId = cbProfile.rows[0]?.district_id;
+      if (districtId) {
+        params.push(districtId);
+        conditions.push(`o.district_id = $${params.length}`);
+      } else {
+        // Fallback: if no district assigned, they only see their own placed orders
+        params.push(user.id);
+        conditions.push(`o.customer_id = $${params.length}`);
+      }
+    } else {
+      // Others only see orders they placed
       params.push(user.id);
       conditions.push(`o.customer_id = $${params.length}`);
     }

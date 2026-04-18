@@ -143,6 +143,8 @@ import DemandSignals from "./pages/corebody/stock/DemandSignals";
 import PhysicalTransfer from "./pages/corebody/stock/PhysicalTransfer";
 import DirectedTasks from "./pages/corebody/stock/DirectedTasks";
 import ShortageFulfillment from "./pages/admin/stock/ShortageFulfillment";
+import CurrentInventory from "./pages/corebody/stock/CurrentInventory";
+import CoreBodyB2BOrders from "./pages/corebody/orders/B2BOrders";
 import StockArrivals from "./pages/dealer/StockArrivals";
 
 // District & Core Body Layout
@@ -231,6 +233,7 @@ const App = () => {
             <Route path="/admin/products/:id" element={<ProductsPageLayout><ProductDetails /></ProductsPageLayout>} />
             <Route path="/admin/stock/shortages" element={<ShortageFulfillment />} />
             <Route path="/corebody/stock/directed-tasks" element={<DirectedTasks />} />
+            <Route path="/corebody/stock/current-inventory" element={<CurrentInventory />} />
 
             <Route path="/products-issued" element={<IssuedProducts />} />
             
@@ -335,6 +338,7 @@ const App = () => {
             <Route path="/corebody/directory/businessmen/:id" element={<UnifiedMemberProfile />} />
             <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<PerformanceSnapshot />} />
             <Route path="/corebody/orders/active" element={<ActiveOrders />} />
+            <Route path="/corebody/orders/b2b-orders" element={<CoreBodyB2BOrders />} />
             <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
             <Route path="/corebody/orders/distribution" element={<DistributionHistory />} />
             <Route path="/corebody/orders/issues" element={<FulfilmentIssues />} />

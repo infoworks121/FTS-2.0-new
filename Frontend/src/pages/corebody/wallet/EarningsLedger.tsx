@@ -142,10 +142,10 @@ export default function EarningsLedger() {
                       <TableCell className="text-xs max-w-[200px] truncate">
                         {txn.description || "N/A"}
                       </TableCell>
-                      <TableCell className={`font-mono font-bold ${txn.txn_type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                        {txn.txn_type === 'credit' ? '+' : '-'}{formatCurrency(parseFloat(txn.amount))}
+                      <TableCell className={`font-mono font-bold ${['credit', 'deposit'].includes(txn.txn_type) ? 'text-green-600' : 'text-red-600'}`}>
+                        {['credit', 'deposit'].includes(txn.txn_type) ? '+' : '-'}{formatCurrency(parseFloat(txn.amount))}
                       </TableCell>
-                      <TableCell className="capitalize">{txn.txn_type}</TableCell>
+                      <TableCell className="capitalize">{['credit', 'deposit'].includes(txn.txn_type) ? 'credit' : txn.txn_type}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">Confirmed</Badge>
                       </TableCell>

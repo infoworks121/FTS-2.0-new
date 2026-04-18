@@ -917,7 +917,7 @@ const approveCoreBodyInstallment = async (req, res) => {
 
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
-                    VALUES ($1, $2, 'deposit', $3, $4, $5, 'Investment Installment Payment Approved', 'core_body_installment', $6)
+                    VALUES ($1, $2, 'credit', $3, $4, $5, 'Investment Installment Payment Approved', 'core_body_installment', $6)
                 `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
             }
 
@@ -1031,7 +1031,7 @@ const approveBusinessmanInstallment = async (req, res) => {
 
                 await client.query(`
                     INSERT INTO wallet_transactions (wallet_id, user_id, transaction_type, amount, balance_before, balance_after, description, source_type, source_ref_id)
-                    VALUES ($1, $2, 'deposit', $3, $4, $5, 'Businessman Investment Installment Payment Approved', 'businessman_installment', $6)
+                    VALUES ($1, $2, 'credit', $3, $4, $5, 'Businessman Investment Installment Payment Approved', 'businessman_installment', $6)
                 `, [walletId, installment.user_id, installment.amount, oldBalance, newBalance, id]);
             }
 

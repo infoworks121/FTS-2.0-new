@@ -11,6 +11,9 @@ router.post('/transfer', protect, stockAllocationController.createPhysicalTransf
 // General: Get District Aggregated Stock
 router.get('/available-stock/:product_id', protect, stockMovementController.getDistrictStock);
 
+// Core Body: Get personal and district inventory
+router.get('/current-inventory', protect, stockMovementController.getCoreBodyInventory);
+
 // Admin: Direct a Core Body to dispatch stock to a Dealer
 router.post('/admin/direct-dispatch', protect, stockAllocationController.requestDirectedDispatch);
 

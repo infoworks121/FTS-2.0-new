@@ -153,7 +153,7 @@ export default function PendingApprovals() {
 
   return (
     <FinanceLayout
-      title="Pending Approvals"
+      title="Installment Approval"
       description="Admin decision queue for Withdrawals and Core Body Invests."
       icon="approval"
       stats={[]}
