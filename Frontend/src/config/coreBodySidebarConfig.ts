@@ -177,6 +177,7 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
       ],
     },
 
+
     // ── 2) B2B MANAGEMENT ──
     {
       groupLabel: "B2B Management",
@@ -188,9 +189,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
           icon: ShoppingBag,
           badge: coreBodyBadgeState.pendingOrders > 0
             ? {
-                count: coreBodyBadgeState.pendingOrders,
-                variant: "default",
-              }
+              count: coreBodyBadgeState.pendingOrders,
+              variant: "default",
+            }
             : undefined,
           submenu: [
             {
@@ -227,9 +228,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               url: "/corebody/orders/b2b-orders",
               badge: coreBodyBadgeState.pendingOrders > 0
                 ? {
-                    count: coreBodyBadgeState.pendingOrders,
-                    variant: "default",
-                  }
+                  count: coreBodyBadgeState.pendingOrders,
+                  variant: "default",
+                }
                 : undefined,
             },
             {
@@ -259,9 +260,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
           icon: Truck,
           badge: coreBodyBadgeState.pendingFulfilments > 0
             ? {
-                count: coreBodyBadgeState.pendingFulfilments,
-                variant: "warning",
-              }
+              count: coreBodyBadgeState.pendingFulfilments,
+              variant: "warning",
+            }
             : undefined,
           submenu: [
             {
@@ -290,9 +291,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               url: "/corebody/orders/pending-delayed",
               badge: coreBodyBadgeState.pendingFulfilments > 0
                 ? {
-                    count: coreBodyBadgeState.pendingFulfilments,
-                    variant: "warning",
-                  }
+                  count: coreBodyBadgeState.pendingFulfilments,
+                  variant: "warning",
+                }
                 : undefined,
               warning: true,
             },
@@ -431,9 +432,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               url: "/corebody/activity-alerts/system-alerts",
               badge: coreBodyBadgeState.activityAlerts > 0
                 ? {
-                    count: coreBodyBadgeState.activityAlerts,
-                    variant: "danger",
-                  }
+                  count: coreBodyBadgeState.activityAlerts,
+                  variant: "danger",
+                }
                 : undefined,
             },
             {
@@ -441,9 +442,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               url: "/corebody/activity-alerts/inactivity-warnings",
               badge: coreBodyBadgeState.inactivityWarnings > 0
                 ? {
-                    count: coreBodyBadgeState.inactivityWarnings,
-                    variant: "warning",
-                  }
+                  count: coreBodyBadgeState.inactivityWarnings,
+                  variant: "warning",
+                }
                 : undefined,
             },
             {
@@ -451,9 +452,9 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               url: "/corebody/activity-alerts/sla-violations",
               badge: coreBodyBadgeState.slaViolations > 0
                 ? {
-                    count: coreBodyBadgeState.slaViolations,
-                    variant: "warning",
-                  }
+                  count: coreBodyBadgeState.slaViolations,
+                  variant: "warning",
+                }
                 : undefined,
             },
             {

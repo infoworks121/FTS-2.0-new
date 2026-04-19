@@ -1,23 +1,25 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-async function run() {
+async function checkColumns() {
   try {
-    const res = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'fulfillment_assignments'
-    `);
-    console.log('Schema:', JSON.stringify(res.rows));
-  } catch (e) {
-    console.error('Error:', e.message);
+    const tables = ['products', 'product_pricing', 'orders', 'users'];
+    for (const table of tables) {
+      const res = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = $1
+      `, [table]);
+      console.log(`${table.toUpperCase()} COLUMNS:`, res.rows.map(r => r.column_name).sort().join(', '));
+    }
+    
+  } catch (err) {
+    console.error(err);
   } finally {
     await pool.end();
   }
 }
 
-run();
+checkColumns();

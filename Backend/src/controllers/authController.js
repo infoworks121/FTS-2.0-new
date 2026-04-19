@@ -281,9 +281,11 @@ const login = async (req, res) => {
         console.log('Login attempt:', { identifier, panel });
 
         const userResult = await db.query(
-            `SELECT u.*, r.role_code 
+            `SELECT u.*, r.role_code, d.name as district_name, s.name as subdivision_name
        FROM users u 
        JOIN user_roles r ON u.role_id = r.id 
+       LEFT JOIN districts d ON u.district_id = d.id
+       LEFT JOIN subdivisions s ON u.subdivision_id = s.id
        WHERE u.phone = $1 OR u.email = $1`,
             [identifier]
         );
@@ -379,6 +381,8 @@ const login = async (req, res) => {
                 email: user.email,
                 full_name: user.full_name,
                 role_code: user.role_code,
+                district_name: user.district_name,
+                subdivision_name: user.subdivision_name,
                 businessman_type,
                 core_body_type,
                 is_sph: user.is_sph,
@@ -435,10 +439,13 @@ const changePassword = async (req, res) => {
 const getMe = async (req, res) => {
     try {
         const userResult = await db.query(
-            `SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.is_active, u.created_at,
+            `SELECT u.id, u.phone, u.email, u.full_name, r.role_code, u.is_active, u.is_sph, u.created_at,
+             d.name as district_name, s.name as subdivision_name,
              COALESCE((SELECT transaction_pin IS NOT NULL FROM wallets WHERE user_id = u.id LIMIT 1), false) as has_transaction_pin
        FROM users u 
        JOIN user_roles r ON u.role_id = r.id 
+       LEFT JOIN districts d ON u.district_id = d.id
+       LEFT JOIN subdivisions s ON u.subdivision_id = s.id
        WHERE u.id = $1`,
             [req.user.id]
         );
@@ -469,6 +476,8 @@ const getMe = async (req, res) => {
                 email: user.email,
                 full_name: user.full_name,
                 role_code: user.role_code,
+                district_name: user.district_name,
+                subdivision_name: user.subdivision_name,
                 businessman_type,
                 core_body_type,
                 is_sph: user.is_sph,
