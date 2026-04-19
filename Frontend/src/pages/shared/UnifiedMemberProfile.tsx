@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { DashboardLayout, NavItem } from "@/components/DashboardLayout";
-import { navItems as coreBodyNavItems } from "@/pages/CoreBodyDashboard";
 import { sidebarNavItems as adminNavItems } from "@/config/sidebarConfig";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
@@ -18,14 +17,12 @@ export default function UnifiedMemberProfile() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
-  
+
   // Determine if viewing from admin or corebody panel
   const isAdminView = location.pathname.startsWith('/admin');
   const viewerRole = isAdminView ? 'admin' : 'corebody';
-  const layoutNavItems = isAdminView ? adminNavItems : coreBodyNavItems;
   const layoutLabel = isAdminView ? 'Super Admin — User Insight' : 'Core Body — Network Monitoring';
 
-  // Determine target user role from route parameter or data
   const [userRole, setUserRole] = useState<string>(roleParam || 'businessman');
 
   useEffect(() => {
@@ -33,11 +30,9 @@ export default function UnifiedMemberProfile() {
       if (!id) return;
       try {
         setLoading(true);
-        // Using the directory user detail API as it returns a generic profile
         const response = await coreBodyApi.getDirectoryUserDetail(id);
         setData(response.profile);
-        
-        // Refine role if not provided in URL
+
         if (!roleParam) {
           const role = response.profile.role_code || response.profile.role || 'businessman';
           setUserRole(role);
@@ -61,20 +56,16 @@ export default function UnifiedMemberProfile() {
     }
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout role={viewerRole as any} roleLabel={layoutLabel} navItems={layoutNavItems as NavItem[]}>
+  // For corebody routes, CoreBodyLayoutWrapper in App.tsx already provides the sidebar/header.
+  // We only need DashboardLayout for true admin-panel views.
+  const content = (
+    <div className="space-y-6">
+      {loading ? (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground font-medium animate-pulse">Synchronizing profile data...</p>
         </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!data) {
-    return (
-      <DashboardLayout role={viewerRole as any} roleLabel={layoutLabel} navItems={layoutNavItems as NavItem[]}>
+      ) : !data ? (
         <div className="p-12 text-center max-w-md mx-auto">
           <div className="bg-muted/30 p-8 rounded-2xl border-2 border-dashed border-border mb-6">
             <p className="text-muted-foreground mb-4 font-medium">This profile could not be located or access is restricted.</p>
@@ -83,14 +74,8 @@ export default function UnifiedMemberProfile() {
             </Button>
           </div>
         </div>
-      </DashboardLayout>
-    );
-  }
-
-  return (
-    <DashboardLayout role={viewerRole as any} roleLabel={layoutLabel} navItems={layoutNavItems as NavItem[]}>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      ) : (
+        <>
           <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" onClick={handleBack} className="rounded-full hover:bg-primary/5 hover:text-primary border-primary/20 transition-all">
               <ArrowLeft className="h-4 w-4" />
@@ -98,18 +83,31 @@ export default function UnifiedMemberProfile() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{data.name || data.full_name}</h1>
               <p className="text-sm text-muted-foreground flex items-center gap-2">
-                Unified Profile Management — <span className="capitalize font-medium text-foreground/70">{userRole.replace('_', ' ')} Records</span>
+                Unified Profile Management —{" "}
+                <span className="capitalize font-medium text-foreground/70">
+                  {userRole.replace('_', ' ')} Records
+                </span>
               </p>
             </div>
           </div>
-        </div>
-
-        <UserProfileView 
-          data={data} 
-          role={userRole} 
-          viewerRole={viewerRole} 
-        />
-      </div>
-    </DashboardLayout>
+          <UserProfileView
+            data={data}
+            role={userRole}
+            viewerRole={viewerRole}
+          />
+        </>
+      )}
+    </div>
   );
+
+  // Admin view needs its own DashboardLayout; corebody view is already wrapped by CoreBodyLayoutWrapper
+  if (isAdminView) {
+    return (
+      <DashboardLayout role="admin" roleLabel={layoutLabel} navItems={adminNavItems as NavItem[]}>
+        {content}
+      </DashboardLayout>
+    );
+  }
+
+  return content;
 }

@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import {
   ReportDataTable,
   ReportFilterBar,
@@ -68,61 +66,59 @@ export default function DealerPerformanceReport() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <ReportPageHeader title="Dealer Performance Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
+    <div className="space-y-6">
+      <ReportPageHeader title="Dealer Performance Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
 
-        <ReportFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          dealerValue={dealer}
-          dealerOptions={dealerOptions}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onDealerChange={setDealer}
-          onApply={applyFilter}
-          onClear={clearFilter}
-        />
+      <ReportFilterBar
+        fromDate={fromDate}
+        toDate={toDate}
+        dealerValue={dealer}
+        dealerOptions={dealerOptions}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onDealerChange={setDealer}
+        onApply={applyFilter}
+        onClear={clearFilter}
+      />
 
-        <ReportSummaryCards
-          cards={[
-            { label: "Total Dealers", value: totalDealers },
-            { label: "Active Dealers", value: activeDealers, tone: "success" },
-            { label: "Avg SLA Score", value: `${avgSla}%`, tone: Number(avgSla) < 80 ? "warning" : "neutral" },
-            { label: "Total Order Volume", value: currency(totalOrderVolume) },
-          ]}
-        />
+      <ReportSummaryCards
+        cards={[
+          { label: "Total Dealers", value: totalDealers },
+          { label: "Active Dealers", value: activeDealers, tone: "success" },
+          { label: "Avg SLA Score", value: `${avgSla}%`, tone: Number(avgSla) < 80 ? "warning" : "neutral" },
+          { label: "Total Order Volume", value: currency(totalOrderVolume) },
+        ]}
+      />
 
-        <ReportDataTable
-          emptyMessage="No dealer performance rows found for the selected filter view."
-          data={filtered}
-          columns={[
-            { key: "dealer", header: "Dealer Name", sortable: true, sortAccessor: (row) => row.dealerName, render: (row) => row.dealerName },
-            { key: "orders", header: "Orders Handled", sortable: true, className: "font-mono", sortAccessor: (row) => row.ordersHandled, render: (row) => row.ordersHandled },
-            { key: "volume", header: "Total Volume", sortable: true, className: "font-mono", sortAccessor: (row) => row.totalVolume, render: (row) => currency(row.totalVolume) },
-            { key: "sla", header: "SLA Score", sortable: true, className: "font-mono", sortAccessor: (row) => row.slaScore, render: (row) => `${row.slaScore}%` },
-            {
-              key: "status",
-              header: "Performance Status",
-              sortable: true,
-              sortAccessor: (row) => row.performanceStatus,
-              render: (row) => {
-                const className =
-                  row.performanceStatus === "Excellent"
-                    ? "border-emerald-500/40 text-emerald-600"
-                    : row.performanceStatus === "Stable"
-                      ? "border-blue-500/40 text-blue-600"
-                      : "border-amber-500/40 text-amber-600";
-                return (
-                  <Badge variant="outline" className={className}>
-                    {row.performanceStatus}
-                  </Badge>
-                );
-              },
+      <ReportDataTable
+        emptyMessage="No dealer performance rows found for the selected filter view."
+        data={filtered}
+        columns={[
+          { key: "dealer", header: "Dealer Name", sortable: true, sortAccessor: (row) => row.dealerName, render: (row) => row.dealerName },
+          { key: "orders", header: "Orders Handled", sortable: true, className: "font-mono", sortAccessor: (row) => row.ordersHandled, render: (row) => row.ordersHandled },
+          { key: "volume", header: "Total Volume", sortable: true, className: "font-mono", sortAccessor: (row) => row.totalVolume, render: (row) => currency(row.totalVolume) },
+          { key: "sla", header: "SLA Score", sortable: true, className: "font-mono", sortAccessor: (row) => row.slaScore, render: (row) => `${row.slaScore}%` },
+          {
+            key: "status",
+            header: "Performance Status",
+            sortable: true,
+            sortAccessor: (row) => row.performanceStatus,
+            render: (row) => {
+              const className =
+                row.performanceStatus === "Excellent"
+                  ? "border-emerald-500/40 text-emerald-600"
+                  : row.performanceStatus === "Stable"
+                    ? "border-blue-500/40 text-blue-600"
+                    : "border-amber-500/40 text-amber-600";
+              return (
+                <Badge variant="outline" className={className}>
+                  {row.performanceStatus}
+                </Badge>
+              );
             },
-          ]}
-        />
-      </div>
-    </DashboardLayout>
+          },
+        ]}
+      />
+    </div>
   );
 }

@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { CheckCircle2, Clock3, Dot, XCircle } from "lucide-react";
 import {
   Table,
@@ -161,245 +159,243 @@ export default function UpgradeStatus() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Upgrade Status</h1>
+        <p className="text-sm text-muted-foreground">
+          District-scoped, system-generated upgrade visibility. All fields are read-only and audit-safe.
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-2">
+            {sectionOptions.map((option) => (
+              <Button
+                key={option.key}
+                variant={activeSection === option.key ? "default" : "outline"}
+                size="sm"
+                onClick={() => scrollToSection(option.key)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <section id="current-role" className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold">Upgrade Status</h1>
-          <p className="text-sm text-muted-foreground">
-            District-scoped, system-generated upgrade visibility. All fields are read-only and audit-safe.
+          <h2 className="text-base font-semibold">Current Role Details</h2>
+          <p className="text-xs text-muted-foreground">Present authority level and district configuration.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Current Role</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <Badge variant="outline" className="w-fit border-slate-400 text-slate-800">
+                {currentRoleDetails.currentRole}
+              </Badge>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Dot className="h-4 w-4" />
+                System-assigned role badge
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">District Name</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-lg font-semibold">{currentRoleDetails.districtName}</p>
+              <p className="text-xs text-muted-foreground mt-1">District-scoped data context</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Current Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Badge variant="outline" className={roleStatusClass[currentRoleDetails.currentStatus]}>
+                {currentRoleDetails.currentStatus}
+              </Badge>
+              <p className="text-xs text-muted-foreground mt-2">Operational state. Manual edit disabled.</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Investment Amount</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-mono text-lg font-semibold">{currentRoleDetails.investmentAmount}</p>
+              <p className="text-xs text-muted-foreground mt-1">System ledger value</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Earning Cap</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Annual</span>
+                <span className="font-mono">{currentRoleDetails.annualEarningCap}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Monthly</span>
+                <span className="font-mono">{currentRoleDetails.monthlyEarningCap}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Activation Date</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-medium">{currentRoleDetails.activationDate}</p>
+              <p className="text-xs text-muted-foreground mt-1">Recorded by system activation log</p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section id="eligibility" className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Upgrade Eligibility</h2>
+          <p className="text-xs text-muted-foreground">Automated decision state for next role eligibility.</p>
+        </div>
+
+        <Card className={eligibilityStatusClass[eligibilityDetails.status]}>
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Eligibility Status</p>
+              <Badge variant="outline" className={eligibilityStatusClass[eligibilityDetails.status]}>
+                {eligibilityDetails.status}
+              </Badge>
+            </div>
+            <p className="text-lg font-semibold">{eligibilityDetails.status}</p>
+            <p className="text-sm">{eligibilityDetails.explanation}</p>
+            <p className="text-xs text-muted-foreground">Last evaluation date: {eligibilityDetails.lastEvaluationDate}</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section id="requirements" className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Requirements Checklist</h2>
+          <p className="text-xs text-muted-foreground">
+            Auto-calculated compliance checklist. No manual updates are available.
           </p>
         </div>
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-2">
-              {sectionOptions.map((option) => (
-                <Button
-                  key={option.key}
-                  variant={activeSection === option.key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => scrollToSection(option.key)}
-                >
-                  {option.label}
-                </Button>
-              ))}
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Requirement</TableHead>
+                    <TableHead>Required Value</TableHead>
+                    <TableHead>Current Value</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requirementsChecklist.map((item) => (
+                    <TableRow key={item.name}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="font-mono">{item.requiredValue}</TableCell>
+                      <TableCell className="font-mono">{item.currentValue}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getRequirementSymbol(item.status)}
+                          <Badge variant="outline" className={requirementStatusBadge[item.status]}>
+                            {getRequirementLabel(item.status)}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
+      </section>
 
-        <section id="current-role" className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Current Role Details</h2>
-            <p className="text-xs text-muted-foreground">Present authority level and district configuration.</p>
-          </div>
+      <section id="history" className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Upgrade History</h2>
+          <p className="text-xs text-muted-foreground">Permanent, read-only role upgrade log for district audit traceability.</p>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Current Role</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <Badge variant="outline" className="w-fit border-slate-400 text-slate-800">
-                  {currentRoleDetails.currentRole}
-                </Badge>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Dot className="h-4 w-4" />
-                  System-assigned role badge
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">District Name</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold">{currentRoleDetails.districtName}</p>
-                <p className="text-xs text-muted-foreground mt-1">District-scoped data context</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Current Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge variant="outline" className={roleStatusClass[currentRoleDetails.currentStatus]}>
-                  {currentRoleDetails.currentStatus}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-2">Operational state. Manual edit disabled.</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Investment Amount</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="font-mono text-lg font-semibold">{currentRoleDetails.investmentAmount}</p>
-                <p className="text-xs text-muted-foreground mt-1">System ledger value</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Earning Cap</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Annual</span>
-                  <span className="font-mono">{currentRoleDetails.annualEarningCap}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Monthly</span>
-                  <span className="font-mono">{currentRoleDetails.monthlyEarningCap}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Activation Date</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="font-medium">{currentRoleDetails.activationDate}</p>
-                <p className="text-xs text-muted-foreground mt-1">Recorded by system activation log</p>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        <section id="eligibility" className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Upgrade Eligibility</h2>
-            <p className="text-xs text-muted-foreground">Automated decision state for next role eligibility.</p>
-          </div>
-
-          <Card className={eligibilityStatusClass[eligibilityDetails.status]}>
-            <CardContent className="pt-6 space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Eligibility Status</p>
-                <Badge variant="outline" className={eligibilityStatusClass[eligibilityDetails.status]}>
-                  {eligibilityDetails.status}
-                </Badge>
-              </div>
-              <p className="text-lg font-semibold">{eligibilityDetails.status}</p>
-              <p className="text-sm">{eligibilityDetails.explanation}</p>
-              <p className="text-xs text-muted-foreground">Last evaluation date: {eligibilityDetails.lastEvaluationDate}</p>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section id="requirements" className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Requirements Checklist</h2>
-            <p className="text-xs text-muted-foreground">
-              Auto-calculated compliance checklist. No manual updates are available.
-            </p>
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Requirement</TableHead>
-                      <TableHead>Required Value</TableHead>
-                      <TableHead>Current Value</TableHead>
-                      <TableHead>Status</TableHead>
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Previous Role</TableHead>
+                    <TableHead>New Role</TableHead>
+                    <TableHead>Upgrade Type</TableHead>
+                    <TableHead>Upgrade Date</TableHead>
+                    <TableHead>Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyRows.map((entry, idx) => (
+                    <TableRow key={`${entry.date}-${entry.newRole}-${idx}`}>
+                      <TableCell>{entry.previousRole}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-slate-300 text-slate-800">
+                          {entry.newRole}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{entry.upgradeType}</TableCell>
+                      <TableCell>{entry.date}</TableCell>
+                      <TableCell className="text-muted-foreground">{entry.remarks}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {requirementsChecklist.map((item) => (
-                      <TableRow key={item.name}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell className="font-mono">{item.requiredValue}</TableCell>
-                        <TableCell className="font-mono">{item.currentValue}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getRequirementSymbol(item.status)}
-                            <Badge variant="outline" className={requirementStatusBadge[item.status]}>
-                              {getRequirementLabel(item.status)}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
-        <section id="history" className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Upgrade History</h2>
-            <p className="text-xs text-muted-foreground">Permanent, read-only role upgrade log for district audit traceability.</p>
-          </div>
-
-          <Card>
-            <CardContent className="pt-6 space-y-4">
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Previous Role</TableHead>
-                      <TableHead>New Role</TableHead>
-                      <TableHead>Upgrade Type</TableHead>
-                      <TableHead>Upgrade Date</TableHead>
-                      <TableHead>Remarks</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {historyRows.map((entry, idx) => (
-                      <TableRow key={`${entry.date}-${entry.newRole}-${idx}`}>
-                        <TableCell>{entry.previousRole}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-slate-300 text-slate-800">
-                            {entry.newRole}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{entry.upgradeType}</TableCell>
-                        <TableCell>{entry.date}</TableCell>
-                        <TableCell className="text-muted-foreground">{entry.remarks}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Showing {historyRows.length} of {upgradeHistory.length} records
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {safePage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
               </div>
-
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Showing {historyRows.length} of {upgradeHistory.length} records
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      </div>
-    </DashboardLayout>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    </div>
   );
 }

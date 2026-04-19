@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,64 +66,62 @@ export default function StatusActiveInactive() {
   const dataForTab = useMemo(() => networkData.filter((item) => item.status === tab), [tab]);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">Status (Active / Inactive)</h1>
-          <p className="text-sm text-muted-foreground">
-            District network health with inactivity and risk visibility.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Active Dealers</p><p className="text-2xl font-bold">{activeDealers}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Inactive Dealers</p><p className="text-2xl font-bold text-amber-600">{inactiveDealers}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Active Businessmen</p><p className="text-2xl font-bold">{activeBusinessmen}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Inactive Businessmen</p><p className="text-2xl font-bold text-amber-600">{inactiveBusinessmen}</p></CardContent></Card>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as EntityStatus)}>
-              <TabsList>
-                <TabsTrigger value="Active">Active</TabsTrigger>
-                <TabsTrigger value="Inactive">Inactive</TabsTrigger>
-              </TabsList>
-              <TabsContent value={tab}>
-                <div className="rounded-md border overflow-x-auto mt-2">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Entity Type</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Last Activity Date</TableHead>
-                        <TableHead>Inactivity Duration</TableHead>
-                        <TableHead>Risk Level</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dataForTab.map((entity, idx) => (
-                        <TableRow key={`${entity.name}-${idx}`}>
-                          <TableCell>{entity.entityType}</TableCell>
-                          <TableCell>{entity.name}</TableCell>
-                          <TableCell className="font-mono text-xs">{entity.lastActivityDate}</TableCell>
-                          <TableCell>{entity.inactivityDuration}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={riskClass[entity.riskLevel]}>
-                              {entity.riskLevel}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Status (Active / Inactive)</h1>
+        <p className="text-sm text-muted-foreground">
+          District network health with inactivity and risk visibility.
+        </p>
       </div>
-    </DashboardLayout>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Active Dealers</p><p className="text-2xl font-bold">{activeDealers}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Inactive Dealers</p><p className="text-2xl font-bold text-amber-600">{inactiveDealers}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Active Businessmen</p><p className="text-2xl font-bold">{activeBusinessmen}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Inactive Businessmen</p><p className="text-2xl font-bold text-amber-600">{inactiveBusinessmen}</p></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as EntityStatus)}>
+            <TabsList>
+              <TabsTrigger value="Active">Active</TabsTrigger>
+              <TabsTrigger value="Inactive">Inactive</TabsTrigger>
+            </TabsList>
+            <TabsContent value={tab}>
+              <div className="rounded-md border overflow-x-auto mt-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entity Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Last Activity Date</TableHead>
+                      <TableHead>Inactivity Duration</TableHead>
+                      <TableHead>Risk Level</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dataForTab.map((entity, idx) => (
+                      <TableRow key={`${entity.name}-${idx}`}>
+                        <TableCell>{entity.entityType}</TableCell>
+                        <TableCell>{entity.name}</TableCell>
+                        <TableCell className="font-mono text-xs">{entity.lastActivityDate}</TableCell>
+                        <TableCell>{entity.inactivityDuration}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={riskClass[entity.riskLevel]}>
+                            {entity.riskLevel}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

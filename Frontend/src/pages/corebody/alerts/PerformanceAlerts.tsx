@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -140,118 +138,116 @@ export default function PerformanceAlerts() {
   const paginated = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">SLA / Performance Alerts</h1>
-            <p className="text-sm text-muted-foreground">Read-only SLA and operations performance deviations for district oversight.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{filtered.length} Alerts</Badge>
-            <ReadOnlySystemBadge />
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">SLA / Performance Alerts</h1>
+          <p className="text-sm text-muted-foreground">Read-only SLA and operations performance deviations for district oversight.</p>
         </div>
-
-        <AlertFiltersCard title="Performance Alert Header">
-          <SelectFilter
-            label="Dealer"
-            value={dealerFilter}
-            onChange={(v) => {
-              setPage(1);
-              setDealerFilter(v);
-            }}
-            options={dealerOptions.map((d) => ({
-              label: d === "all" ? "All" : d,
-              value: d,
-            }))}
-          />
-          <SelectFilter
-            label="Stock Point / Dealer"
-            value={entityFilter}
-            onChange={(v) => {
-              setPage(1);
-              setEntityFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Dealer", value: "Dealer" },
-              { label: "Stock Point", value: "Stock Point" },
-            ]}
-          />
-          <SelectFilter
-            label="Severity"
-            value={severityFilter}
-            onChange={(v) => {
-              setPage(1);
-              setSeverityFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Info", value: "Info" },
-              { label: "Warning", value: "Warning" },
-              { label: "Critical", value: "Critical" },
-            ]}
-          />
-        </AlertFiltersCard>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Alert List</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {paginated.map((row) => (
-              <div key={row.id} className="rounded-md border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">
-                      {row.entityName} <span className="text-xs text-muted-foreground">({row.entityType})</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{row.metricBreached}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <SeverityBadge severity={row.severity} />
-                    {impactBadge(row.impactLevel)}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
-                  <div>
-                    <p className="text-muted-foreground">Expected vs Actual</p>
-                    <p className="font-mono">
-                      {row.expected} vs {row.actual}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Dealer</p>
-                    <p>{row.dealerGroup}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Recorded date</p>
-                    <p className="font-mono">{row.recordedDate}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {paginated.length === 0 && (
-              <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No performance alerts match selected filters.
-              </div>
-            )}
-
-            <PageControls
-              page={safePage}
-              totalPages={totalPages}
-              shown={paginated.length}
-              total={filtered.length}
-              label="alerts"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-            />
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{filtered.length} Alerts</Badge>
+          <ReadOnlySystemBadge />
+        </div>
       </div>
-    </DashboardLayout>
+
+      <AlertFiltersCard title="Performance Alert Header">
+        <SelectFilter
+          label="Dealer"
+          value={dealerFilter}
+          onChange={(v) => {
+            setPage(1);
+            setDealerFilter(v);
+          }}
+          options={dealerOptions.map((d) => ({
+            label: d === "all" ? "All" : d,
+            value: d,
+          }))}
+        />
+        <SelectFilter
+          label="Stock Point / Dealer"
+          entityFilter={entityFilter}
+          onChange={(v) => {
+            setPage(1);
+            setEntityFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Dealer", value: "Dealer" },
+            { label: "Stock Point", value: "Stock Point" },
+          ]}
+        />
+        <SelectFilter
+          label="Severity"
+          value={severityFilter}
+          onChange={(v) => {
+            setPage(1);
+            setSeverityFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Info", value: "Info" },
+            { label: "Warning", value: "Warning" },
+            { label: "Critical", value: "Critical" },
+          ]}
+        />
+      </AlertFiltersCard>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Alert List</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {paginated.map((row) => (
+            <div key={row.id} className="rounded-md border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">
+                    {row.entityName} <span className="text-xs text-muted-foreground">({row.entityType})</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">{row.metricBreached}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <SeverityBadge severity={row.severity} />
+                  {impactBadge(row.impactLevel)}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
+                <div>
+                  <p className="text-muted-foreground">Expected vs Actual</p>
+                  <p className="font-mono">
+                    {row.expected} vs {row.actual}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Dealer</p>
+                  <p>{row.dealerGroup}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Recorded date</p>
+                  <p className="font-mono">{row.recordedDate}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {paginated.length === 0 && (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No performance alerts match selected filters.
+            </div>
+          )}
+
+          <PageControls
+            page={safePage}
+            totalPages={totalPages}
+            shown={paginated.length}
+            total={filtered.length}
+            label="alerts"
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

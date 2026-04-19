@@ -1,4 +1,3 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { KPICard } from "@/components/KPICard";
 import { CapProgressBar } from "@/components/CapProgressBar";
 import { DataTable } from "@/components/DataTable";
@@ -14,25 +13,6 @@ import {
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState, useEffect } from "react";
-
-import { getCoreBodyFlatNavItems } from "@/config/coreBodySidebarConfig";
-
-export const getUserContext = (providedUser?: any) => {
-  try {
-    const user = providedUser || JSON.parse(localStorage.getItem('user') || '{}');
-    const type = user.role_code === 'core_body_b' ? 'B' : (user.role_code === 'dealer' ? 'Dealer' : 'A');
-    return {
-      coreBodyType: type as any,
-      isSPH: (!!user.is_sph && String(user.is_sph).toLowerCase() !== 'false' && String(user.is_sph) !== '0')
-    };
-  } catch {
-    return { coreBodyType: 'A' as any, isSPH: false };
-  }
-};
-
-export const getNavItems = () => getCoreBodyFlatNavItems(getUserContext());
-
-export const navItems = getNavItems();
 
 const earningsData = [
   { week: "W1", earnings: 8200 },
@@ -143,348 +123,344 @@ export default function CoreBodyDashboard() {
   const typeStr = stats?.profile?.type ? `Type ${stats.profile.type}` : "Type A";
   const distName = stats?.profile?.district_name || "North";
 
-  const context = getUserContext();
-  const navItems = getCoreBodyFlatNavItems(context);
-
   return (
-    <DashboardLayout role="corebody" navItems={navItems as any} roleLabel={`Core Body — District ${distName}`}>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Good Morning, {userName} 👋</h1>
-            <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
-          </div>
-          {!isDealer && (
-            <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
-              <DialogTrigger asChild>
-                <Button className="bg-profit hover:bg-profit/90 text-white gap-2">
-                  <PlusCircle className="h-4 w-4" />
-                  Issue Physical Stock
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Issue stock to Dealer</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="dealer">Select Dealer</Label>
-                    <Select onValueChange={(v) => setIssueForm({...issueForm, dealer_id: v})}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Choose a dealer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {districtDealers.map(d => (
-                          <SelectItem key={d.id} value={d.id}>{d.full_name || d.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="product">Select Product</Label>
-                    <Select onValueChange={(v) => setIssueForm({...issueForm, product_id: v})}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Choose product..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableProducts.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input 
-                      id="quantity" 
-                      type="number" 
-                      className="bg-background"
-                      onChange={(e) => setIssueForm({...issueForm, quantity: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="note">Dispatch Note (Internal)</Label>
-                    <Input 
-                      id="note" 
-                      placeholder="e.g. Batch 42 dispatch" 
-                      className="bg-background"
-                      onChange={(e) => setIssueForm({...issueForm, note: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowIssueModal(false)}
-                    disabled={issuing}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    className="bg-profit text-white hover:bg-profit/90"
-                    disabled={issuing || !issueForm.dealer_id || !issueForm.product_id || issueForm.quantity <= 0}
-                    onClick={async () => {
-                      try {
-                        setIssuing(true);
-                        await stockApi.issuePhysicalStock(issueForm);
-                        toast.success("Stock issued successfully!");
-                        setShowIssueModal(false);
-                      } catch (err: any) {
-                        toast.error(err.response?.data?.error || "Failed to issue stock");
-                      } finally {
-                        setIssuing(false);
-                      }
-                    }}
-                  >
-                    {issuing ? "Issuing..." : "Confirm Dispatch"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Good Morning, {userName} 👋</h1>
+          <p className="text-sm text-muted-foreground">Here's your business summary for today</p>
         </div>
-
-        {/* Overview Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">District</span>
-                <span className="font-medium">{distName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Core Body Type</span>
-                <span className="font-medium">{typeStr}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Active Since</span>
-                <span className="font-medium">{stats?.profile?.activated_at ? new Date(stats.profile.activated_at).toLocaleDateString() : "Pending"}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-
-          {isDealer ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4 text-emerald-500" />
-                  Stock Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-border/30 pb-2">
-                    <div className="flex flex-col">
-                      <span className="text-xs text-muted-foreground uppercase tracking-tight">Virtual (District)</span>
-                      <span className="text-2xl font-bold font-mono text-emerald-400">{stats?.inventory?.district_stock || stats?.inventory?.total_stock || 0}</span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-xs text-muted-foreground uppercase tracking-tight">Physical On-Hand</span>
-                      <span className="text-2xl font-bold font-mono text-blue-400">{stats?.inventory?.physical_stock || 0}</span>
-                    </div>
-                  </div>
-                  <div className="pt-1">
-                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                      <span>Available for allocation</span>
-                      <span>Ready for delivery</span>
-                    </div>
-                  </div>
+        {!isDealer && (
+          <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
+            <DialogTrigger asChild>
+              <Button className="bg-profit hover:bg-profit/90 text-white gap-2">
+                <PlusCircle className="h-4 w-4" />
+                Issue Physical Stock
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px] bg-card border-border">
+              <DialogHeader>
+                <DialogTitle>Issue stock to Dealer</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="dealer">Select Dealer</Label>
+                  <Select onValueChange={(v) => setIssueForm({...issueForm, dealer_id: v})}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Choose a dealer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {districtDealers.map(d => (
+                        <SelectItem key={d.id} value={d.id}>{d.full_name || d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-amber-500" />
-                  Earnings vs Cap
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Current</span>
-                    <span className="font-mono font-medium">₹{activeEarnings.toLocaleString('en-IN')}</span>
-                  </div>
-                  <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Cap Limit</span>
-                    <span className="font-mono">₹{activeCap.toLocaleString('en-IN')}</span>
-                  </div>
-                  <Badge variant={stats?.earnings?.cap_hit ? "destructive" : "secondary"} className="w-full justify-center text-xs">
-                     {stats?.earnings?.cap_hit ? "CAP LIMIT EXCEEDED" : `${((activeEarnings / activeCap) * 100).toFixed(1)}% utilized`}
-                  </Badge>
+                <div className="grid gap-2">
+                  <Label htmlFor="product">Select Product</Label>
+                  <Select onValueChange={(v) => setIssueForm({...issueForm, product_id: v})}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Choose product..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableProducts.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="grid gap-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input 
+                    id="quantity" 
+                    type="number" 
+                    className="bg-background"
+                    onChange={(e) => setIssueForm({...issueForm, quantity: parseInt(e.target.value)})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="note">Dispatch Note (Internal)</Label>
+                  <Input 
+                    id="note" 
+                    placeholder="e.g. Batch 42 dispatch" 
+                    className="bg-background"
+                    onChange={(e) => setIssueForm({...issueForm, note: e.target.value})}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowIssueModal(false)}
+                  disabled={issuing}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="bg-profit text-white hover:bg-profit/90"
+                  disabled={issuing || !issueForm.dealer_id || !issueForm.product_id || issueForm.quantity <= 0}
+                  onClick={async () => {
+                    try {
+                      setIssuing(true);
+                      await stockApi.issuePhysicalStock(issueForm);
+                      toast.success("Stock issued successfully!");
+                      setShowIssueModal(false);
+                    } catch (err: any) {
+                      toast.error(err.response?.data?.error || "Failed to issue stock");
+                    } finally {
+                      setIssuing(false);
+                    }
+                  }}
+                >
+                  {issuing ? "Issuing..." : "Confirm Dispatch"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {/* Overview Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">District</span>
+              <span className="font-medium">{distName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Core Body Type</span>
+              <span className="font-medium">{typeStr}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Active Since</span>
+              <span className="font-medium">{stats?.profile?.activated_at ? new Date(stats.profile.activated_at).toLocaleDateString() : "Pending"}</span>
+            </div>
+          </CardContent>
+        </Card>
 
 
+        {isDealer ? (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-500" />
-                Active Network
+                <LayoutGrid className="h-4 w-4 text-emerald-500" />
+                Stock Status
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Dealers</span>
-                <span className="font-medium">12 / 15</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Businessmen</span>
-                <span className="font-medium">45 / 50</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Network</span>
-                <span className="font-medium">57</span>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-end border-b border-border/30 pb-2">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase tracking-tight">Virtual (District)</span>
+                    <span className="text-2xl font-bold font-mono text-emerald-400">{stats?.inventory?.district_stock || stats?.inventory?.total_stock || 0}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs text-muted-foreground uppercase tracking-tight">Physical On-Hand</span>
+                    <span className="text-2xl font-bold font-mono text-blue-400">{stats?.inventory?.physical_stock || 0}</span>
+                  </div>
+                </div>
+                <div className="pt-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>Available for allocation</span>
+                    <span>Ready for delivery</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-
+        ) : (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-4 w-4 text-green-500" />
-                Today's Activity
+                <TrendingUp className="h-4 w-4 text-amber-500" />
+                Earnings vs Cap
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {todayActivity.map((item, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="text-muted-foreground shrink-0">{item.time}</span>
-                    <span className="text-foreground line-clamp-1">{item.action}</span>
-                  </div>
-                ))}
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Current</span>
+                  <span className="font-mono font-medium">₹{activeEarnings.toLocaleString('en-IN')}</span>
+                </div>
+                <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Cap Limit</span>
+                  <span className="font-mono">₹{activeCap.toLocaleString('en-IN')}</span>
+                </div>
+                <Badge variant={stats?.earnings?.cap_hit ? "destructive" : "secondary"} className="w-full justify-center text-xs">
+                   {stats?.earnings?.cap_hit ? "CAP LIMIT EXCEEDED" : `${((activeEarnings / activeCap) * 100).toFixed(1)}% utilized`}
+                </Badge>
               </div>
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        {/* KPI Row */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {isDealer ? (
-            <>
-              <KPICard title="Total Orders Handled" value="38" change="+12%" changeType="positive" icon={ShoppingBag} variant="profit" />
-              <KPICard title="Local Stock units" value={String(stats?.inventory?.total_stock || 0)} icon={Box} />
-              <KPICard title="Assigned Products" value={String(stats?.assigned_products?.length || 0)} icon={Store} variant="warning" />
-              <KPICard title="Pending Delivery" value="4" icon={Truck} variant="risk" />
-            </>
-          ) : (
-            <>
-              <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
-              <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
-              <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
-              {["A", "B"].includes(stats?.profile?.type) ? (
-                <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={UserPlus} variant="reserve" />
-              ) : (
-                <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
-              )}
-            </>
-          )}
-        </div>
 
-        {/* Cap Progress + Chart */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {isDealer ? (
-            <div className="rounded-lg border border-border bg-card p-5 space-y-5">
-              <h3 className="text-sm font-semibold text-card-foreground">Specialized Products</h3>
-              <div className="space-y-3">
-                {stats?.assigned_products?.length > 0 ? (
-                  stats.assigned_products.map((p: any) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                          <Store className="h-4 w-4 text-emerald-500" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold">{p.name}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">{p.sku}</div>
-                        </div>
-                      </div>
-                      <Badge variant="secondary" className="text-[9px]">ACTIVE</Badge>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground text-xs italic">
-                    No products assigned yet.
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 rounded-md bg-muted p-3">
-                <p className="text-xs font-medium text-muted-foreground">Assigned Subdivision</p>
-                <p className="text-sm font-semibold text-foreground mt-1">{stats?.profile?.subdivision_name || "N/A"}</p>
-              </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-500" />
+              Active Network
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Dealers</span>
+              <span className="font-medium">12 / 15</span>
             </div>
-          ) : (
-            <div className="rounded-lg border border-border bg-card p-5 space-y-5">
-              <h3 className="text-sm font-semibold text-card-foreground">Cap & Limits</h3>
-              <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
-              <CapProgressBar current={45} max={50} label="Businessman Slots (Demo)" />
-              <CapProgressBar current={12} max={15} label="Active Dealer Limit (Demo)" />
-              <div className="mt-4 rounded-md bg-muted p-3">
-                <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
-                <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>
-              </div>
-              {["A", "B"].includes(stats?.profile?.type) && (
-                <button 
-                  onClick={() => window.location.href='/corebody/referrals/my-referrals'}
-                  className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-profit/5 px-4 py-3 text-left transition-colors hover:bg-profit/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-md bg-profit/10 p-2">
-                      <UserPlus className="h-4 w-4 text-profit" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">View Referral Link</p>
-                      <p className="text-xs text-muted-foreground">Share & earn commission</p>
-                    </div>
-                  </div>
-                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                </button>
-              )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Businessmen</span>
+              <span className="font-medium">45 / 50</span>
             </div>
-          )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total Network</span>
+              <span className="font-medium">57</span>
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5">
-            <h3 className="text-sm font-semibold text-card-foreground mb-4">Weekly Earnings Trend</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={earningsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(224, 15%, 18%)" />
-                <XAxis dataKey="week" stroke="hsl(215, 15%, 55%)" fontSize={11} />
-                <YAxis stroke="hsl(215, 15%, 55%)" fontSize={11} tickFormatter={(v) => `₹${v/1000}K`} />
-                <Tooltip contentStyle={{ background: "hsl(224, 25%, 10%)", border: "1px solid hsl(224, 15%, 18%)", borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="earnings" stroke="hsl(192, 91%, 50%)" strokeWidth={2.5} dot={{ fill: "hsl(192, 91%, 50%)", r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Dealers Table / Assigned Orders */}
-        <DataTable
-          title={isDealer ? "Pending B2B Assignments" : "Dealers & Businessmen"}
-          columns={isDealer ? [
-            { header: "Order #", accessor: "order_number" },
-            { header: "Customer", accessor: "customer_name" },
-            { header: "Product", accessor: "product_name" },
-            { header: "Qty", accessor: (row) => <span className="font-mono">{String(row.quantity)}</span> },
-            { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
-          ] : [
-            { header: "Name", accessor: "name" },
-            { header: "Zone", accessor: "zone" },
-            { header: "Orders", accessor: (row) => <span className="font-mono">{String(row.orders)}</span> },
-            { header: "Revenue", accessor: "revenue", className: "font-mono" },
-            { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
-          ]}
-          data={isDealer ? pendingAssignments : dealers} // Add mock data for dealers if needed or fetch
-        />
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Activity className="h-4 w-4 text-green-500" />
+              Today's Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {todayActivity.map((item, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="text-muted-foreground shrink-0">{item.time}</span>
+                  <span className="text-foreground line-clamp-1">{item.action}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </DashboardLayout>
+
+      {/* KPI Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {isDealer ? (
+          <>
+            <KPICard title="Total Orders Handled" value="38" change="+12%" changeType="positive" icon={ShoppingBag} variant="profit" />
+            <KPICard title="Local Stock units" value={String(stats?.inventory?.total_stock || 0)} icon={Box} />
+            <KPICard title="Assigned Products" value={String(stats?.assigned_products?.length || 0)} icon={Store} variant="warning" />
+            <KPICard title="Pending Delivery" value="4" icon={Truck} variant="risk" />
+          </>
+        ) : (
+          <>
+            <KPICard title="Total Earnings (YTD)" value={`₹${totalEarnings.toLocaleString('en-IN')}`} change="" changeType="positive" icon={DollarSign} variant="profit" />
+            <KPICard title="Active Dealers" value="12" icon={UserCheck} variant="cap" subtitle="3 inactive" />
+            <KPICard title="Businessmen" value="45" change="+4" changeType="positive" icon={Users} />
+            {["A", "B"].includes(stats?.profile?.type) ? (
+              <KPICard title="Referral Earnings" value="₹2,100" change="+3 new" changeType="positive" icon={UserPlus} variant="reserve" />
+            ) : (
+              <KPICard title="Pending Orders" value="23" icon={Package} variant="warning" />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Cap Progress + Chart */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {isDealer ? (
+          <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+            <h3 className="text-sm font-semibold text-card-foreground">Specialized Products</h3>
+            <div className="space-y-3">
+              {stats?.assigned_products?.length > 0 ? (
+                stats.assigned_products.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
+                        <Store className="h-4 w-4 text-emerald-500" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">{p.name}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">{p.sku}</div>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="text-[9px]">ACTIVE</Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-muted-foreground text-xs italic">
+                  No products assigned yet.
+                </div>
+              )}
+            </div>
+            <div className="mt-4 rounded-md bg-muted p-3">
+              <p className="text-xs font-medium text-muted-foreground">Assigned Subdivision</p>
+              <p className="text-sm font-semibold text-foreground mt-1">{stats?.profile?.subdivision_name || "N/A"}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+            <h3 className="text-sm font-semibold text-card-foreground">Cap & Limits</h3>
+            <CapProgressBar current={activeEarnings} max={activeCap} label={capLabel} />
+            <CapProgressBar current={45} max={50} label="Businessman Slots (Demo)" />
+            <CapProgressBar current={12} max={15} label="Active Dealer Limit (Demo)" />
+            <div className="mt-4 rounded-md bg-muted p-3">
+              <p className="text-xs font-medium text-muted-foreground">Upgrade Eligibility</p>
+              <p className="text-sm font-semibold text-profit mt-1">✓ Eligible for Tier 2 upgrade</p>
+            </div>
+            {["A", "B"].includes(stats?.profile?.type) && (
+              <button 
+                onClick={() => window.location.href='/corebody/referrals/my-referrals'}
+                className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-profit/5 px-4 py-3 text-left transition-colors hover:bg-profit/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="rounded-md bg-profit/10 p-2">
+                    <UserPlus className="h-4 w-4 text-profit" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">View Referral Link</p>
+                    <p className="text-xs text-muted-foreground">Share & earn commission</p>
+                  </div>
+                </div>
+                <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-card-foreground mb-4">Weekly Earnings Trend</h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={earningsData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(224, 15%, 18%)" />
+              <XAxis dataKey="week" stroke="hsl(215, 15%, 55%)" fontSize={11} />
+              <YAxis stroke="hsl(215, 15%, 55%)" fontSize={11} tickFormatter={(v) => `₹${v/1000}K`} />
+              <Tooltip contentStyle={{ background: "hsl(224, 25%, 10%)", border: "1px solid hsl(224, 15%, 18%)", borderRadius: 8, fontSize: 12 }} />
+              <Line type="monotone" dataKey="earnings" stroke="hsl(192, 91%, 50%)" strokeWidth={2.5} dot={{ fill: "hsl(192, 91%, 50%)", r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Dealers Table / Assigned Orders */}
+      <DataTable
+        title={isDealer ? "Pending B2B Assignments" : "Dealers & Businessmen"}
+        columns={isDealer ? [
+          { header: "Order #", accessor: "order_number" },
+          { header: "Customer", accessor: "customer_name" },
+          { header: "Product", accessor: "product_name" },
+          { header: "Qty", accessor: (row) => <span className="font-mono">{String(row.quantity)}</span> },
+          { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
+        ] : [
+          { header: "Name", accessor: "name" },
+          { header: "Zone", accessor: "zone" },
+          { header: "Orders", accessor: (row) => <span className="font-mono">{String(row.orders)}</span> },
+          { header: "Revenue", accessor: "revenue", className: "font-mono" },
+          { header: "Status", accessor: (row) => <StatusBadge status={row.status as any} /> },
+        ]}
+        data={isDealer ? pendingAssignments : dealers} // Add mock data for dealers if needed or fetch
+      />
+    </div>
   );
 }
+

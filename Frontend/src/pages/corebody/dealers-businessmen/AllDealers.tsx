@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -316,9 +314,7 @@ export function AllDealersContent({ data }: { data?: any[] }) {
 
 export default function AllDealers() {
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <AllDealersContent />
-    </DashboardLayout>
+    <AllDealersContent />
   );
 }
 

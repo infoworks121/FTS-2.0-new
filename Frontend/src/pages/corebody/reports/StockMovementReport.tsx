@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import {
   ReportDataTable,
   ReportFilterBar,
@@ -73,54 +71,52 @@ export default function StockMovementReport() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <ReportPageHeader title="Stock Movement Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
+    <div className="space-y-6">
+      <ReportPageHeader title="Stock Movement Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
 
-        <ReportFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          dealerValue={dealer}
-          dealerOptions={dealerOptions}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onDealerChange={setDealer}
-          onApply={applyFilter}
-          onClear={clearFilter}
-        />
+      <ReportFilterBar
+        fromDate={fromDate}
+        toDate={toDate}
+        dealerValue={dealer}
+        dealerOptions={dealerOptions}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onDealerChange={setDealer}
+        onApply={applyFilter}
+        onClear={clearFilter}
+      />
 
-        <ReportSummaryCards
-          cards={[
-            { label: "Total Issued Quantity", value: totalIssued },
-            { label: "Total Returned Quantity", value: totalReturned },
-            { label: "Net Stock Movement", value: netMovement, tone: netMovement >= 0 ? "success" : "danger" },
-            { label: "Unique Products", value: uniqueProducts, hint: "Filtered set" },
-          ]}
-        />
+      <ReportSummaryCards
+        cards={[
+          { label: "Total Issued Quantity", value: totalIssued },
+          { label: "Total Returned Quantity", value: totalReturned },
+          { label: "Net Stock Movement", value: netMovement, tone: netMovement >= 0 ? "success" : "danger" },
+          { label: "Unique Products", value: uniqueProducts, hint: "Filtered set" },
+        ]}
+      />
 
-        <ReportDataTable
-          emptyMessage="No stock movement records found for the selected filter view."
-          data={filtered}
-          columns={[
-            { key: "product", header: "Product Name", sortable: true, sortAccessor: (row) => row.productName, render: (row) => row.productName },
-            { key: "category", header: "Product Category", sortable: true, sortAccessor: (row) => row.productCategory, render: (row) => row.productCategory },
-            { key: "issued", header: "Issued Quantity", sortable: true, className: "font-mono", sortAccessor: (row) => row.issuedQuantity, render: (row) => row.issuedQuantity },
-            { key: "returned", header: "Returned Quantity", sortable: true, className: "font-mono", sortAccessor: (row) => row.returnedQuantity, render: (row) => row.returnedQuantity },
-            {
-              key: "net",
-              header: "Net Quantity",
-              sortable: true,
-              className: "font-mono",
-              sortAccessor: (row) => row.issuedQuantity - row.returnedQuantity,
-              render: (row) => {
-                const net = row.issuedQuantity - row.returnedQuantity;
-                return <span className={net >= 0 ? "text-emerald-600" : "text-red-600"}>{net}</span>;
-              },
+      <ReportDataTable
+        emptyMessage="No stock movement records found for the selected filter view."
+        data={filtered}
+        columns={[
+          { key: "product", header: "Product Name", sortable: true, sortAccessor: (row) => row.productName, render: (row) => row.productName },
+          { key: "category", header: "Product Category", sortable: true, sortAccessor: (row) => row.productCategory, render: (row) => row.productCategory },
+          { key: "issued", header: "Issued Quantity", sortable: true, className: "font-mono", sortAccessor: (row) => row.issuedQuantity, render: (row) => row.issuedQuantity },
+          { key: "returned", header: "Returned Quantity", sortable: true, className: "font-mono", sortAccessor: (row) => row.returnedQuantity, render: (row) => row.returnedQuantity },
+          {
+            key: "net",
+            header: "Net Quantity",
+            sortable: true,
+            className: "font-mono",
+            sortAccessor: (row) => row.issuedQuantity - row.returnedQuantity,
+            render: (row) => {
+              const net = row.issuedQuantity - row.returnedQuantity;
+              return <span className={net >= 0 ? "text-emerald-600" : "text-red-600"}>{net}</span>;
             },
-            { key: "date", header: "Movement Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.movementDate, render: (row) => row.movementDate },
-          ]}
-        />
-      </div>
-    </DashboardLayout>
+          },
+          { key: "date", header: "Movement Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.movementDate, render: (row) => row.movementDate },
+        ]}
+      />
+    </div>
   );
 }

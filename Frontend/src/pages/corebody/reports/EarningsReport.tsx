@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import {
   ReportDataTable,
   ReportFilterBar,
@@ -83,54 +81,52 @@ export default function EarningsReport() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <ReportPageHeader title="Earnings Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
+    <div className="space-y-6">
+      <ReportPageHeader title="Earnings Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
 
-        <ReportFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          dealerValue={dealer}
-          dealerOptions={dealerOptions}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onDealerChange={setDealer}
-          onApply={applyFilter}
-          onClear={clearFilter}
-        />
+      <ReportFilterBar
+        fromDate={fromDate}
+        toDate={toDate}
+        dealerValue={dealer}
+        dealerOptions={dealerOptions}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onDealerChange={setDealer}
+        onApply={applyFilter}
+        onClear={clearFilter}
+      />
 
-        <ReportSummaryCards
-          cards={[
-            { label: "Total Earnings", value: currency(totalEarnings), hint: "Filtered period" },
-            { label: "Cap Used", value: currency(capUsed), hint: "Cap-impact entries", tone: "warning" },
-            { label: "Remaining Cap", value: currency(remainingCap), hint: `Limit ${currency(CAP_LIMIT)}`, tone: remainingCap < CAP_LIMIT * 0.2 ? "danger" : "success" },
-            { label: "Wallet Entries", value: filtered.length, hint: "Immutable rows" },
-          ]}
-        />
+      <ReportSummaryCards
+        cards={[
+          { label: "Total Earnings", value: currency(totalEarnings), hint: "Filtered period" },
+          { label: "Cap Used", value: currency(capUsed), hint: "Cap-impact entries", tone: "warning" },
+          { label: "Remaining Cap", value: currency(remainingCap), hint: `Limit ${currency(CAP_LIMIT)}`, tone: remainingCap < CAP_LIMIT * 0.2 ? "danger" : "success" },
+          { label: "Wallet Entries", value: filtered.length, hint: "Immutable rows" },
+        ]}
+      />
 
-        <ReportDataTable
-          emptyMessage="No earnings entries found for the selected filter view."
-          data={filtered}
-          columns={[
-            { key: "date", header: "Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.date, render: (row) => row.date },
-            { key: "source", header: "Source", sortable: true, sortAccessor: (row) => row.source, render: (row) => row.source },
-            { key: "ref", header: "Reference ID", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.referenceId, render: (row) => row.referenceId },
-            { key: "amount", header: "Amount", sortable: true, className: "font-mono", sortAccessor: (row) => row.amount, render: (row) => currency(row.amount) },
-            { key: "wallet", header: "Wallet Type", sortable: true, sortAccessor: (row) => row.walletType, render: (row) => row.walletType },
-            {
-              key: "capImpact",
-              header: "Cap Impact",
-              sortable: true,
-              sortAccessor: (row) => Number(row.capImpact),
-              render: (row) => (
-                <Badge variant="outline" className={row.capImpact ? "border-amber-500/40 text-amber-600" : "border-emerald-500/40 text-emerald-600"}>
-                  {row.capImpact ? "Yes" : "No"}
-                </Badge>
-              ),
-            },
-          ]}
-        />
-      </div>
-    </DashboardLayout>
+      <ReportDataTable
+        emptyMessage="No earnings entries found for the selected filter view."
+        data={filtered}
+        columns={[
+          { key: "date", header: "Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.date, render: (row) => row.date },
+          { key: "source", header: "Source", sortable: true, sortAccessor: (row) => row.source, render: (row) => row.source },
+          { key: "ref", header: "Reference ID", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.referenceId, render: (row) => row.referenceId },
+          { key: "amount", header: "Amount", sortable: true, className: "font-mono", sortAccessor: (row) => row.amount, render: (row) => currency(row.amount) },
+          { key: "wallet", header: "Wallet Type", sortable: true, sortAccessor: (row) => row.walletType, render: (row) => row.walletType },
+          {
+            key: "capImpact",
+            header: "Cap Impact",
+            sortable: true,
+            sortAccessor: (row) => Number(row.capImpact),
+            render: (row) => (
+              <Badge variant="outline" className={row.capImpact ? "border-amber-500/40 text-amber-600" : "border-emerald-500/40 text-emerald-600"}>
+                {row.capImpact ? "Yes" : "No"}
+              </Badge>
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }

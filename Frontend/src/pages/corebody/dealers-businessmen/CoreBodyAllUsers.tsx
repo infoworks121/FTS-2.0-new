@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AllDealersContent } from "./AllDealers";
 import { AllBusinessmenContent } from "./AllBusinessmen";
@@ -47,64 +45,62 @@ export default function CoreBodyAllUsers() {
   }, [toast]);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-xl font-bold font-display tracking-tight">User Directory</h1>
-            <p className="text-sm text-muted-foreground">
-              Comprehensive overview of all participants in your district.
-            </p>
-          </div>
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Syncing with database...
-            </div>
-          )}
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-xl font-bold font-display tracking-tight">User Directory</h1>
+          <p className="text-sm text-muted-foreground">
+            Comprehensive overview of all participants in your district.
+          </p>
         </div>
-
-        <Tabs defaultValue="corebody" onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
-            <TabsTrigger value="corebody">Core Body</TabsTrigger>
-            <TabsTrigger value="dealers">Dealers</TabsTrigger>
-            <TabsTrigger value="businessmen">Businessmen</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="corebody" className="mt-6 border-none p-0 outline-none">
-             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm text-muted-foreground">Loading member registry...</p>
-                </div>
-             ) : (
-                <AllCoreBodiesContent data={data.coreBodies} />
-             )}
-          </TabsContent>
-
-          <TabsContent value="dealers" className="mt-6 border-none p-0 outline-none">
-             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm text-muted-foreground">Loading dealer registry...</p>
-                </div>
-             ) : (
-                <AllDealersContent data={data.dealers} />
-             )}
-          </TabsContent>
-          
-          <TabsContent value="businessmen" className="mt-6 border-none p-0 outline-none">
-             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm text-muted-foreground">Loading businessman registry...</p>
-                </div>
-             ) : (
-                <AllBusinessmenContent data={data.businessmen} />
-             )}
-          </TabsContent>
-        </Tabs>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Syncing with database...
+          </div>
+        )}
       </div>
-    </DashboardLayout>
+
+      <Tabs defaultValue="corebody" onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
+          <TabsTrigger value="corebody">Core Body</TabsTrigger>
+          <TabsTrigger value="dealers">Dealers</TabsTrigger>
+          <TabsTrigger value="businessmen">Businessmen</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="corebody" className="mt-6 border-none p-0 outline-none">
+           {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-sm text-muted-foreground">Loading member registry...</p>
+              </div>
+           ) : (
+              <AllCoreBodiesContent data={data.coreBodies} />
+           )}
+        </TabsContent>
+
+        <TabsContent value="dealers" className="mt-6 border-none p-0 outline-none">
+           {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-sm text-muted-foreground">Loading dealer registry...</p>
+              </div>
+           ) : (
+              <AllDealersContent data={data.dealers} />
+           )}
+        </TabsContent>
+        
+        <TabsContent value="businessmen" className="mt-6 border-none p-0 outline-none">
+           {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-lg border border-dashed">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-sm text-muted-foreground">Loading businessman registry...</p>
+              </div>
+           ) : (
+              <AllBusinessmenContent data={data.businessmen} />
+           )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

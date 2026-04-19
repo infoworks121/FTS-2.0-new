@@ -1,5 +1,3 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "../../CoreBodyDashboard";
 import { useEffect, useState } from "react";
 import { orderApi } from "@/lib/orderApi";
 import { DataTable } from "@/components/DataTable";
@@ -87,86 +85,84 @@ export default function B2BOrders() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems as any} roleLabel="B2B Order Management">
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">B2B District Orders</h1>
-          <p className="text-sm text-muted-foreground">Monitor and manage business trade across your district network.</p>
-        </div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">B2B District Orders</h1>
+        <p className="text-sm text-muted-foreground">Monitor and manage business trade across your district network.</p>
+      </div>
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard title="Total B2B Orders" value={String(stats.totalB2B)} icon={ShoppingBag} variant="default" />
-          <KPICard title="District B2B Volume" value={`₹${stats.totalVolume.toLocaleString('en-IN')}`} icon={TrendingUp} variant="profit" />
-          <KPICard title="Pending Orders" value={String(stats.pending)} icon={Clock} variant="warning" />
-          <KPICard title="Active Sellers" value="12" icon={Building2} variant="trust" subtitle="In your district" />
-        </div>
+      {/* Stats Summary */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KPICard title="Total B2B Orders" value={String(stats.totalB2B)} icon={ShoppingBag} variant="default" />
+        <KPICard title="District B2B Volume" value={`₹${stats.totalVolume.toLocaleString('en-IN')}`} icon={TrendingUp} variant="profit" />
+        <KPICard title="Pending Orders" value={String(stats.pending)} icon={Clock} variant="warning" />
+        <KPICard title="Active Sellers" value="12" icon={Building2} variant="trust" subtitle="In your district" />
+      </div>
 
-        {/* Orders Table */}
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-          <DataTable
-            loading={loading}
-            columns={[
-              {
-                header: "Order Details",
-                accessor: (row) => (
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold text-foreground">#{row.order_number}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{format(new Date(row.created_at), 'PPP p')}</span>
+      {/* Orders Table */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <DataTable
+          loading={loading}
+          columns={[
+            {
+              header: "Order Details",
+              accessor: (row) => (
+                <div className="flex flex-col gap-1">
+                  <span className="font-bold text-foreground">#{row.order_number}</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">{format(new Date(row.created_at), 'PPP p')}</span>
+                </div>
+              ),
+            },
+            {
+              header: "Customer/Buyer",
+              accessor: (row) => (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium text-sm">{row.customer_name}</span>
+                  <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase">Member</Badge>
+                </div>
+              ),
+            },
+            {
+              header: "Products",
+              accessor: (row) => (
+                <div className="flex items-center gap-2 max-w-[200px]">
+                  <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                    <Package className="h-4 w-4 text-muted-foreground/50" />
                   </div>
-                ),
-              },
-              {
-                header: "Customer/Buyer",
-                accessor: (row) => (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-sm">{row.customer_name}</span>
-                    <Badge variant="outline" className="w-fit text-[9px] h-4 py-0 uppercase">Member</Badge>
-                  </div>
-                ),
-              },
-              {
-                header: "Products",
-                accessor: (row) => (
-                  <div className="flex items-center gap-2 max-w-[200px]">
-                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                      <Package className="h-4 w-4 text-muted-foreground/50" />
-                    </div>
-                    <span className="text-xs truncate text-muted-foreground" title={row.product_names}>
-                      {row.product_names}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                header: "Total Value",
-                accessor: (row) => (
-                  <div className="flex flex-col">
-                    <span className="font-black font-mono text-profit">₹{Number(row.total_amount).toLocaleString('en-IN')}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase">{row.payment_method}</span>
-                  </div>
-                ),
-              },
-              {
-                header: "Status",
-                accessor: (row) => (
-                  <Badge className={`uppercase font-bold text-[10px] ${getStatusColor(row.status)}`}>
-                    {row.status}
-                  </Badge>
-                ),
-              },
-              {
-                header: "Actions",
-                accessor: (row) => (
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleOpenDetails(row)}>
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                ),
-              },
-            ]}
-            data={orders}
-          />
-        </div>
+                  <span className="text-xs truncate text-muted-foreground" title={row.product_names}>
+                    {row.product_names}
+                  </span>
+                </div>
+              ),
+            },
+            {
+              header: "Total Value",
+              accessor: (row) => (
+                <div className="flex flex-col">
+                  <span className="font-black font-mono text-profit">₹{Number(row.total_amount).toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase">{row.payment_method}</span>
+                </div>
+              ),
+            },
+            {
+              header: "Status",
+              accessor: (row) => (
+                <Badge className={`uppercase font-bold text-[10px] ${getStatusColor(row.status)}`}>
+                  {row.status}
+                </Badge>
+              ),
+            },
+            {
+              header: "Actions",
+              accessor: (row) => (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleOpenDetails(row)}>
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              ),
+            },
+          ]}
+          data={orders}
+        />
       </div>
 
       <Sheet open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
@@ -250,6 +246,6 @@ export default function B2BOrders() {
           )}
         </SheetContent>
       </Sheet>
-    </DashboardLayout>
+    </div>
   );
 }

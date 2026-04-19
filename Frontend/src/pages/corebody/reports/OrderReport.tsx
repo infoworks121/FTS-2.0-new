@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import {
   ReportDataTable,
   ReportFilterBar,
@@ -81,54 +79,52 @@ export default function OrderReport() {
   };
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <ReportPageHeader title="Order Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
+    <div className="space-y-6">
+      <ReportPageHeader title="Order Report" districtName={DISTRICT_NAME} onExport={() => undefined} />
 
-        <ReportFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          dealerValue={dealer}
-          dealerOptions={dealerOptions}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onDealerChange={setDealer}
-          onApply={applyFilter}
-          onClear={clearFilter}
-        />
+      <ReportFilterBar
+        fromDate={fromDate}
+        toDate={toDate}
+        dealerValue={dealer}
+        dealerOptions={dealerOptions}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onDealerChange={setDealer}
+        onApply={applyFilter}
+        onClear={clearFilter}
+      />
 
-        <ReportSummaryCards
-          cards={[
-            { label: "Total Orders", value: totalOrders },
-            { label: "Completed Orders", value: completedOrders, tone: "success" },
-            { label: "Pending Orders", value: pendingOrders, tone: pendingOrders > 0 ? "warning" : "neutral" },
-            { label: "Total Order Value", value: currency(totalOrderValue) },
-          ]}
-        />
+      <ReportSummaryCards
+        cards={[
+          { label: "Total Orders", value: totalOrders },
+          { label: "Completed Orders", value: completedOrders, tone: "success" },
+          { label: "Pending Orders", value: pendingOrders, tone: pendingOrders > 0 ? "warning" : "neutral" },
+          { label: "Total Order Value", value: currency(totalOrderValue) },
+        ]}
+      />
 
-        <ReportDataTable
-          emptyMessage="No order records found for the selected filter view."
-          data={filtered}
-          columns={[
-            { key: "id", header: "Order ID", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.orderId, render: (row) => row.orderId },
-            {
-              key: "type",
-              header: "Order Type",
-              sortable: true,
-              sortAccessor: (row) => row.orderType,
-              render: (row) => (
-                <Badge variant="outline" className={row.orderType === "B2B" ? "border-blue-500/40 text-blue-600" : "border-purple-500/40 text-purple-600"}>
-                  {row.orderType}
-                </Badge>
-              ),
-            },
-            { key: "dealer", header: "Dealer / Businessman", sortable: true, sortAccessor: (row) => row.dealer, render: (row) => row.dealer },
-            { key: "value", header: "Order Value", sortable: true, className: "font-mono", sortAccessor: (row) => row.orderValue, render: (row) => currency(row.orderValue) },
-            { key: "status", header: "Status", sortable: true, sortAccessor: (row) => row.status, render: (row) => <OrderStatusBadge status={row.status} /> },
-            { key: "date", header: "Completion Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.completionDate, render: (row) => row.completionDate },
-          ]}
-        />
-      </div>
-    </DashboardLayout>
+      <ReportDataTable
+        emptyMessage="No order records found for the selected filter view."
+        data={filtered}
+        columns={[
+          { key: "id", header: "Order ID", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.orderId, render: (row) => row.orderId },
+          {
+            key: "type",
+            header: "Order Type",
+            sortable: true,
+            sortAccessor: (row) => row.orderType,
+            render: (row) => (
+              <Badge variant="outline" className={row.orderType === "B2B" ? "border-blue-500/40 text-blue-600" : "border-purple-500/40 text-purple-600"}>
+                {row.orderType}
+              </Badge>
+            ),
+          },
+          { key: "dealer", header: "Dealer / Businessman", sortable: true, sortAccessor: (row) => row.dealer, render: (row) => row.dealer },
+          { key: "value", header: "Order Value", sortable: true, className: "font-mono", sortAccessor: (row) => row.orderValue, render: (row) => currency(row.orderValue) },
+          { key: "status", header: "Status", sortable: true, sortAccessor: (row) => row.status, render: (row) => <OrderStatusBadge status={row.status} /> },
+          { key: "date", header: "Completion Date", sortable: true, className: "font-mono text-xs", sortAccessor: (row) => row.completionDate, render: (row) => row.completionDate },
+        ]}
+      />
+    </div>
   );
 }

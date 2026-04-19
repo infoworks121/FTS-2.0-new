@@ -1,17 +1,14 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Info } from "lucide-react";
-import { navItems } from "@/pages/CoreBodyDashboard";
 
 const StockSettings = () => {
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body — District North">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">Stock Issuance Settings</h1>
-          <p className="text-sm text-muted-foreground">Admin-defined issuance controls and limits (read-only)</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Stock Issuance Settings</h1>
+        <p className="text-sm text-muted-foreground">Admin-defined issuance controls and limits (read-only)</p>
+      </div>
 
       <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-500/10">
         <CardContent className="pt-6">
@@ -93,8 +90,7 @@ const StockSettings = () => {
           </div>
         </CardContent>
       </Card>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 };
 

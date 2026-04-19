@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { 
   MessageSquare, 
   Send, 
@@ -280,219 +279,217 @@ export default function DemandSignals() {
   };
 
   return (
-    <DashboardLayout role="dealer" navItems={[]} roleLabel="Core Body Dashboard">
-      <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
-              <TrendingUp className="h-3 w-3" />
-              <span>District Demand Intelligence</span>
-            </div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Market Demand Analysis</h1>
-            <p className="text-slate-500 font-medium">Aggregated signals from subdivision dealers to guide your stock acquisition strategy.</p>
+    <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
+            <TrendingUp className="h-3 w-3" />
+            <span>District Demand Intelligence</span>
           </div>
-          <div className="flex items-center gap-3">
-             <Button variant="outline" onClick={fetchData} className="h-10 rounded-xl gap-2 font-bold text-xs uppercase tracking-widest">
-                <RefreshCcw className="h-3.5 w-3.5" />
-                Refresh Insights
-             </Button>
-          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Market Demand Analysis</h1>
+          <p className="text-slate-500 font-medium">Aggregated signals from subdivision dealers to guide your stock acquisition strategy.</p>
         </div>
-
-        {/* Analytics Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Top Products Bar Chart */}
-          <Card className="lg:col-span-2 border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
-            <CardHeader className="bg-white/80 border-b border-slate-100 p-6 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-black text-slate-900 italic">Demand Highlights</CardTitle>
-                  <CardDescription className="text-xs font-bold text-slate-400 tracking-tight">Click a bar to drill down into dealer requests</CardDescription>
-                </div>
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-                  <BarChart3 className="h-5 w-5" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.products} onClick={(e: any) => e && e.activePayload && handleBarClick(e.activePayload[0].payload)}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
-                        interval={0}
-                    />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
-                    <Tooltip 
-                        cursor={{fill: '#f8fafc'}}
-                        contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}}
-                    />
-                    <Bar 
-                        dataKey="count" 
-                        fill="#6366f1" 
-                        radius={[6, 6, 0, 0]} 
-                        className="cursor-pointer"
-                    >
-                         {chartData.products.map((entry, index) => (
-                            <Cell 
-                                key={`cell-${index}`} 
-                                fill={filterProduct === entry.name ? '#4f46e5' : '#818cf8'} 
-                                opacity={filterProduct && filterProduct !== entry.name ? 0.3 : 1}
-                            />
-                        ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Urgency Pie Chart */}
-          <Card className="border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
-            <CardHeader className="bg-white/80 border-b border-slate-100 p-6 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-black text-slate-900 italic">District Urgency</CardTitle>
-                  <CardDescription className="text-xs font-bold text-slate-400 tracking-tight">Market signal sensitivity</CardDescription>
-                </div>
-                <div className="p-2 rounded-lg bg-orange-50 text-orange-600">
-                  <PieChartIcon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData.urgencies}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={8}
-                      dataKey="value"
-                      className="cursor-pointer"
-                      onClick={handlePieClick}
-                    >
-                      {chartData.urgencies.map((entry: any, index: number) => (
-                        <Cell 
-                            key={`cell-${index}`} 
-                            fill={(URGENCY_COLORS as any)[entry.key] || '#94a3b8'} 
-                            opacity={filterUrgency && filterUrgency !== entry.key ? 0.3 : 1}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                         contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}}
-                    />
-                    <Legend 
-                        verticalAlign="bottom" 
-                        iconType="circle"
-                        formatter={(val) => <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{val}</span>}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Drill-down Section */}
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-             <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-white shadow-sm border border-slate-200">
-                    <MousePointer2 className="h-4 w-4 text-indigo-600" />
-                </div>
-                <div>
-                    <h2 className="text-xl font-black text-slate-900 italic">Drill-down: Breakdown</h2>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Specific Dealer Requirements</p>
-                </div>
-             </div>
-
-             <div className="flex items-center gap-3">
-                {(filterProduct || filterUrgency || searchQuery) && (
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => {setFilterProduct(null); setFilterUrgency(null); setSearchQuery("");}}
-                        className="text-[10px] font-black uppercase tracking-widest text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                        <XCircle className="h-3 w-3 mr-1.5" />
-                        Clear All Filters
-                    </Button>
-                )}
-                <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    <Input 
-                        placeholder="Filter by Dealer..." 
-                        className="pl-9 h-10 border-slate-200 rounded-xl font-medium text-xs shadow-none bg-white"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
-                 {filterProduct && (
-                     <Badge className="bg-indigo-600 text-white rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-between w-full">
-                         <span>Product: {filterProduct}</span>
-                         <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setFilterProduct(null)} />
-                     </Badge>
-                 )}
-                 {filterUrgency && (
-                     <Badge className="bg-orange-600 text-white rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-100 flex items-center justify-between w-full">
-                         <span>Urgency: {filterUrgency}</span>
-                         <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setFilterUrgency(null)} />
-                     </Badge>
-                 )}
-          </div>
-
-          <Card className="border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
-            <CardContent className="p-0">
-                <DataTable 
-                    columns={columns} 
-                    data={filteredSignals} 
-                    loading={loading} 
-                    noDataMessage={filterProduct || filterUrgency ? "No signals match the selected filters." : "No demand signals from subdivisions yet."} 
-                />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Strategic Insight Footer */}
-        <div className="p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden">
-            <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
-                <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                    <BarChart3 className="h-10 w-10 text-indigo-400" />
-                </div>
-                <div className="flex-1 space-y-2">
-                    <h3 className="text-xl font-black italic">Strategic Purchasing Opportunity</h3>
-                    <p className="text-slate-400 font-medium leading-relaxed max-w-4xl text-sm">
-                        You have <span className="text-indigo-400 font-bold underline decoration-2 underline-offset-4">{chartData.totalQty.toLocaleString()} estimated units</span> in requested demand from your subdivisions. 
-                        Targeting the top products in your "Demand Highlights" bar chart will maximize the District's auto- fulfillment capacity and overall profit distribution.
-                    </p>
-                </div>
-                <div className="shrink-0 flex gap-4">
-                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[120px]">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Stock Signals</p>
-                        <p className="text-2xl font-black">{signals.length}</p>
-                     </div>
-                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[120px]">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Critial Alerts</p>
-                        <p className="text-2xl font-black text-red-500">{chartData.urgencies.find(u => u.key === 'critical')?.value || 0}</p>
-                     </div>
-                </div>
-            </div>
+        <div className="flex items-center gap-3">
+           <Button variant="outline" onClick={fetchData} className="h-10 rounded-xl gap-2 font-bold text-xs uppercase tracking-widest">
+              <RefreshCcw className="h-3.5 w-3.5" />
+              Refresh Insights
+           </Button>
         </div>
       </div>
-    </DashboardLayout>
+
+      {/* Analytics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Top Products Bar Chart */}
+        <Card className="lg:col-span-2 border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
+          <CardHeader className="bg-white/80 border-b border-slate-100 p-6 pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 italic">Demand Highlights</CardTitle>
+                <CardDescription className="text-xs font-bold text-slate-400 tracking-tight">Click a bar to drill down into dealer requests</CardDescription>
+              </div>
+              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.products} onClick={(e: any) => e && e.activePayload && handleBarClick(e.activePayload[0].payload)}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
+                      interval={0}
+                  />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
+                  <Tooltip 
+                      cursor={{fill: '#f8fafc'}}
+                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}}
+                  />
+                  <Bar 
+                      dataKey="count" 
+                      fill="#6366f1" 
+                      radius={[6, 6, 0, 0]} 
+                      className="cursor-pointer"
+                  >
+                       {chartData.products.map((entry, index) => (
+                          <Cell 
+                              key={`cell-${index}`} 
+                              fill={filterProduct === entry.name ? '#4f46e5' : '#818cf8'} 
+                              opacity={filterProduct && filterProduct !== entry.name ? 0.3 : 1}
+                          />
+                      ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Urgency Pie Chart */}
+        <Card className="border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
+          <CardHeader className="bg-white/80 border-b border-slate-100 p-6 pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 italic">District Urgency</CardTitle>
+                <CardDescription className="text-xs font-bold text-slate-400 tracking-tight">Market signal sensitivity</CardDescription>
+              </div>
+              <div className="p-2 rounded-lg bg-orange-50 text-orange-600">
+                <PieChartIcon className="h-5 w-5" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData.urgencies}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={8}
+                    dataKey="value"
+                    className="cursor-pointer"
+                    onClick={handlePieClick}
+                  >
+                    {chartData.urgencies.map((entry: any, index: number) => (
+                      <Cell 
+                          key={`cell-${index}`} 
+                          fill={(URGENCY_COLORS as any)[entry.key] || '#94a3b8'} 
+                          opacity={filterUrgency && filterUrgency !== entry.key ? 0.3 : 1}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                       contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}}
+                  />
+                  <Legend 
+                      verticalAlign="bottom" 
+                      iconType="circle"
+                      formatter={(val) => <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{val}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Drill-down Section */}
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-white shadow-sm border border-slate-200">
+                  <MousePointer2 className="h-4 w-4 text-indigo-600" />
+              </div>
+              <div>
+                  <h2 className="text-xl font-black text-slate-900 italic">Drill-down: Breakdown</h2>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Specific Dealer Requirements</p>
+              </div>
+           </div>
+
+           <div className="flex items-center gap-3">
+              {(filterProduct || filterUrgency || searchQuery) && (
+                  <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {setFilterProduct(null); setFilterUrgency(null); setSearchQuery("");}}
+                      className="text-[10px] font-black uppercase tracking-widest text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                      <XCircle className="h-3 w-3 mr-1.5" />
+                      Clear All Filters
+                  </Button>
+              )}
+              <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input 
+                      placeholder="Filter by Dealer..." 
+                      className="pl-9 h-10 border-slate-200 rounded-xl font-medium text-xs shadow-none bg-white"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+              </div>
+           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
+               {filterProduct && (
+                   <Badge className="bg-indigo-600 text-white rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-between w-full">
+                       <span>Product: {filterProduct}</span>
+                       <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setFilterProduct(null)} />
+                   </Badge>
+               )}
+               {filterUrgency && (
+                   <Badge className="bg-orange-600 text-white rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-100 flex items-center justify-between w-full">
+                       <span>Urgency: {filterUrgency}</span>
+                       <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setFilterUrgency(null)} />
+                   </Badge>
+               )}
+        </div>
+
+        <Card className="border-0 shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden bg-white/50 backdrop-blur-sm">
+          <CardContent className="p-0">
+              <DataTable 
+                  columns={columns} 
+                  data={filteredSignals} 
+                  loading={loading} 
+                  noDataMessage={filterProduct || filterUrgency ? "No signals match the selected filters." : "No demand signals from subdivisions yet."} 
+              />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Strategic Insight Footer */}
+      <div className="p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
+              <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                  <BarChart3 className="h-10 w-10 text-indigo-400" />
+              </div>
+              <div className="flex-1 space-y-2">
+                  <h3 className="text-xl font-black italic">Strategic Purchasing Opportunity</h3>
+                  <p className="text-slate-400 font-medium leading-relaxed max-w-4xl text-sm">
+                      You have <span className="text-indigo-400 font-bold underline decoration-2 underline-offset-4">{chartData.totalQty.toLocaleString()} estimated units</span> in requested demand from your subdivisions. 
+                      Targeting the top products in your "Demand Highlights" bar chart will maximize the District's auto- fulfillment capacity and overall profit distribution.
+                  </p>
+              </div>
+              <div className="shrink-0 flex gap-4">
+                   <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[120px]">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Stock Signals</p>
+                      <p className="text-2xl font-black">{signals.length}</p>
+                   </div>
+                   <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[120px]">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Critial Alerts</p>
+                      <p className="text-2xl font-black text-red-500">{chartData.urgencies.find(u => u.key === 'critical')?.value || 0}</p>
+                   </div>
+              </div>
+          </div>
+      </div>
+    </div>
   );
 }

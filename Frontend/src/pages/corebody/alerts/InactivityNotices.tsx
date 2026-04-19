@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -131,127 +129,125 @@ export default function InactivityNotices() {
   const paginated = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Inactivity Notices</h1>
-            <p className="text-sm text-muted-foreground">System monitoring of inactivity risk for self, dealers, and businessmen.</p>
-          </div>
-          <ReadOnlySystemBadge />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Inactivity Notices</h1>
+          <p className="text-sm text-muted-foreground">System monitoring of inactivity risk for self, dealers, and businessmen.</p>
         </div>
+        <ReadOnlySystemBadge />
+      </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="pt-5">
-              <p className="text-xs text-muted-foreground">Self inactivity</p>
-              <p className="mt-1 text-2xl font-semibold">{summary.self}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-5">
-              <p className="text-xs text-muted-foreground">Dealer inactivity</p>
-              <p className="mt-1 text-2xl font-semibold">{summary.dealer}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-5">
-              <p className="text-xs text-muted-foreground">Businessman inactivity</p>
-              <p className="mt-1 text-2xl font-semibold">{summary.businessman}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <AlertFiltersCard>
-          <SelectFilter
-            label="Entity type"
-            value={entityFilter}
-            onChange={(v) => {
-              setPage(1);
-              setEntityFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Self", value: "Self" },
-              { label: "Dealer", value: "Dealer" },
-              { label: "Businessman", value: "Businessman" },
-            ]}
-          />
-          <SelectFilter
-            label="Risk level"
-            value={riskFilter}
-            onChange={(v) => {
-              setPage(1);
-              setRiskFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Low", value: "Low" },
-              { label: "Medium", value: "Medium" },
-              { label: "High", value: "High" },
-            ]}
-          />
-          <div className="rounded-md border p-3 text-xs text-muted-foreground">
-            Informational only. Auto-action is executed by system policies where applicable.
-          </div>
-        </AlertFiltersCard>
-
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Inactivity Table</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Entity Type</TableHead>
-                    <TableHead>Name / ID</TableHead>
-                    <TableHead>Last Activity Date</TableHead>
-                    <TableHead>Inactive Days</TableHead>
-                    <TableHead>Risk Level</TableHead>
-                    <TableHead>Auto-action Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((row) => {
-                    const isNearAutoDeactivation = row.riskLevel === "High" && row.autoActionDate !== "—";
-                    return (
-                      <TableRow key={row.id} className={isNearAutoDeactivation ? "bg-destructive/5" : ""}>
-                        <TableCell>{row.entityType}</TableCell>
-                        <TableCell className="text-xs">{row.nameOrId}</TableCell>
-                        <TableCell className="font-mono text-xs">{row.lastActivityDate}</TableCell>
-                        <TableCell className="font-mono">{row.inactiveDays}</TableCell>
-                        <TableCell>{riskBadge(row.riskLevel)}</TableCell>
-                        <TableCell className={isNearAutoDeactivation ? "font-mono text-xs text-destructive" : "font-mono text-xs"}>
-                          {row.autoActionDate}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {paginated.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                        No inactivity notices match selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <PageControls
-              page={safePage}
-              totalPages={totalPages}
-              shown={paginated.length}
-              total={filtered.length}
-              label="records"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-            />
+          <CardContent className="pt-5">
+            <p className="text-xs text-muted-foreground">Self inactivity</p>
+            <p className="mt-1 text-2xl font-semibold">{summary.self}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-xs text-muted-foreground">Dealer inactivity</p>
+            <p className="mt-1 text-2xl font-semibold">{summary.dealer}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-xs text-muted-foreground">Businessman inactivity</p>
+            <p className="mt-1 text-2xl font-semibold">{summary.businessman}</p>
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+
+      <AlertFiltersCard>
+        <SelectFilter
+          label="Entity type"
+          value={entityFilter}
+          onChange={(v) => {
+            setPage(1);
+            setEntityFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Self", value: "Self" },
+            { label: "Dealer", value: "Dealer" },
+            { label: "Businessman", value: "Businessman" },
+          ]}
+        />
+        <SelectFilter
+          label="Risk level"
+          value={riskFilter}
+          onChange={(v) => {
+            setPage(1);
+            setRiskFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Low", value: "Low" },
+            { label: "Medium", value: "Medium" },
+            { label: "High", value: "High" },
+          ]}
+        />
+        <div className="rounded-md border p-3 text-xs text-muted-foreground">
+          Informational only. Auto-action is executed by system policies where applicable.
+        </div>
+      </AlertFiltersCard>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Inactivity Table</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Entity Type</TableHead>
+                  <TableHead>Name / ID</TableHead>
+                  <TableHead>Last Activity Date</TableHead>
+                  <TableHead>Inactive Days</TableHead>
+                  <TableHead>Risk Level</TableHead>
+                  <TableHead>Auto-action Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((row) => {
+                  const isNearAutoDeactivation = row.riskLevel === "High" && row.autoActionDate !== "—";
+                  return (
+                    <TableRow key={row.id} className={isNearAutoDeactivation ? "bg-destructive/5" : ""}>
+                      <TableCell>{row.entityType}</TableCell>
+                      <TableCell className="text-xs">{row.nameOrId}</TableCell>
+                      <TableCell className="font-mono text-xs">{row.lastActivityDate}</TableCell>
+                      <TableCell className="font-mono">{row.inactiveDays}</TableCell>
+                      <TableCell>{riskBadge(row.riskLevel)}</TableCell>
+                      <TableCell className={isNearAutoDeactivation ? "font-mono text-xs text-destructive" : "font-mono text-xs"}>
+                        {row.autoActionDate}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                      No inactivity notices match selected filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <PageControls
+            page={safePage}
+            totalPages={totalPages}
+            shown={paginated.length}
+            total={filtered.length}
+            label="records"
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

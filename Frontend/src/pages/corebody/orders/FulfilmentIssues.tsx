@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -77,141 +75,139 @@ export default function FulfilmentIssues() {
   const slaBreaches = rows.filter((r) => r.currentStatus === "Escalated").length;
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body — District North">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">Fulfilment Issues</h1>
-          <p className="text-sm text-muted-foreground">Problematic district orders requiring monitoring and escalation.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <OperationsMetricCard title="Total Issues" value={totalIssues} tone="neutral" />
-          <OperationsMetricCard title="High Priority" value={highPriority} tone="warning" />
-          <OperationsMetricCard title="SLA Breaches" value={slaBreaches} tone="danger" />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Issue Type</Label>
-              <Select value={issueTypeFilter} onValueChange={(v: "all" | IssueType) => { setPage(1); setIssueTypeFilter(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Delay">Delay</SelectItem>
-                  <SelectItem value="Shortage">Shortage</SelectItem>
-                  <SelectItem value="Mismatch">Mismatch</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Severity</Label>
-              <Select value={severityFilter} onValueChange={(v: "all" | Severity) => { setPage(1); setSeverityFilter(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={statusFilter} onValueChange={(v: "all" | IssueStatus) => { setPage(1); setStatusFilter(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Open">Open</SelectItem>
-                  <SelectItem value="Under Review">Under Review</SelectItem>
-                  <SelectItem value="Escalated">Escalated</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Issues Table</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Issue ID</TableHead>
-                    <TableHead>Related Order ID</TableHead>
-                    <TableHead>Issue Type</TableHead>
-                    <TableHead>Reported By</TableHead>
-                    <TableHead>Severity Level</TableHead>
-                    <TableHead>Reported Date</TableHead>
-                    <TableHead>Current Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((row) => (
-                    <TableRow key={row.issueId}>
-                      <TableCell className="font-mono text-xs">{row.issueId}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.relatedOrderId}</TableCell>
-                      <TableCell>{row.issueType}</TableCell>
-                      <TableCell>{row.reportedBy}</TableCell>
-                      <TableCell><SeverityBadge level={row.severityLevel} /></TableCell>
-                      <TableCell className="font-mono text-xs">{row.reportedDate}</TableCell>
-                      <TableCell><OrderStatusBadge status={row.currentStatus} /></TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => setSelected(row)}>View Issue Details</Button>
-                        <Button size="sm" variant="secondary">Escalate to Admin</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {paginated.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                        No issues match the current filter set.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Showing {paginated.length} of {filtered.length} records • Escalation-only action scope</p>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
-                <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
-                <Button size="sm" variant="outline" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Issue Details</DialogTitle>
-              <DialogDescription>No direct resolution controls unless system enables automation.</DialogDescription>
-            </DialogHeader>
-            {selected && (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Issue ID</span><span className="font-mono">{selected.issueId}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Related Order</span><span className="font-mono">{selected.relatedOrderId}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Issue Type</span><span>{selected.issueType}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Reported By</span><span>{selected.reportedBy}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Severity</span><SeverityBadge level={selected.severityLevel} /></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">SLA</span><SLABadge status={selected.currentStatus === "Escalated" ? "Breached" : "At Risk"} /></div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Fulfilment Issues</h1>
+        <p className="text-sm text-muted-foreground">Problematic district orders requiring monitoring and escalation.</p>
       </div>
-    </DashboardLayout>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <OperationsMetricCard title="Total Issues" value={totalIssues} tone="neutral" />
+        <OperationsMetricCard title="High Priority" value={highPriority} tone="warning" />
+        <OperationsMetricCard title="SLA Breaches" value={slaBreaches} tone="danger" />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Filters</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Issue Type</Label>
+            <Select value={issueTypeFilter} onValueChange={(v: "all" | IssueType) => { setPage(1); setIssueTypeFilter(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Delay">Delay</SelectItem>
+                <SelectItem value="Shortage">Shortage</SelectItem>
+                <SelectItem value="Mismatch">Mismatch</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Severity</Label>
+            <Select value={severityFilter} onValueChange={(v: "all" | Severity) => { setPage(1); setSeverityFilter(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={statusFilter} onValueChange={(v: "all" | IssueStatus) => { setPage(1); setStatusFilter(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Open">Open</SelectItem>
+                <SelectItem value="Under Review">Under Review</SelectItem>
+                <SelectItem value="Escalated">Escalated</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Issues Table</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Issue ID</TableHead>
+                  <TableHead>Related Order ID</TableHead>
+                  <TableHead>Issue Type</TableHead>
+                  <TableHead>Reported By</TableHead>
+                  <TableHead>Severity Level</TableHead>
+                  <TableHead>Reported Date</TableHead>
+                  <TableHead>Current Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((row) => (
+                  <TableRow key={row.issueId}>
+                    <TableCell className="font-mono text-xs">{row.issueId}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.relatedOrderId}</TableCell>
+                    <TableCell>{row.issueType}</TableCell>
+                    <TableCell>{row.reportedBy}</TableCell>
+                    <TableCell><SeverityBadge level={row.severityLevel} /></TableCell>
+                    <TableCell className="font-mono text-xs">{row.reportedDate}</TableCell>
+                    <TableCell><OrderStatusBadge status={row.currentStatus} /></TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button size="sm" variant="outline" onClick={() => setSelected(row)}>View Issue Details</Button>
+                      <Button size="sm" variant="secondary">Escalate to Admin</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
+                      No issues match the current filter set.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Showing {paginated.length} of {filtered.length} records • Escalation-only action scope</p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
+              <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
+              <Button size="sm" variant="outline" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Issue Details</DialogTitle>
+            <DialogDescription>No direct resolution controls unless system enables automation.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Issue ID</span><span className="font-mono">{selected.issueId}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Related Order</span><span className="font-mono">{selected.relatedOrderId}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Issue Type</span><span>{selected.issueType}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Reported By</span><span>{selected.reportedBy}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Severity</span><SeverityBadge level={selected.severityLevel} /></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">SLA</span><SLABadge status={selected.currentStatus === "Escalated" ? "Breached" : "At Risk"} /></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

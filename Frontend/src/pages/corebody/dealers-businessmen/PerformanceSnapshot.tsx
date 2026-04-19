@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,83 +63,81 @@ export default function PerformanceSnapshot() {
   const paginated = snapshotData.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">Performance Snapshot</h1>
-          <p className="text-sm text-muted-foreground">
-            Non-gamified district performance overview for compliance-focused monitoring.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total Orders (District)</p><p className="text-2xl font-bold font-mono">{totalOrders}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Average Fulfilment Rate</p><p className="text-2xl font-bold">{averageFulfilmentRate}%</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Average SLA Score</p><p className="text-2xl font-bold">{averageSla}</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Network Activity Health</p><Badge variant="outline" className={statusClass[networkHealth]}>{networkHealth}</Badge></CardContent></Card>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Entity Type</TableHead>
-                    <TableHead>Orders Handled</TableHead>
-                    <TableHead>Order Volume</TableHead>
-                    <TableHead>SLA Score</TableHead>
-                    <TableHead>Performance Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((row) => (
-                    <TableRow key={`${row.entityType}-${row.name}`}>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell>{row.entityType}</TableCell>
-                      <TableCell className="font-mono">{row.ordersHandled}</TableCell>
-                      <TableCell className="font-mono">{formatCurrency(row.orderVolume)}</TableCell>
-                      <TableCell className="font-mono">{row.slaScore}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusClass[row.performanceStatus]}>
-                          {row.performanceStatus}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Showing {paginated.length} of {snapshotData.length} records
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Performance Snapshot</h1>
+        <p className="text-sm text-muted-foreground">
+          Non-gamified district performance overview for compliance-focused monitoring.
+        </p>
       </div>
-    </DashboardLayout>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total Orders (District)</p><p className="text-2xl font-bold font-mono">{totalOrders}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Average Fulfilment Rate</p><p className="text-2xl font-bold">{averageFulfilmentRate}%</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Average SLA Score</p><p className="text-2xl font-bold">{averageSla}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Network Activity Health</p><Badge variant="outline" className={statusClass[networkHealth]}>{networkHealth}</Badge></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Entity Type</TableHead>
+                  <TableHead>Orders Handled</TableHead>
+                  <TableHead>Order Volume</TableHead>
+                  <TableHead>SLA Score</TableHead>
+                  <TableHead>Performance Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((row) => (
+                  <TableRow key={`${row.entityType}-${row.name}`}>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.entityType}</TableCell>
+                    <TableCell className="font-mono">{row.ordersHandled}</TableCell>
+                    <TableCell className="font-mono">{formatCurrency(row.orderVolume)}</TableCell>
+                    <TableCell className="font-mono">{row.slaScore}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusClass[row.performanceStatus]}>
+                        {row.performanceStatus}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Showing {paginated.length} of {snapshotData.length} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

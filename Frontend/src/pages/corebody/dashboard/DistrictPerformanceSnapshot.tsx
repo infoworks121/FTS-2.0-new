@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -328,121 +326,115 @@ export default function DistrictPerformanceSnapshot() {
 
   if (loading) {
     return (
-      <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body">
-        <div className="flex items-center justify-center p-24">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center p-24">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body">
-        <div className="flex items-center gap-3 text-destructive p-8">
-          <AlertTriangle className="h-5 w-5" /> <p>{error}</p>
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center gap-3 text-destructive p-8">
+        <AlertTriangle className="h-5 w-5" /> <p>{error}</p>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel="Core Body">
-      <div className="space-y-5">
+    <div className="space-y-5">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            District Performance Snapshot
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Click any district card to see individual Core Body & Dealer performance with cap tracking.
-          </p>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          District Performance Snapshot
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Click any district card to see individual Core Body & Dealer performance with cap tracking.
+        </p>
+      </div>
 
-        {/* Summary KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: "Districts", value: summary.total_districts ?? 0, icon: MapPin, cls: "text-blue-500", bg: "bg-blue-500/10" },
-            { label: "Core Body A", value: summary.total_core_body_a ?? 0, icon: Building2, cls: "text-violet-500", bg: "bg-violet-500/10" },
-            { label: "Core Body B", value: summary.total_core_body_b ?? 0, icon: Building2, cls: "text-indigo-400", bg: "bg-indigo-500/10" },
-            { label: "Dealers", value: summary.total_dealers ?? 0, icon: Users, cls: "text-emerald-500", bg: "bg-emerald-500/10" },
-            { label: "Total Order Vol.", value: fmtShort(summary.total_order_volume ?? 0), icon: TrendingUp, cls: "text-amber-500", bg: "bg-amber-500/10" },
-            { label: "Cap Hit", value: summary.total_cap_hit ?? 0, icon: ShieldAlert, cls: "text-red-500", bg: "bg-red-500/10" },
-          ].map((k) => (
-            <Card key={k.label} className="overflow-hidden">
-              <CardContent className="pt-4 pb-3 px-4">
-                <div className="flex items-start justify-between">
-                  <p className="text-xs text-muted-foreground">{k.label}</p>
-                  <div className={`rounded-md p-1.5 ${k.bg}`}>
-                    <k.icon className={`h-3.5 w-3.5 ${k.cls}`} />
-                  </div>
+      {/* Summary KPI Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: "Districts", value: summary.total_districts ?? 0, icon: MapPin, cls: "text-blue-500", bg: "bg-blue-500/10" },
+          { label: "Core Body A", value: summary.total_core_body_a ?? 0, icon: Building2, cls: "text-violet-500", bg: "bg-violet-500/10" },
+          { label: "Core Body B", value: summary.total_core_body_b ?? 0, icon: Building2, cls: "text-indigo-400", bg: "bg-indigo-500/10" },
+          { label: "Dealers", value: summary.total_dealers ?? 0, icon: Users, cls: "text-emerald-500", bg: "bg-emerald-500/10" },
+          { label: "Total Order Vol.", value: fmtShort(summary.total_order_volume ?? 0), icon: TrendingUp, cls: "text-amber-500", bg: "bg-amber-500/10" },
+          { label: "Cap Hit", value: summary.total_cap_hit ?? 0, icon: ShieldAlert, cls: "text-red-500", bg: "bg-red-500/10" },
+        ].map((k) => (
+          <Card key={k.label} className="overflow-hidden">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-start justify-between">
+                <p className="text-xs text-muted-foreground">{k.label}</p>
+                <div className={`rounded-md p-1.5 ${k.bg}`}>
+                  <k.icon className={`h-3.5 w-3.5 ${k.cls}`} />
                 </div>
-                <p className="text-xl font-bold font-mono mt-1">{k.value}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-          {[
-            { color: "bg-emerald-500", label: "Healthy (<80%)" },
-            { color: "bg-amber-500", label: "Nearing cap (80–95%)" },
-            { color: "bg-red-500", label: "Cap reached (>95%)" },
-          ].map((l) => (
-            <div key={l.label} className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${l.color}`} />
-              {l.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search district..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Districts</SelectItem>
-              <SelectItem value="cap-warning">⚠ Cap Warning / Hit</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* District Cards */}
-        {filtered.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-muted-foreground text-sm">
-              {search || filterStatus !== "all"
-                ? "No districts match the current filters."
-                : "No district data available yet."}
+              </div>
+              <p className="text-xl font-bold font-mono mt-1">{k.value}</p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((d) => (
-              <DistrictCard
-                key={d.district_id}
-                d={d}
-                cbUsers={coreBodyUsers}
-                dealerUsers={dealerUsers}
-              />
-            ))}
-          </div>
-        )}
+        ))}
       </div>
-    </DashboardLayout>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        {[
+          { color: "bg-emerald-500", label: "Healthy (<80%)" },
+          { color: "bg-amber-500", label: "Nearing cap (80–95%)" },
+          { color: "bg-red-500", label: "Cap reached (>95%)" },
+        ].map((l) => (
+          <div key={l.label} className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${l.color}`} />
+            {l.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search district..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Filter" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Districts</SelectItem>
+            <SelectItem value="cap-warning">⚠ Cap Warning / Hit</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* District Cards */}
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground text-sm">
+            {search || filterStatus !== "all"
+              ? "No districts match the current filters."
+              : "No district data available yet."}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((d) => (
+            <DistrictCard
+              key={d.district_id}
+              d={d}
+              cbUsers={coreBodyUsers}
+              dealerUsers={dealerUsers}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

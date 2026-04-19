@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,157 +94,155 @@ export default function ActiveOrders() {
   const atRisk = rows.filter((r) => r.currentStatus === "At Risk").length;
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">Active Orders</h1>
-          <p className="text-sm text-muted-foreground">District-scoped operational visibility for running B2B and internal orders.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <OperationsMetricCard title="Total Active Orders" value={totalActiveOrders} tone="neutral" />
-          <OperationsMetricCard title="Orders Awaiting Dispatch" value={awaitingDispatch} tone="warning" />
-          <OperationsMetricCard title="Orders In Transit" value={inTransit} tone="success" />
-          <OperationsMetricCard title="Orders at Risk (SLA)" value={atRisk} tone="danger" />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-            <div className="space-y-2">
-              <Label>Date From</Label>
-              <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} />
-            </div>
-            <div className="space-y-2">
-              <Label>Date To</Label>
-              <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} />
-            </div>
-            <div className="space-y-2">
-              <Label>Order Type</Label>
-              <Select value={orderType} onValueChange={(v: "all" | OrderType) => { setPage(1); setOrderType(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="B2B">B2B</SelectItem>
-                  <SelectItem value="Internal">Internal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v: "all" | OrderStatus) => { setPage(1); setStatus(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Awaiting Dispatch">Awaiting Dispatch</SelectItem>
-                  <SelectItem value="In Transit">In Transit</SelectItem>
-                  <SelectItem value="At Risk">At Risk</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Assigned Entity</Label>
-              <Select value={assignedEntity} onValueChange={(v: "all" | AssignedToType) => { setPage(1); setAssignedEntity(v); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Dealer">Dealer</SelectItem>
-                  <SelectItem value="Businessman">Businessman</SelectItem>
-                  <SelectItem value="Stock Point">Stock Point</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Order List</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Order Type</TableHead>
-                    <TableHead>Assigned To</TableHead>
-                    <TableHead>Order Value</TableHead>
-                    <TableHead>Current Status</TableHead>
-                    <TableHead>SLA Timer</TableHead>
-                    <TableHead>Order Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginated.map((row) => (
-                    <TableRow key={row.orderId}>
-                      <TableCell className="font-mono text-xs">{row.orderId}</TableCell>
-                      <TableCell>{row.orderType}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span>{row.assignedTo}</span>
-                          <span className="text-xs text-muted-foreground">{row.assignedEntityType}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono">{formatCurrency(row.orderValue)}</TableCell>
-                      <TableCell><OrderStatusBadge status={row.currentStatus} /></TableCell>
-                      <TableCell>
-                        <SLABadge status={row.currentStatus === "At Risk" ? "At Risk" : "Normal"} />
-                        <p className="font-mono text-xs mt-1 text-muted-foreground">{row.slaTimer}</p>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{row.orderDate}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => setSelected(row)}>View Details</Button>
-                        <Button size="sm" variant="secondary">Raise Issue</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {paginated.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                        No active orders match the selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Showing {paginated.length} of {filtered.length} records • API-ready pagination</p>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
-                <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
-                <Button size="sm" variant="outline" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Active Order Details (Read-only)</DialogTitle>
-              <DialogDescription>System-calculated values and status timeline for district monitoring.</DialogDescription>
-            </DialogHeader>
-            {selected && (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Order ID</span><span className="font-mono">{selected.orderId}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{selected.orderType}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Assigned</span><span>{selected.assignedTo}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Order Value</span><span className="font-mono">{formatCurrency(selected.orderValue)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Current Status</span><span>{selected.currentStatus}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">SLA Timer</span><span className="font-mono">{selected.slaTimer}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Order Date</span><span className="font-mono">{selected.orderDate}</span></div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">Active Orders</h1>
+        <p className="text-sm text-muted-foreground">District-scoped operational visibility for running B2B and internal orders.</p>
       </div>
-    </DashboardLayout>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <OperationsMetricCard title="Total Active Orders" value={totalActiveOrders} tone="neutral" />
+        <OperationsMetricCard title="Orders Awaiting Dispatch" value={awaitingDispatch} tone="warning" />
+        <OperationsMetricCard title="Orders In Transit" value={inTransit} tone="success" />
+        <OperationsMetricCard title="Orders at Risk (SLA)" value={atRisk} tone="danger" />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Filters</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="space-y-2">
+            <Label>Date From</Label>
+            <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} />
+          </div>
+          <div className="space-y-2">
+            <Label>Date To</Label>
+            <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} />
+          </div>
+          <div className="space-y-2">
+            <Label>Order Type</Label>
+            <Select value={orderType} onValueChange={(v: "all" | OrderType) => { setPage(1); setOrderType(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="B2B">B2B</SelectItem>
+                <SelectItem value="Internal">Internal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v: "all" | OrderStatus) => { setPage(1); setStatus(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Awaiting Dispatch">Awaiting Dispatch</SelectItem>
+                <SelectItem value="In Transit">In Transit</SelectItem>
+                <SelectItem value="At Risk">At Risk</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Assigned Entity</Label>
+            <Select value={assignedEntity} onValueChange={(v: "all" | AssignedToType) => { setPage(1); setAssignedEntity(v); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Dealer">Dealer</SelectItem>
+                <SelectItem value="Businessman">Businessman</SelectItem>
+                <SelectItem value="Stock Point">Stock Point</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Order List</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Order Type</TableHead>
+                  <TableHead>Assigned To</TableHead>
+                  <TableHead>Order Value</TableHead>
+                  <TableHead>Current Status</TableHead>
+                  <TableHead>SLA Timer</TableHead>
+                  <TableHead>Order Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((row) => (
+                  <TableRow key={row.orderId}>
+                    <TableCell className="font-mono text-xs">{row.orderId}</TableCell>
+                    <TableCell>{row.orderType}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{row.assignedTo}</span>
+                        <span className="text-xs text-muted-foreground">{row.assignedEntityType}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono">{formatCurrency(row.orderValue)}</TableCell>
+                    <TableCell><OrderStatusBadge status={row.currentStatus} /></TableCell>
+                    <TableCell>
+                      <SLABadge status={row.currentStatus === "At Risk" ? "At Risk" : "Normal"} />
+                      <p className="font-mono text-xs mt-1 text-muted-foreground">{row.slaTimer}</p>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{row.orderDate}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button size="sm" variant="outline" onClick={() => setSelected(row)}>View Details</Button>
+                      <Button size="sm" variant="secondary">Raise Issue</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
+                      No active orders match the selected filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Showing {paginated.length} of {filtered.length} records • API-ready pagination</p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
+              <span className="text-xs text-muted-foreground">Page {safePage} of {totalPages}</span>
+              <Button size="sm" variant="outline" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Active Order Details (Read-only)</DialogTitle>
+            <DialogDescription>System-calculated values and status timeline for district monitoring.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Order ID</span><span className="font-mono">{selected.orderId}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{selected.orderType}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Assigned</span><span>{selected.assignedTo}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Order Value</span><span className="font-mono">{formatCurrency(selected.orderValue)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Current Status</span><span>{selected.currentStatus}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">SLA Timer</span><span className="font-mono">{selected.slaTimer}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Order Date</span><span className="font-mono">{selected.orderDate}</span></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

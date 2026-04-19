@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { navItems } from "@/pages/CoreBodyDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -114,121 +112,119 @@ export default function CapWarnings() {
   const paginated = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
   return (
-    <DashboardLayout role="corebody" navItems={navItems} roleLabel={`Core Body — ${DISTRICT_NAME}`}>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Cap Limit Warnings</h1>
-            <p className="text-sm text-muted-foreground">System-generated warnings for earning cap usage and auto-stop risk.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
-              {filtered.length} Warnings
-            </Badge>
-            <ReadOnlySystemBadge />
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Cap Limit Warnings</h1>
+          <p className="text-sm text-muted-foreground">System-generated warnings for earning cap usage and auto-stop risk.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">
+            {filtered.length} Warnings
+          </Badge>
+          <ReadOnlySystemBadge />
+        </div>
+      </div>
 
-        <Card className="border-amber-500/30">
-          <CardHeader>
-            <CardTitle className="text-sm">Cap Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-md border p-4">
-                <p className="text-xs text-muted-foreground">Total Cap Amount</p>
-                <p className="mt-1 font-mono font-semibold">{formatCurrency(capSummary.totalCap)}</p>
+      <Card className="border-amber-500/30">
+        <CardHeader>
+          <CardTitle className="text-sm">Cap Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-md border p-4">
+              <p className="text-xs text-muted-foreground">Total Cap Amount</p>
+              <p className="mt-1 font-mono font-semibold">{formatCurrency(capSummary.totalCap)}</p>
+            </div>
+            <div className="rounded-md border p-4">
+              <p className="text-xs text-muted-foreground">Used Amount</p>
+              <p className="mt-1 font-mono font-semibold">{formatCurrency(capSummary.used)}</p>
+            </div>
+            <div className="rounded-md border p-4">
+              <p className="text-xs text-muted-foreground">Remaining Amount</p>
+              <p className="mt-1 font-mono font-semibold">{formatCurrency(remaining)}</p>
+            </div>
+          </div>
+          <CapUtilizationStatus utilization={utilization} />
+        </CardContent>
+      </Card>
+
+      <AlertFiltersCard>
+        <SelectFilter
+          label="Date range"
+          value={dateRangeFilter}
+          onChange={(v) => {
+            setPage(1);
+            setDateRangeFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Last 7 days", value: "7d" },
+            { label: "Last 30 days", value: "30d" },
+          ]}
+        />
+        <SelectFilter
+          label="Warning type"
+          value={warningFilter}
+          onChange={(v) => {
+            setPage(1);
+            setWarningFilter(v);
+          }}
+          options={[
+            { label: "All", value: "all" },
+            { label: "Soft", value: "Soft" },
+            { label: "Final", value: "Final" },
+            { label: "Auto-Stop", value: "Auto-Stop" },
+          ]}
+        />
+        <div className="rounded-md border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+          System Controlled: cap warnings are automatically triggered and cannot be overridden by Core Body.
+        </div>
+      </AlertFiltersCard>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Warning List</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {paginated.map((row) => (
+            <div key={row.id} className="rounded-md border border-amber-500/25 bg-amber-500/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">{formatCurrency(row.currentEarnings)} current earnings</p>
+                  <p className="text-xs text-muted-foreground">{row.thresholdCrossed}</p>
+                </div>
+                <Badge
+                  variant={row.warningType === "Auto-Stop" ? "destructive" : "outline"}
+                  className={row.warningType === "Final" ? "border-amber-500/40 text-amber-700 dark:text-amber-300" : ""}
+                >
+                  {row.warningType}
+                </Badge>
               </div>
-              <div className="rounded-md border p-4">
-                <p className="text-xs text-muted-foreground">Used Amount</p>
-                <p className="mt-1 font-mono font-semibold">{formatCurrency(capSummary.used)}</p>
-              </div>
-              <div className="rounded-md border p-4">
-                <p className="text-xs text-muted-foreground">Remaining Amount</p>
-                <p className="mt-1 font-mono font-semibold">{formatCurrency(remaining)}</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
+                <p className="font-mono text-muted-foreground">Trigger: {row.triggerDate}</p>
+                <p className="text-muted-foreground">{row.systemNote}</p>
               </div>
             </div>
-            <CapUtilizationStatus utilization={utilization} />
-          </CardContent>
-        </Card>
+          ))}
 
-        <AlertFiltersCard>
-          <SelectFilter
-            label="Date range"
-            value={dateRangeFilter}
-            onChange={(v) => {
-              setPage(1);
-              setDateRangeFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Last 7 days", value: "7d" },
-              { label: "Last 30 days", value: "30d" },
-            ]}
+          {paginated.length === 0 && (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No warnings match selected filters.
+            </div>
+          )}
+
+          <PageControls
+            page={safePage}
+            totalPages={totalPages}
+            shown={paginated.length}
+            total={filtered.length}
+            label="warnings"
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
           />
-          <SelectFilter
-            label="Warning type"
-            value={warningFilter}
-            onChange={(v) => {
-              setPage(1);
-              setWarningFilter(v);
-            }}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Soft", value: "Soft" },
-              { label: "Final", value: "Final" },
-              { label: "Auto-Stop", value: "Auto-Stop" },
-            ]}
-          />
-          <div className="rounded-md border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
-            System Controlled: cap warnings are automatically triggered and cannot be overridden by Core Body.
-          </div>
-        </AlertFiltersCard>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Warning List</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {paginated.map((row) => (
-              <div key={row.id} className="rounded-md border border-amber-500/25 bg-amber-500/5 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">{formatCurrency(row.currentEarnings)} current earnings</p>
-                    <p className="text-xs text-muted-foreground">{row.thresholdCrossed}</p>
-                  </div>
-                  <Badge
-                    variant={row.warningType === "Auto-Stop" ? "destructive" : "outline"}
-                    className={row.warningType === "Final" ? "border-amber-500/40 text-amber-700 dark:text-amber-300" : ""}
-                  >
-                    {row.warningType}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
-                  <p className="font-mono text-muted-foreground">Trigger: {row.triggerDate}</p>
-                  <p className="text-muted-foreground">{row.systemNote}</p>
-                </div>
-              </div>
-            ))}
-
-            {paginated.length === 0 && (
-              <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No warnings match selected filters.
-              </div>
-            )}
-
-            <PageControls
-              page={safePage}
-              totalPages={totalPages}
-              shown={paginated.length}
-              total={filtered.length}
-              label="warnings"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

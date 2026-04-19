@@ -499,6 +499,14 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
   ];
 }
 
+export function getUserContext(user: any) {
+  const isDealer = user?.role_code === 'dealer';
+  return {
+    coreBodyType: isDealer ? 'Dealer' as const : (user?.core_body_type || 'A') as 'A' | 'B' | 'Dealer',
+    isSPH: Boolean(user?.is_sph)
+  };
+}
+
 // ─── Flat nav items for simple sidebar (backward compat) ─────────────────────
 
 export function getCoreBodyFlatNavItems(context: CoreBodySidebarContext): CoreBodyNavItem[] {

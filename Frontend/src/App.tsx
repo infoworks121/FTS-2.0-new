@@ -8,7 +8,7 @@ import React, { useState } from "react";
 import SplashScreen from "./components/SplashScreen";
 import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
-import CoreBodyDashboard, { getUserContext } from "./pages/CoreBodyDashboard";
+import CoreBodyDashboard from "./pages/CoreBodyDashboard";
 import { getCoreBodyFlatNavItems } from "./config/coreBodySidebarConfig";
 import BusinessmanDashboard from "./pages/BusinessmanDashboard";
 import SPHDashboard from "./pages/SPHDashboard";
@@ -161,6 +161,9 @@ import { DistrictsLayout } from "./components/districts/DistrictsLayout";
 // Wallet & Finance Layout
 import { WalletPageLayout } from "./components/finance/WalletPageLayout";
 
+// Core Body Layout
+import { CoreBodyLayoutWrapper } from "./components/corebody/CoreBodyLayoutWrapper";
+
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -195,15 +198,6 @@ const App = () => {
     syncSession();
   }, []);
 
-  const CoreBodyLayout = ({ children }: { children: React.ReactNode }) => {
-    const context = getUserContext(user);
-    const navItems = getCoreBodyFlatNavItems(context);
-    return (
-      <DashboardLayout role="corebody" navItems={navItems as any}>
-        {children}
-      </DashboardLayout>
-    );
-  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -350,63 +344,78 @@ const App = () => {
             <Route path="/admin/audit/login" element={<WalletPageLayout><LoginAccessLogs /></WalletPageLayout>} />
 
             {/* Core Body Panel Routes */}
-            <Route path="/corebody" element={<CoreBodyDashboard />} />
-            <Route path="/corebody/upgrade" element={<UpgradeStatus />} />
-            <Route path="/corebody/upgrade/eligibility" element={<UpgradeStatus />} />
-            <Route path="/corebody/upgrade/requirements" element={<UpgradeStatus />} />
-            <Route path="/corebody/upgrade/history" element={<UpgradeStatus />} />
-            <Route path="/corebody/alerts/system" element={<SystemAlerts />} />
-            <Route path="/corebody/alerts/cap" element={<CapWarnings />} />
-            <Route path="/corebody/alerts/inactivity" element={<InactivityNotices />} />
-            <Route path="/corebody/alerts/performance" element={<PerformanceAlerts />} />
-            <Route path="/corebody/reports/earnings" element={<EarningsReport />} />
-            <Route path="/corebody/reports/stock" element={<StockMovementReport />} />
-            <Route path="/corebody/reports/orders" element={<OrderReport />} />
-            <Route path="/corebody/reports/dealer-performance" element={<DealerPerformanceReport />} />
-            <Route path="/corebody/stock/adjustment" element={<StockAdjustment />} />
-            <Route path="/corebody/stock/ledger" element={<StockLedger />} />
-            <Route path="/corebody/stock/block-release" element={<StockBlockRelease />} />
-            <Route path="/corebody/stock/settings" element={<StockSettings />} />
-            <Route path="/corebody/stock/demand-signals" element={<DemandSignals />} />
-            <Route path="/corebody/stock/physical-transfer" element={<PhysicalTransfer />} />
-            <Route path="/dealer/inventory/arrivals" element={<StockArrivals />} />
-            <Route path="/corebody/dealers-businessmen/all-dealers" element={<AllDealers />} />
-            <Route path="/corebody/dealers-businessmen/all-businessmen" element={<CoreBodyAllBusinessmen />} />
-            <Route path="/corebody/dealers-businessmen/status" element={<StatusActiveInactive />} />
-            <Route path="/corebody/dealers-businessmen/all-users" element={<CoreBodyAllUsers />} />
-            <Route path="/corebody/directory/corebody/:id" element={<UnifiedMemberProfile />} />
-            <Route path="/corebody/directory/dealers/:id" element={<UnifiedMemberProfile />} />
-            <Route path="/corebody/directory/businessmen/:id" element={<UnifiedMemberProfile />} />
-            <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<PerformanceSnapshot />} />
-            <Route path="/corebody/orders/active" element={<ActiveOrders />} />
-            <Route path="/corebody/orders/b2c-fulfillment" element={<B2CFulfillment />} />
-            <Route path="/corebody/orders/b2b-orders" element={<CoreBodyB2BOrders />} />
-            <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
-            <Route path="/corebody/orders/distribution" element={<DistributionHistory />} />
-            <Route path="/corebody/orders/issues" element={<FulfilmentIssues />} />
-            <Route path="/corebody/wallet/main-wallet" element={<CoreBodyMainWallet />} />
-            <Route path="/corebody/wallet/deposit" element={<CoreBodyDepositRequest />} />
-            <Route path="/corebody/wallet" element={<WalletSummary />} />
-            <Route path="/corebody/wallet/ledger" element={<EarningsLedger />} />
-            <Route path="/corebody/wallet/cap" element={<CapStatus />} />
-            <Route path="/corebody/dashboard/earnings-vs-cap" element={<CapStatus />} />
-            <Route path="/corebody/dashboard/district-performance-snapshot" element={<DistrictPerformanceSnapshot />} />
-            <Route path="/corebody/wallet/withdrawals" element={<CoreBodyWithdrawalHistory />} />
-            <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyWithdrawalRequest />} />
+            <Route path="/corebody" element={<CoreBodyLayoutWrapper><CoreBodyDashboard /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/profile" element={<CoreBodyLayoutWrapper><CoreBodyProfile /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/upgrade" element={<CoreBodyLayoutWrapper><UpgradeStatus /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/upgrade/eligibility" element={<CoreBodyLayoutWrapper><UpgradeStatus /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/upgrade/requirements" element={<CoreBodyLayoutWrapper><UpgradeStatus /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/upgrade/history" element={<CoreBodyLayoutWrapper><UpgradeStatus /></CoreBodyLayoutWrapper>} />
+            
+            {/* Alerts & Notifications */}
+            <Route path="/corebody/alerts/system" element={<CoreBodyLayoutWrapper><SystemAlerts /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/alerts/cap" element={<CoreBodyLayoutWrapper><CapWarnings /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/alerts/inactivity" element={<CoreBodyLayoutWrapper><InactivityNotices /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/alerts/performance" element={<CoreBodyLayoutWrapper><PerformanceAlerts /></CoreBodyLayoutWrapper>} />
+            
+            {/* Reports */}
+            <Route path="/corebody/reports/earnings" element={<CoreBodyLayoutWrapper><EarningsReport /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/reports/stock" element={<CoreBodyLayoutWrapper><StockMovementReport /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/reports/orders" element={<CoreBodyLayoutWrapper><OrderReport /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/reports/dealer-performance" element={<CoreBodyLayoutWrapper><DealerPerformanceReport /></CoreBodyLayoutWrapper>} />
+            
+            {/* Stock & Inventory */}
+            <Route path="/corebody/stock/adjustment" element={<CoreBodyLayoutWrapper><StockAdjustment /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/stock/ledger" element={<CoreBodyLayoutWrapper><StockLedger /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/stock/block-release" element={<CoreBodyLayoutWrapper><StockBlockRelease /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/stock/settings" element={<CoreBodyLayoutWrapper><StockSettings /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/stock/demand-signals" element={<CoreBodyLayoutWrapper><DemandSignals /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/stock/physical-transfer" element={<CoreBodyLayoutWrapper><PhysicalTransfer /></CoreBodyLayoutWrapper>} />
+            
+            {/* Dealer & Businessman Management */}
+            <Route path="/corebody/dealers-businessmen/all-dealers" element={<CoreBodyLayoutWrapper><AllDealers /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/dealers-businessmen/all-businessmen" element={<CoreBodyLayoutWrapper><CoreBodyAllBusinessmen /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/dealers-businessmen/status" element={<CoreBodyLayoutWrapper><StatusActiveInactive /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/dealers-businessmen/all-users" element={<CoreBodyLayoutWrapper><CoreBodyAllUsers /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<CoreBodyLayoutWrapper><PerformanceSnapshot /></CoreBodyLayoutWrapper>} />
+            
+            {/* Directory Profile Views */}
+            <Route path="/corebody/directory/corebody/:id" element={<CoreBodyLayoutWrapper><UnifiedMemberProfile /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/directory/dealers/:id" element={<CoreBodyLayoutWrapper><UnifiedMemberProfile /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/directory/businessmen/:id" element={<CoreBodyLayoutWrapper><UnifiedMemberProfile /></CoreBodyLayoutWrapper>} />
+            
+            {/* Orders & Fulfillment */}
+            <Route path="/corebody/orders/active" element={<CoreBodyLayoutWrapper><ActiveOrders /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/orders/b2c-fulfillment" element={<CoreBodyLayoutWrapper><B2CFulfillment /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/orders/b2b-orders" element={<CoreBodyLayoutWrapper><CoreBodyB2BOrders /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/orders/completed" element={<CoreBodyLayoutWrapper><CompletedOrders /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/orders/distribution" element={<CoreBodyLayoutWrapper><DistributionHistory /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/orders/issues" element={<CoreBodyLayoutWrapper><FulfilmentIssues /></CoreBodyLayoutWrapper>} />
+            
+            {/* Wallet & Finance */}
+            <Route path="/corebody/wallet" element={<CoreBodyLayoutWrapper><WalletSummary /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/main-wallet" element={<CoreBodyLayoutWrapper><CoreBodyMainWallet /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/deposit" element={<CoreBodyLayoutWrapper><CoreBodyDepositRequest /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/ledger" element={<CoreBodyLayoutWrapper><EarningsLedger /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/cap" element={<CoreBodyLayoutWrapper><CapStatus /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/withdrawals" element={<CoreBodyLayoutWrapper><CoreBodyWithdrawalHistory /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/wallet/withdrawal-request" element={<CoreBodyLayoutWrapper><CoreBodyWithdrawalRequest /></CoreBodyLayoutWrapper>} />
+            
+            {/* Dashboard Visuals */}
+            <Route path="/corebody/dashboard/earnings-vs-cap" element={<CoreBodyLayoutWrapper><CapStatus /></CoreBodyLayoutWrapper>} />
+            <Route path="/corebody/dashboard/district-performance-snapshot" element={<CoreBodyLayoutWrapper><DistrictPerformanceSnapshot /></CoreBodyLayoutWrapper>} />
 
              {/* Core Body Referral Routes */}
-             <Route path="/corebody/referrals" element={<CoreBodyLayout><MyReferralsPage /></CoreBodyLayout>} />
-             <Route path="/corebody/referrals/my-referrals" element={<CoreBodyLayout><MyReferralsPage /></CoreBodyLayout>} />
-             <Route path="/corebody/referrals/earnings" element={<CoreBodyLayout><ReferralEarningsPage /></CoreBodyLayout>} />
-             <Route path="/corebody/referrals/history" element={<CoreBodyLayout><ReferralHistoryPage /></CoreBodyLayout>} />
+             <Route path="/corebody/referrals" element={<CoreBodyLayoutWrapper><MyReferralsPage /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/referrals/my-referrals" element={<CoreBodyLayoutWrapper><MyReferralsPage /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/referrals/earnings" element={<CoreBodyLayoutWrapper><ReferralEarningsPage /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/referrals/history" element={<CoreBodyLayoutWrapper><ReferralHistoryPage /></CoreBodyLayoutWrapper>} />
 
              {/* Core Body SPH Market Management (B2B & B2C) */}
-             <Route path="/corebody/b2c-manager/listings" element={<CoreBodyLayout><B2CManager /></CoreBodyLayout>} />
-             <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayout><CatalogPicker /></CoreBodyLayout>} />
-             <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayout><AddCustomProduct /></CoreBodyLayout>} />
-             
-             <Route path="/corebody/b2b-manager/listings" element={<CoreBodyLayout><B2BManager /></CoreBodyLayout>} />
-             <Route path="/corebody/b2b-manager/browse" element={<CoreBodyLayout><B2BCatalogPicker /></CoreBodyLayout>} />
+             <Route path="/corebody/b2c-manager/listings" element={<CoreBodyLayoutWrapper><B2CManager /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayoutWrapper><CatalogPicker /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayoutWrapper><AddCustomProduct /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/b2b-manager/listings" element={<CoreBodyLayoutWrapper><B2BManager /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/b2b-manager/browse" element={<CoreBodyLayoutWrapper><B2BCatalogPicker /></CoreBodyLayoutWrapper>} />
 
             {/* Other Routes */}
             <Route path="/stockpoint/*" element={<SPHDashboard />} />
