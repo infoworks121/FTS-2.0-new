@@ -27,7 +27,7 @@ import {
   SortableColumnHeader,
 } from "@/components/businessman/OrderTrackingPrimitives";
 
-type CompletedStatus = "Delivered" | "Closed";
+type CompletedStatus = "Delivered" | "Closed" | "Received";
 type ReferralPayout = "Processed" | "Pending";
 
 type Row = {
@@ -102,7 +102,7 @@ export default function CompletedOrdersPage() {
       try {
         const res = await orderApi.getMyOrders();
         // Filter out completed ones
-        const completedOrders = res.orders.filter((o: any) => ['delivered', 'closed', 'cancelled', 'returned'].includes(o.status.toLowerCase()));
+        const completedOrders = res.orders.filter((o: any) => ['delivered', 'closed', 'received'].includes(o.status?.toLowerCase()));
         
         const mapped: Row[] = completedOrders.map((o: any) => ({
           orderId: o.order_number,

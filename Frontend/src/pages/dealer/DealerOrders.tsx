@@ -42,6 +42,7 @@ export default function DealerOrders() {
   const [isDispatching, setIsDispatching] = useState(false);
   const [courierName, setCourierName] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [invoiceUrl, setInvoiceUrl] = useState("");
 
   useEffect(() => {
     loadAssignments();
@@ -66,6 +67,9 @@ export default function DealerOrders() {
       loadAssignments();
       setSelectedOrder(null);
       setIsDispatching(false);
+      setCourierName("");
+      setTrackingNumber("");
+      setInvoiceUrl("");
     } catch (error) {
       toast.error("Failed to update status");
     }
@@ -76,7 +80,8 @@ export default function DealerOrders() {
     if (!selectedOrder) return;
     handleUpdateStatus(selectedOrder.id, "dispatched", {
       carrier: courierName,
-      tracking_number: trackingNumber
+      tracking_number: trackingNumber,
+      invoice_url: invoiceUrl
     });
   };
 
@@ -85,9 +90,10 @@ export default function DealerOrders() {
       a.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       a.customer_name?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (activeTab === "pending") return matchesSearch && (a.status === "assigned" || a.status === "accepted");
-    if (activeTab === "active") return matchesSearch && a.status === "dispatched";
-    if (activeTab === "completed") return matchesSearch && a.status === "delivered";
+    const status = a.status?.toLowerCase();
+    if (activeTab === "pending") return matchesSearch && (status === "assigned" || status === "accepted" || status === "packing");
+    if (activeTab === "active") return matchesSearch && status === "dispatched";
+    if (activeTab === "completed") return matchesSearch && (status === "delivered" || status === "received");
     return matchesSearch;
   });
 
@@ -115,7 +121,7 @@ export default function DealerOrders() {
 
         <Tabs defaultValue="pending" className="w-full" onValueChange={setActiveTab}>
           <TabsList className="mb-4">
-            <TabsTrigger value="pending">Pending ({assignments.filter(a => ["assigned", "accepted"].includes(a.status)).length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({assignments.filter(a => ["assigned", "accepted", "packing"].includes(a.status)).length})</TabsTrigger>
             <TabsTrigger value="active">Active ({assignments.filter(a => a.status === "dispatched").length})</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
@@ -142,15 +148,16 @@ export default function DealerOrders() {
                         </Badge>
                       </div>
                       <CardTitle className="text-lg">{assignment.customer_name}</CardTitle>
-                      <CardDescription className="flex items-center gap-1.5">
+                      <CardDescription className="flex items-center gap-1.5 text-xs">
                         <Clock className="h-3 w-3" />
                         Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
+                        <Badge variant="secondary" className="ml-auto text-[10px] uppercase">{assignment.status}</Badge>
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-4 space-y-4">
                       {/* Items to ship */}
                       <div className="space-y-2">
-                         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Items in your dispatch:</p>
+                         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Items to fulfill:</p>
                          <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                <Package className="h-4 w-4 text-blue-600" />
@@ -160,13 +167,6 @@ export default function DealerOrders() {
                          </div>
                       </div>
 
-                      {assignment.is_shortage_fulfillment && (
-                         <div className="flex items-start gap-2 p-2 bg-orange-50 rounded text-[11px] text-orange-800 border border-orange-100">
-                           <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                           <p><b>Note:</b> This is a partial fulfillment. The central hub is handling the remaining stock balance.</p>
-                         </div>
-                      )}
-
                       <div className="pt-2">
                         {assignment.status === "assigned" && (
                           <Button className="w-full" onClick={() => handleUpdateStatus(assignment.id, "accepted")}>
@@ -174,6 +174,11 @@ export default function DealerOrders() {
                           </Button>
                         )}
                         {assignment.status === "accepted" && (
+                          <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={() => handleUpdateStatus(assignment.id, "packing")}>
+                            <PackageCheck className="mr-2 h-4 w-4" /> Start Packing
+                          </Button>
+                        )}
+                        {assignment.status === "packing" && (
                           <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => {
                             setSelectedOrder(assignment);
                             setIsDispatching(true);
@@ -186,7 +191,7 @@ export default function DealerOrders() {
                             Confirm Delivery
                           </Button>
                         )}
-                        {assignment.status === "delivered" && (
+                        {["delivered", "received"].includes(assignment.status) && (
                            <div className="flex items-center justify-center gap-2 text-green-600 font-bold py-2">
                               <CheckCircle2 className="h-5 w-5" />
                               <span>Completed</span>
@@ -227,6 +232,14 @@ export default function DealerOrders() {
                   value={trackingNumber}
                   onChange={(e) => setTrackingNumber(e.target.value)}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Invoice URL (Optional)</label>
+                <Input 
+                  placeholder="Link to digital invoice" 
+                  value={invoiceUrl}
+                  onChange={(e) => setInvoiceUrl(e.target.value)}
                 />
               </div>
               <DialogFooter>

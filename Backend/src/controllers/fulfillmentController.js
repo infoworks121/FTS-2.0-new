@@ -78,7 +78,7 @@ exports.updateFulfillmentStatus = async (req, res) => {
         const { status, tracking_number, carrier } = req.body; // status: accepted, dispatched, delivered
         const user = req.user;
 
-        if (!['accepted', 'dispatched', 'delivered'].includes(status)) {
+        if (!['accepted', 'packing', 'dispatched', 'delivered'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
 
@@ -90,13 +90,18 @@ exports.updateFulfillmentStatus = async (req, res) => {
                     CASE 
                         WHEN fa.fulfiller_type = 'stock_point' THEN sp_u.id 
                         WHEN fa.fulfiller_type = 'dealer' THEN d_u.id
+                        WHEN fa.fulfiller_type = 'core_body' THEN cb_u.id
+                        WHEN fa.fulfiller_type = 'admin' THEN fa.fulfiller_id
                         ELSE NULL 
                     END as user_id
              FROM fulfillment_assignments fa
              LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_id IS NOT NULL AND fa.fulfiller_type = 'stock_point'
-             LEFT JOIN users sp_u ON sp.user_id = sp_u.id
+             LEFT JOIN businessman_profiles bp ON sp.businessman_id = bp.id
+             LEFT JOIN users sp_u ON bp.user_id = sp_u.id
              LEFT JOIN dealer_profiles dp ON fa.fulfiller_id = dp.id AND fa.fulfiller_type = 'dealer'
              LEFT JOIN users d_u ON dp.user_id = d_u.id
+             LEFT JOIN core_body_profiles cbp ON fa.fulfiller_id = cbp.id AND fa.fulfiller_type = 'core_body'
+             LEFT JOIN users cb_u ON cbp.user_id = cb_u.id
              WHERE fa.id = $1`,
             [assignment_id]
         );
@@ -131,11 +136,12 @@ exports.updateFulfillmentStatus = async (req, res) => {
         // If dispatched, handle tracking info and SLA check
         if (status === 'dispatched') {
             if (tracking_number && carrier) {
+                const { invoice_url } = req.body;
                 await client.query(
-                    `INSERT INTO delivery_tracking (order_id, carrier, tracking_number, current_status) 
-                     VALUES ($1, $2, $3, 'dispatched')
-                     ON CONFLICT (order_id) DO UPDATE SET carrier = EXCLUDED.carrier, tracking_number = EXCLUDED.tracking_number, current_status = 'dispatched'`,
-                    [assignment.order_id, carrier, tracking_number]
+                    `INSERT INTO delivery_tracking (order_id, carrier, tracking_number, current_status, invoice_url) 
+                     VALUES ($1, $2, $3, 'dispatched', $4)
+                     ON CONFLICT (order_id) DO UPDATE SET carrier = EXCLUDED.carrier, tracking_number = EXCLUDED.tracking_number, current_status = 'dispatched', invoice_url = COALESCE(EXCLUDED.invoice_url, delivery_tracking.invoice_url)`,
+                    [assignment.order_id, carrier, tracking_number, invoice_url || null]
                 );
             }
 
@@ -184,39 +190,13 @@ exports.updateFulfillmentStatus = async (req, res) => {
             }
         }
 
-        // If delivered, update delivery tracking actual delivery and deduct inventory
+        // If delivered, update delivery tracking actual delivery
         if (status === 'delivered') {
             await client.query(
                 `UPDATE delivery_tracking SET current_status = 'delivered', actual_delivery = NOW(), last_updated_at = NOW() WHERE order_id = $1`,
                 [assignment.order_id]
             );
-
-            // --- Inventory Deduction Logic ---
-            const orderItems = await client.query('SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = $1', [assignment.order_id]);
-            
-            for (const item of orderItems.rows) {
-                // Deduct from fulfiller's balance
-                const updateRes = await client.query(
-                    `UPDATE inventory_balances 
-                     SET quantity_on_hand = quantity_on_hand - $1, last_updated_at = NOW()
-                     WHERE entity_type = $2 AND entity_id = $3 AND product_id = $4 AND (variant_id = $5 OR ($5 IS NULL AND variant_id IS NULL))`,
-                    [item.quantity, assignment.fulfiller_type, assignment.fulfiller_id, item.product_id, item.variant_id]
-                );
-
-                if (updateRes.rowCount === 0) {
-                    // Note: In some cases, we might want to allow "ghost" stock or negative, 
-                    // but according to the plan, they should have physical stock.
-                    // For now, we'll just log if it failed to update (optional error throwing)
-                    console.warn(`Internal Warning: No inventory row found to deduct for ${assignment.fulfiller_type} ${assignment.fulfiller_id}`);
-                }
-
-                // Log in Ledger
-                await client.query(
-                    `INSERT INTO inventory_ledger (product_id, variant_id, entity_type, entity_id, transaction_type, quantity, reference_type, reference_id, note, created_by)
-                     VALUES ($1, $2, $3, $4, 'delivery_out', $5, 'fulfillment_assignment', $6, $7, $8)`,
-                    [item.product_id, item.variant_id, assignment.fulfiller_type, assignment.fulfiller_id, -item.quantity, assignment.id, `Order Delivered: ${assignment.order_id}`, user.id]
-                );
-            }
+            // Inventory and Profit logic moved to 'confirmReceipt' in orderController.js
         }
 
         // Log the status update
@@ -227,18 +207,6 @@ exports.updateFulfillmentStatus = async (req, res) => {
         );
 
         await client.query('COMMIT');
-        
-        // --- Trigger Profit Distribution Engine ---
-        if (status === 'delivered') {
-            try {
-                const profitEngine = require('../services/profitEngineService');
-                await profitEngine.calculateAndDistributeProfit(assignment.order_id, user.id);
-            } catch (engineError) {
-                console.error('Profit Engine Failed:', engineError);
-                // We do not roll back the fulfillment if engine fails, can be retried later.
-            }
-        }
-
         res.json({ message: `Fulfillment marked as ${status}` });
 
     } catch (error) {

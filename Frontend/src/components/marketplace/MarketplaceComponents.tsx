@@ -26,6 +26,8 @@ import { IMAGE_BASE_URL } from "@/lib/api";
 interface Product {
   id: string;
   name: string;
+  sku: string;
+  slug: string;
   category_name: string;
   thumbnail_url: string;
   selling_price: string;
@@ -63,14 +65,19 @@ export const ProductCardGrid = ({
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
-  const detailUrl = `/products-issued/${product.sku}`;
+  const detailUrl = (() => {
+    if (product.slug) return `/products-issued/${product.slug}`;
+    const cleanName = (product.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const suffix = product.sku ? `-${product.sku.toLowerCase()}` : '';
+    return `/products-issued/${cleanName}${suffix}`;
+  })();
 
   const discount = product.mrp && Number(product.mrp) > Number(product.selling_price)
     ? Math.round(((Number(product.mrp) - Number(product.selling_price)) / Number(product.mrp)) * 100)
     : 0;
 
   return (
-    <Card className="group relative overflow-hidden border-slate-100 hover:border-emerald-500/40 transition-all duration-500 hover:shadow-2xl hover:shadow-emerald-500/10 rounded-xl bg-white shadow-sm">
+    <Card className="group relative overflow-hidden border-slate-100/80 hover:border-primary/30 transition-all duration-500 hover:shadow-md rounded-xl bg-white shadow-sm ring-1 ring-slate-200/5 hover:ring-primary/5">
       <Link to={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${product.name}`} />
       
       {/* Dynamic Image Container */}
@@ -128,21 +135,21 @@ export const ProductCardGrid = ({
         )}
 
         {/* Hover Action Gradient Overlays */}
-        <div className="absolute inset-x-0 bottom-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out flex gap-2 z-20">
+        <div className="absolute inset-x-0 bottom-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out flex gap-2 z-20">
           <Button
             size="sm"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart(product); }}
-            className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200/50 h-9 text-[11px] font-bold rounded-xl shadow-xl shadow-black/5"
+            className="flex-1 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 h-8 text-[10px] font-bold rounded-lg shadow-sm"
           >
-            <ShoppingCart className="h-3 w-3 mr-2" /> Cart
+            <ShoppingCart className="h-3 w-3 mr-1.5" /> Cart
           </Button>
           {onQuickList && (
             <Button
               size="sm"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickList(product); }}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white h-9 text-[11px] font-bold rounded-xl border-none shadow-xl shadow-emerald-500/20"
+              className="flex-1 bg-primary hover:bg-primary/90 text-white h-8 text-[10px] font-bold rounded-lg border-none shadow-sm"
             >
-              <TrendingUp className="h-3 w-3 mr-2" /> List
+              <TrendingUp className="h-3 w-3 mr-1.5" /> List
             </Button>
           )}
         </div>
@@ -209,10 +216,10 @@ export const ProductCardList = ({
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
-  const detailUrl = `/products-issued/${product.sku}`;
+  const detailUrl = `/products-issued/${product.slug || product.sku}`;
 
   return (
-    <Card className="group overflow-hidden border-slate-100 hover:border-emerald-500/20 transition-all duration-500 hover:shadow-xl rounded-xl bg-white shadow-sm relative">
+    <Card className="group overflow-hidden border-slate-100 hover:border-primary/20 transition-all duration-500 hover:shadow-md rounded-xl bg-white shadow-sm relative ring-1 ring-slate-200/5 hover:ring-primary/5">
       <Link to={detailUrl} className="absolute inset-0 z-10" aria-label={`View details for ${product.name}`} />
       <CardContent className="p-3">
         <div className="flex gap-4">
@@ -291,7 +298,7 @@ export const ProductCardList = ({
               <Button
                 size="sm"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBuyNow(product); }}
-                className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 h-7 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/10 relative z-20 transition-all active:scale-95"
+                className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 h-7 text-[10px] font-black uppercase tracking-widest shadow-sm relative z-20 transition-all active:scale-95"
               >
                 Buy
               </Button>
@@ -299,7 +306,7 @@ export const ProductCardList = ({
                 variant="outline"
                 size="sm"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart(product); }}
-                className="rounded-lg px-4 h-7 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-[10px] font-bold uppercase tracking-widest relative z-20 transition-all active:scale-95"
+                className="rounded-lg px-4 h-7 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-[10px] font-bold uppercase tracking-widest relative z-20 transition-all shadow-sm active:scale-95"
               >
                 Cart
               </Button>
@@ -307,7 +314,7 @@ export const ProductCardList = ({
                 <Button
                   size="sm"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickList(product); }}
-                  className="rounded-lg px-4 h-7 bg-emerald-600 hover:bg-emerald-500 text-white border-none text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/10 relative z-20 transition-all active:scale-95"
+                  className="rounded-lg px-4 h-7 bg-primary/10 text-primary hover:bg-primary/20 border-none text-[10px] font-bold uppercase tracking-widest relative z-20 transition-all shadow-sm active:scale-95"
                 >
                   List
                 </Button>

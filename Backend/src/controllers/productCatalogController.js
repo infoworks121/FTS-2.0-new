@@ -3,6 +3,17 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 
 // =============================================================================
+// HELPERS
+// =============================================================================
+
+const generateSlug = (name, sku) => {
+  const base = name.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return `${base}-${sku.toLowerCase()}`;
+};
+
+// =============================================================================
 // CATEGORIES MANAGEMENT
 // =============================================================================
 
@@ -1096,7 +1107,7 @@ exports.getAdminProducts = async (req, res) => {
 
     // Select aliases to match frontend expect: base_price -> selling_price (or mrp), cost_price -> pp.base_price, status -> is_active, stock_quantity -> ib.quantity_on_hand
     const query = `
-      SELECT p.id, p.name, p.sku, p.category_id, c.name as category_name, p.type as product_type, 
+      SELECT p.id, p.name, p.sku, p.slug, p.category_id, c.name as category_name, p.type as product_type, 
              p.description, p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
@@ -1137,7 +1148,7 @@ exports.getAdminProductById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, 
+      `SELECT p.id, p.name, p.sku, p.slug, p.category_id, p.type as product_type, p.description, 
               p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
@@ -1157,7 +1168,7 @@ exports.getAdminProductById = async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
        LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
-       WHERE p.id = $1`,
+       WHERE p.id = $1 OR p.slug = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -1171,8 +1182,10 @@ exports.getIssuedProductBySku = async (req, res) => {
   try {
     const { sku } = req.params;
     const result = await db.query(
-      `SELECT p.id, p.name, p.sku, p.category_id, p.type as product_type, p.description, 
+      `SELECT p.id, p.name, p.sku, p.slug, p.category_id, p.type as product_type, p.description, 
               p.thumbnail_url, p.image_urls, p.created_at, p.updated_at,
+              p.brand, p.highlights, p.specifications, p.is_returnable, p.return_policy_days,
+              p.unit,
              CASE WHEN p.is_active THEN 'active' ELSE 'draft' END as status,
              p.type = 'digital' as is_digital, p.type = 'service' as is_service,
              c.name as category_name,
@@ -1181,17 +1194,22 @@ exports.getIssuedProductBySku = async (req, res) => {
              pp.selling_price,
              pp.bulk_price,
              pp.min_order_quantity,
-             pp.admin_margin_pct,
-             pp.admin_margin_pct as min_margin_percent,
-             pp.base_price as cost_price,
+             COALESCE(bp.business_name, u.full_name, 'FTS Official') as seller_name,
+             COALESCE(bp.business_address, 'Main Hub') as business_address,
+             COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,
+             ib.entity_type as fulfiller_type,
+             ib.entity_id as fulfiller_id,
+             u.district_id as source_district_id,
              CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
-             COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
              true as stock_required
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
-       LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.entity_type = 'admin' AND ib.variant_id IS NULL
-       WHERE p.sku = $1`,
+       LEFT JOIN inventory_balances ib ON p.id = ib.product_id
+       LEFT JOIN users u ON ib.entity_id = u.id
+       LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+       WHERE p.sku = $1 OR p.slug = $1
+       LIMIT 1`,
       [sku]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -1219,13 +1237,15 @@ exports.createAdminProduct = async (req, res) => {
 
     await client.query('BEGIN');
 
+    const slug = generateSlug(name, sku);
+
     // Step 1: Insert Product
     const productResult = await client.query(
       `INSERT INTO products 
-       (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       (category_id, name, sku, slug, description, type, thumbnail_url, image_urls, is_active, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
        RETURNING *`,
-      [category_id, name, sku, description || null, type, thumbnail_url || null, JSON.stringify(image_urls), is_active, req.user.id]
+      [category_id, name, sku, slug, description || null, type, thumbnail_url || null, JSON.stringify(image_urls), is_active, req.user.id]
     );
     const product = productResult.rows[0];
 
@@ -1301,19 +1321,30 @@ exports.updateAdminProduct = async (req, res) => {
     const type = is_digital ? 'digital' : (is_service ? 'service' : product_type);
     const is_active = status ? (status === 'active') : undefined;
 
+    let updatedSlug = undefined;
+    if (name || sku) {
+      const current = await client.query('SELECT name, sku FROM products WHERE id = $1', [id]);
+      if (current.rows.length > 0) {
+        const newName = name || current.rows[0].name;
+        const newSku = sku || current.rows[0].sku;
+        updatedSlug = generateSlug(newName, newSku);
+      }
+    }
+
     await client.query(
       `UPDATE products SET
         name = COALESCE($1, name),
         sku = COALESCE($2, sku),
-        category_id = COALESCE($3, category_id),
-        type = COALESCE($4, type),
-        description = COALESCE($5, description),
-        thumbnail_url = COALESCE($6, thumbnail_url),
-        image_urls = COALESCE($7, image_urls),
-        is_active = COALESCE($8, is_active),
+        slug = COALESCE($3, slug),
+        category_id = COALESCE($4, category_id),
+        type = COALESCE($5, type),
+        description = COALESCE($6, description),
+        thumbnail_url = COALESCE($7, thumbnail_url),
+        image_urls = COALESCE($8, image_urls),
+        is_active = COALESCE($9, is_active),
         updated_at = NOW()
-       WHERE id = $9`,
-      [name, sku, category_id, type, description, thumbnail_url, image_urls ? JSON.stringify(image_urls) : null, is_active, id]
+       WHERE id = $10`,
+      [name, sku, updatedSlug, category_id, type, description, thumbnail_url, image_urls ? JSON.stringify(image_urls) : null, is_active, id]
     );
 
     // Pricing update logic with History Logging
@@ -1758,7 +1789,7 @@ exports.getIssuedProducts = async (req, res) => {
 
     params.push(limit, offset);
     const result = await db.query(`
-      SELECT p.id, p.name, p.sku, p.description, p.thumbnail_url, p.image_urls,
+      SELECT p.id, p.name, p.sku, p.slug, p.description, p.thumbnail_url, p.image_urls,
              p.brand, p.highlights, p.specifications, p.is_returnable, p.return_policy_days,
              c.name as category_name,
              pp.mrp, pp.selling_price, pp.bulk_price, pp.min_order_quantity, p.unit,
@@ -1789,3 +1820,36 @@ exports.getIssuedProducts = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.checkAvailability = async (req, res) => {
+  try {
+    const { sku, slug, excludeId } = req.query;
+    let results = { sku: true, slug: true };
+
+    if (sku) {
+      let q = 'SELECT id FROM products WHERE sku = $1';
+      let p = [sku];
+      if (excludeId) {
+        q += ' AND id != $2';
+        p.push(excludeId);
+      }
+      const resSku = await db.query(q, p);
+      results.sku = resSku.rows.length === 0;
+    }
+
+    if (slug) {
+      let q = 'SELECT id FROM products WHERE slug = $1';
+      let p = [slug];
+      if (excludeId) {
+        q += ' AND id != $2';
+        p.push(excludeId);
+      }
+      const resSlug = await db.query(q, p);
+      results.slug = resSlug.rows.length === 0;
+    }
+
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

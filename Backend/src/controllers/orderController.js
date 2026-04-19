@@ -482,14 +482,15 @@ exports.createB2COrder = async (req, res) => {
     let assignedStockPoint = null;
     if (district_id) {
        // Query Stock Points in the same district, prioritizing the same subdivision
-       const spsResult = await client.query(
-         `SELECT sp.id, sp.sla_score, sp.businessman_id 
-          FROM stock_point_profiles sp 
-          JOIN users u ON sp.user_id = u.id
-          WHERE sp.district_id = $1 AND sp.is_active = true AND sp.sla_score >= 50
-          ORDER BY (u.subdivision_id = $2) DESC, sp.sla_score DESC`,
-         [district_id, subdivision_id]
-       );
+        const spsResult = await client.query(
+          `SELECT sp.id, sp.sla_score, sp.businessman_id 
+           FROM stock_point_profiles sp 
+           JOIN businessman_profiles bp ON sp.businessman_id = bp.id
+           JOIN users u ON bp.user_id = u.id
+           WHERE sp.district_id = $1 AND sp.is_active = true AND sp.sla_score >= 50
+           ORDER BY (u.subdivision_id = $2) DESC, sp.sla_score DESC`,
+          [district_id, subdivision_id]
+        );
 
        // Check Inventory per Stock Point sequentially
        for (const sp of spsResult.rows) {
@@ -576,7 +577,7 @@ exports.getMyOrders = async (req, res) => {
     const roleCode = user.role_code || '';
     
     let query = `
-      SELECT o.*, d.name as district_name, u.full_name as customer_name,
+      SELECT o.*, d.name as district_name, u.full_name as customer_name, u.phone as customer_phone,
         (SELECT STRING_AGG(p.name, ', ')
          FROM order_items oi 
          JOIN products p ON oi.product_id = p.id 
@@ -643,7 +644,7 @@ exports.getOrderDetails = async (req, res) => {
     const user = req.user;
 
     const orderResult = await db.query(
-      `SELECT o.*, d.name as district_name, u.full_name as customer_name
+      `SELECT o.*, d.name as district_name, u.full_name as customer_name, u.phone as customer_phone
        FROM orders o 
        LEFT JOIN districts d ON o.district_id = d.id
        LEFT JOIN users u ON o.customer_id = u.id
@@ -680,10 +681,19 @@ exports.getOrderDetails = async (req, res) => {
       [id]
     );
 
+    const assignmentsResult = await db.query(
+      `SELECT fa.*, dt.carrier, dt.tracking_number, dt.invoice_url, dt.last_updated_at as tracking_updated_at
+       FROM fulfillment_assignments fa
+       LEFT JOIN delivery_tracking dt ON fa.order_id = dt.order_id
+       WHERE fa.order_id = $1`,
+      [id]
+    );
+
     res.json({
       order,
       items: itemsResult.rows,
-      status_log: logsResult.rows
+      status_log: logsResult.rows,
+      assignments: assignmentsResult.rows
     });
   } catch (error) {
     console.error('Error fetching order details:', error);
@@ -798,10 +808,120 @@ exports.cancelOrder = async (req, res) => {
 
     await client.query('COMMIT');
     res.json({ message: 'Order cancelled successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+exports.confirmReceipt = async (req, res) => {
+  const client = await db.pool.connect();
+  const { id } = req.params;
+  const user = req.user;
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch Order
+    const orderResult = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      throw new Error('Order not found');
+    }
+
+    const order = orderResult.rows[0];
+
+    // 2. Authorization Check (Order owner or Admin)
+    if (order.customer_id !== user.id && user.role_code !== 'admin') {
+      throw new Error('Unauthorized to confirm receipt for this order');
+    }
+
+    // 3. Status Check
+    if (order.status !== 'delivered') {
+      throw new Error('Receipt can only be confirmed for delivered orders');
+    }
+
+    // 4. Update status to 'received'
+    await client.query(
+      `UPDATE orders SET status = 'received', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // 5. Update assignment status to 'received' and log receipt timestamp
+    await client.query(
+      `UPDATE fulfillment_assignments SET status = 'received', received_at = NOW() WHERE order_id = $1`,
+      [id]
+    );
+
+    // 6. Log Status Change
+    await client.query(
+      `INSERT INTO order_status_log (order_id, old_status, new_status, note, performed_by) 
+       VALUES ($1, $2, 'received', 'Receipt confirmed by customer', $3)`,
+      [id, order.status, user.id]
+    );
+
+    // 7. --- Finalize Transaction Logic (Inventory & Profit) ---
+    const assignmentsResult = await client.query(
+       `SELECT fa.id, fa.fulfiller_type, fa.fulfiller_id, sp.user_id as sp_user_id 
+        FROM fulfillment_assignments fa
+        LEFT JOIN stock_point_profiles sp ON fa.fulfiller_id = sp.id AND fa.fulfiller_type = 'stock_point'
+        WHERE fa.order_id = $1`,
+       [id]
+    );
+
+    for (const assignment of assignmentsResult.rows) {
+        const orderItems = await client.query('SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = $1', [id]);
+        
+        // Fulfiller Entity ID Resolution
+        const entityId = assignment.fulfiller_type === 'stock_point' 
+            ? assignment.sp_user_id 
+            : assignment.fulfiller_id;
+
+        if (!entityId) {
+            console.warn(`Warning: Could not resolve entityId for ${assignment.fulfiller_type} assignment ${assignment.id}`);
+            continue;
+        }
+
+        for (const item of orderItems.rows) {
+            // Deduct from fulfiller's balance
+            const updateRes = await client.query(
+                `UPDATE inventory_balances 
+                 SET quantity_on_hand = quantity_on_hand - $1, quantity_reserved = GREATEST(0, quantity_reserved - $1), last_updated_at = NOW()
+                 WHERE entity_type = $2 AND entity_id = $3 AND product_id = $4 AND (variant_id = $5 OR ($5 IS NULL AND variant_id IS NULL))`,
+                [item.quantity, assignment.fulfiller_type, entityId, item.product_id, item.variant_id]
+            );
+
+            if (updateRes.rowCount === 0) {
+                console.warn(`Internal Warning: No inventory row found to deduct for ${assignment.fulfiller_type} ${entityId}`);
+            }
+
+            // Log in Ledger
+            await client.query(
+                `INSERT INTO inventory_ledger (product_id, variant_id, entity_type, entity_id, transaction_type, quantity, reference_type, reference_id, note, created_by)
+                 VALUES ($1, $2, $3, $4, 'delivery_out', $5, 'fulfillment_assignment', $6, $7, $8)`,
+                [item.product_id, item.variant_id, assignment.fulfiller_type, entityId, -item.quantity, assignment.id, `Order Received: ${id}`, user.id]
+            );
+        }
+    }
+
+    // B. Trigger Profit Distribution Engine (Participate in existing transaction)
+    try {
+        const profitEngine = require('../services/profitEngineService');
+        await profitEngine.calculateAndDistributeProfit(id, user.id, client);
+    } catch (engineError) {
+        console.error('Profit Engine Failed during receipt confirmation:', engineError);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Order receipt confirmed successfully' });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Cancel Order Error:', error);
     res.status(400).json({ error: error.message });
   } finally {
     client.release();

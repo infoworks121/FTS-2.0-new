@@ -65,4 +65,7 @@ router.put('/services/:id', protect, adminOnly, productCatalogController.updateS
 router.get('/subscription-plans', productCatalogController.getSubscriptionPlans);
 router.post('/subscription-plans', protect, adminOnly, productCatalogController.createSubscriptionPlan);
 
+// Availability Checks
+router.get('/check-availability', protect, productCatalogController.checkAvailability);
+
 module.exports = router;
