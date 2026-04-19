@@ -85,6 +85,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
     requiredRole: "admin",
     submenu: [
       { title: "All Products", url: "/admin/products" },
+      { title: "Pending Approvals", url: "/admin/products/approvals" },
       { title: "Product Pricing & Margin", url: "/admin/products/pricing" },
       // { title: "Product Status", url: "/admin/products/status" },
       { title: "Category List", url: "/admin/categories" },

@@ -56,10 +56,12 @@ import StockPointShareRules from "./pages/commission/StockPointShareRules";
 
 // Products & Categories Pages
 import AllProducts from "./pages/products/AllProducts";
+import ProductApprovals from "./pages/admin/ProductApprovals";
 import AddNewProduct from "./pages/products/AddNewProduct";
 import B2CManager from "./pages/sph/B2CManager";
 import B2BManager from "./pages/sph/B2BManager";
 import CatalogPicker from "./pages/sph/CatalogPicker";
+import AllProductListings from "./pages/sph/AllProductListings";
 import B2BCatalogPicker from "./pages/sph/B2BCatalogPicker";
 import AddCustomProduct from "./pages/sph/AddCustomProduct";
 import ProductPricing from "./pages/products/ProductPricing";
@@ -263,6 +265,7 @@ const App = () => {
 
             {/* Products & Categories Routes */}
             <Route path="/admin/products" element={<ProductsPageLayout><AllProducts /></ProductsPageLayout>} />
+            <Route path="/admin/products/approvals" element={<ProductsPageLayout><ProductApprovals /></ProductsPageLayout>} />
             <Route path="/admin/products/new" element={<ProductsPageLayout><AddNewProduct /></ProductsPageLayout>} />
             <Route path="/admin/products/pricing" element={<ProductsPageLayout><ProductPricing /></ProductsPageLayout>} />
             <Route path="/admin/products/status" element={<ProductsPageLayout><ProductStatus /></ProductsPageLayout>} />
@@ -420,6 +423,7 @@ const App = () => {
              <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayoutWrapper><CatalogPicker /></CoreBodyLayoutWrapper>} />
              <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayoutWrapper><AddCustomProduct /></CoreBodyLayoutWrapper>} />
              <Route path="/corebody/b2b-manager/listings" element={<CoreBodyLayoutWrapper><B2BManager /></CoreBodyLayoutWrapper>} />
+             <Route path="/corebody/all-product-listings" element={<CoreBodyLayoutWrapper><AllProductListings /></CoreBodyLayoutWrapper>} />
              <Route path="/corebody/b2b-manager/browse" element={<CoreBodyLayoutWrapper><B2BCatalogPicker /></CoreBodyLayoutWrapper>} />
 
             {/* Other Routes */}

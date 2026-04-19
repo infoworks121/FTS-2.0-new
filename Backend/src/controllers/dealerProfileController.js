@@ -204,7 +204,42 @@ const getDealerAssignedProducts = async (req, res) => {
     // It also joins with inventory_balances for the specific dealer (via user_id)
     const query = `
       WITH dealer_info AS (
-        SELECT user_id, id as profile_id FROM dealer_profiles WHERE id = $1
+        SELECT user_id, id as profile_id, district_id FROM dealer_profiles WHERE id = $1
+      ),
+      direct_mappings AS (
+        SELECT p.id, dpm.assigned_at,
+               CASE 
+                  WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
+                  ELSE 'Category Specialized'
+               END as mapping_type
+        FROM dealer_product_map dpm
+        JOIN dealer_info di ON dpm.dealer_id = di.profile_id
+        LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+        WHERE p.id IS NOT NULL
+      ),
+      corebody_district_products AS (
+        SELECT p.id, p.created_at as assigned_at, 'District Auto-Assign' as mapping_type
+        FROM products p
+        LEFT JOIN users u ON p.created_by = u.id
+        LEFT JOIN core_body_profiles cbp ON p.created_by = cbp.user_id
+        CROSS JOIN dealer_info di
+        WHERE 
+          (u.district_id = di.district_id OR cbp.district_id = di.district_id)
+          AND (u.role_code LIKE 'core_body%' OR cbp.id IS NOT NULL)
+          AND p.approval_status = 'approved'
+          AND p.is_active = true
+      ),
+      combined_products AS (
+        SELECT * FROM direct_mappings
+        UNION
+        SELECT * FROM corebody_district_products
+      ),
+      district_stock AS (
+        SELECT ib.product_id, SUM(COALESCE(ib.quantity_on_hand, 0)) as total_qty
+        FROM inventory_balances ib
+        JOIN users u ON ib.entity_id = u.id
+        JOIN dealer_info di ON u.district_id = di.district_id
+        GROUP BY ib.product_id
       )
       SELECT DISTINCT ON (p.id)
           p.id, 
@@ -212,18 +247,14 @@ const getDealerAssignedProducts = async (req, res) => {
           p.sku, 
           p.thumbnail_url,
           c.name as category_name,
-          CASE 
-              WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
-              ELSE 'Category Specialized'
-          END as mapping_type,
-          COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
-          dpm.assigned_at
-      FROM dealer_product_map dpm
-      JOIN dealer_info di ON dpm.dealer_id = di.profile_id
-      LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+          cp.mapping_type,
+          COALESCE(ds.total_qty, 0) as stock_quantity,
+          cp.assigned_at
+      FROM combined_products cp
+      JOIN products p ON cp.id = p.id
+      CROSS JOIN dealer_info di
       LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN inventory_balances ib ON (ib.product_id = p.id AND ib.entity_id = di.user_id AND ib.entity_type = 'dealer')
-      WHERE p.id IS NOT NULL
+      LEFT JOIN district_stock ds ON p.id = ds.product_id
       ORDER BY p.id, p.name ASC
     `;
     
@@ -242,7 +273,42 @@ const getMyAuthorizedProducts = async (req, res) => {
     
     const query = `
       WITH dealer_info AS (
-        SELECT id as profile_id FROM dealer_profiles WHERE user_id = $1
+        SELECT user_id, id as profile_id, district_id FROM dealer_profiles WHERE user_id = $1
+      ),
+      direct_mappings AS (
+        SELECT p.id, dpm.assigned_at,
+               CASE 
+                  WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
+                  ELSE 'Category Specialized'
+               END as mapping_type
+        FROM dealer_product_map dpm
+        JOIN dealer_info di ON dpm.dealer_id = di.profile_id
+        LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+        WHERE p.id IS NOT NULL
+      ),
+      corebody_district_products AS (
+        SELECT p.id, p.created_at as assigned_at, 'District Auto-Assign' as mapping_type
+        FROM products p
+        LEFT JOIN users u ON p.created_by = u.id
+        LEFT JOIN core_body_profiles cbp ON p.created_by = cbp.user_id
+        CROSS JOIN dealer_info di
+        WHERE 
+          (u.district_id = di.district_id OR cbp.district_id = di.district_id)
+          AND (u.role_code LIKE 'core_body%' OR cbp.id IS NOT NULL)
+          AND p.approval_status = 'approved'
+          AND p.is_active = true
+      ),
+      combined_products AS (
+        SELECT * FROM direct_mappings
+        UNION
+        SELECT * FROM corebody_district_products
+      ),
+      district_stock AS (
+        SELECT ib.product_id, SUM(COALESCE(ib.quantity_on_hand, 0)) as total_qty
+        FROM inventory_balances ib
+        JOIN users u ON ib.entity_id = u.id
+        JOIN dealer_info di ON u.district_id = di.district_id
+        GROUP BY ib.product_id
       )
       SELECT DISTINCT ON (p.id)
           p.id, 
@@ -250,18 +316,14 @@ const getMyAuthorizedProducts = async (req, res) => {
           p.sku, 
           p.thumbnail_url,
           c.name as category_name,
-          CASE 
-              WHEN dpm.product_id IS NOT NULL THEN 'Product Specialized'
-              ELSE 'Category Specialized'
-          END as mapping_type,
-          COALESCE(ib.quantity_on_hand, 0) as stock_quantity,
-          dpm.assigned_at
-      FROM dealer_product_map dpm
-      JOIN dealer_info di ON dpm.dealer_id = di.profile_id
-      LEFT JOIN products p ON (dpm.product_id = p.id OR dpm.category_id = p.category_id)
+          cp.mapping_type,
+          COALESCE(ds.total_qty, 0) as stock_quantity,
+          cp.assigned_at
+      FROM combined_products cp
+      JOIN products p ON cp.id = p.id
+      CROSS JOIN dealer_info di
       LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN inventory_balances ib ON (ib.product_id = p.id AND ib.entity_id = $1 AND ib.entity_type = 'dealer')
-      WHERE p.id IS NOT NULL
+      LEFT JOIN district_stock ds ON p.id = ds.product_id
       ORDER BY p.id, p.name ASC
     `;
     

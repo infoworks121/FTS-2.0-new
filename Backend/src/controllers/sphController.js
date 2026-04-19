@@ -160,17 +160,25 @@ exports.updateListing = async (req, res) => {
     const { retail_price, is_active, stock_quantity } = req.body;
     const seller_id = req.user.id;
 
-    // Verify ownership
+    // Verify ownership and check approval status
     const listingCheck = await db.query(
-      'SELECT ml.product_id, pp.base_price, pp.mrp FROM market_listings ml JOIN product_pricing pp ON ml.product_id = pp.product_id WHERE ml.id = $1 AND ml.seller_id = $2 AND pp.is_current = true',
+      `SELECT ml.product_id, pp.base_price, pp.mrp, p.approval_status 
+       FROM market_listings ml 
+       JOIN products p ON ml.product_id = p.id
+       JOIN product_pricing pp ON ml.product_id = pp.product_id 
+       WHERE ml.id = $1 AND ml.seller_id = $2 AND pp.is_current = true`,
       [id, seller_id]
     );
-
+    
     if (listingCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Listing not found or access denied' });
     }
-
-    const { base_price, mrp } = listingCheck.rows[0];
+    
+    const { base_price, mrp, approval_status } = listingCheck.rows[0];
+    
+    if (is_active === true && approval_status !== 'approved') {
+      return res.status(400).json({ error: 'Cannot activate listing for a product that is pending approval.' });
+    }
 
     // Validation
     if (retail_price !== undefined) {
@@ -215,7 +223,7 @@ exports.createCustomSPHProduct = async (req, res) => {
       is_subscription = false, tags = []
     } = req.body;
 
-    // Validation: Require name, sku, category, mrp, and AT LEAST one relevant price
+    // 1. Validation: Require name, sku, category, mrp, and AT LEAST one relevant price
     if (!name || !sku || !category_id || !mrp) {
       return res.status(400).json({ error: 'Required fields missing: name, sku, category_id, mrp' });
     }
@@ -225,6 +233,24 @@ exports.createCustomSPHProduct = async (req, res) => {
     }
     if (listing_type === 'B2C' && !retail_price) {
       return res.status(400).json({ error: 'Retail price is required for B2C listings' });
+    }
+
+    // 2. Permission Check: Only Admin and Core Body can add B2B products
+    if (listing_type === 'B2B' && !['admin', 'core_body_a', 'core_body_b'].includes(req.user.role_code)) {
+      return res.status(403).json({ error: 'Only Admin and Core Body have permission to create B2B listings' });
+    }
+
+    // Determine correct entity_type for inventory records to fix Marketplace labeling/identity
+    // IMPORTANT: entity_id_to_use MUST be req.user.id because the DB has a FK constraint to the users table
+    let entity_type = 'admin';
+    let entity_id_to_use = req.user.id;
+
+    if (req.user.role_code === 'core_body_a' || req.user.role_code === 'core_body_b' || req.user.role_code === 'core_body') {
+      entity_type = 'core_body';
+    } else if (req.user.role_code === 'dealer') {
+      entity_type = 'dealer';
+    } else if (req.user.role_code === 'businessman' || req.user.role_code === 'retailer' || req.user.is_sph) {
+      entity_type = 'stock_point';
     }
 
     await client.query('BEGIN');
@@ -238,13 +264,13 @@ exports.createCustomSPHProduct = async (req, res) => {
       `INSERT INTO products 
        (category_id, name, sku, slug, description, type, thumbnail_url, image_urls, is_active, created_by,
         unit, is_dealer_routed, brand, highlights, specifications, is_returnable, return_policy_days,
-        is_subscription, tags) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+        is_subscription, tags, profit_channel, approval_status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'pending') 
        RETURNING id`,
       [
         category_id, name, sku, slug, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id,
         unit || null, is_dealer_routed, brand || null, highlights, JSON.stringify(specifications),
-        is_returnable, return_policy_days, is_subscription, tags
+        is_returnable, return_policy_days, is_subscription, tags, listing_type || 'B2C'
       ]
     );
     const productId = productResult.rows[0].id;
@@ -290,13 +316,13 @@ exports.createCustomSPHProduct = async (req, res) => {
       }
     }
 
-    // 4. Create Initial Stock Entry (Admin context for the product itself)
+    // 4. Create Initial Stock Entry (Dynamic context for the product itself)
     if (parseFloat(stock_quantity) > 0) {
       await client.query(
         `INSERT INTO inventory_balances 
          (entity_type, entity_id, product_id, variant_id, quantity_on_hand) 
-         VALUES ('admin', $1, $2, NULL, $3)`,
-        [req.user.id, productId, stock_quantity]
+         VALUES ($1, $2, $3, NULL, $4)`,
+        [entity_type, entity_id_to_use, productId, stock_quantity]
       );
 
       // Log in inventory_ledger for traceability (Matching admin behavior)
@@ -304,16 +330,16 @@ exports.createCustomSPHProduct = async (req, res) => {
         `INSERT INTO inventory_ledger 
          (product_id, variant_id, entity_type, entity_id, transaction_type, 
           quantity, reference_type, note, created_by) 
-         VALUES ($1, NULL, 'admin', $2, 'initial_stock', $3, 'product_creation', 
-                 'Initial stock added during collection listing creation', $4)`,
-        [productId, req.user.id, stock_quantity, req.user.id]
+         VALUES ($1, NULL, $2, $3, 'initial_stock', $4, 'product_creation', 
+                 'Initial stock added during collection listing creation', $5)`,
+        [productId, entity_type, entity_id_to_use, stock_quantity, req.user.id]
       );
     }
 
     // 5. Create Marketplace Listing immediately for the creator
     const listingResult = await client.query(
-      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity, listing_type)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity, listing_type, is_active)
+       VALUES ($1, $2, $3, $4, $5, false)
        RETURNING *`,
       [productId, req.user.id, listing_type === 'B2B' ? bulk_price : retail_price, stock_quantity, listing_type]
     );

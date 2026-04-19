@@ -4,7 +4,9 @@ import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 interface Column<T> {
   header: string;
-  accessor: keyof T | ((row: T) => React.ReactNode);
+  accessor?: keyof T | ((row: T) => React.ReactNode);
+  accessorKey?: string;
+  cell?: (props: { row: { original: T } }) => React.ReactNode;
   className?: string;
 }
 
@@ -12,9 +14,17 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   title?: string;
+  loading?: boolean;
+  noDataMessage?: string;
 }
 
-export function DataTable<T extends Record<string, unknown>>({ columns, data, title }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({ 
+  columns, 
+  data, 
+  title,
+  loading = false,
+  noDataMessage = "No data found."
+}: DataTableProps<T>) {
   return (
     <div className="rounded-lg border border-border bg-card transition-colors duration-300">
       {title && (
@@ -37,15 +47,46 @@ export function DataTable<T extends Record<string, unknown>>({ columns, data, ti
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row, ri) => (
-              <TableRow key={ri} className="border-border hover:bg-muted/50">
-                {columns.map((col, ci) => (
-                  <TableCell key={ci} className={col.className}>
-                    {typeof col.accessor === "function" ? col.accessor(row) : String(row[col.accessor] ?? "")}
-                  </TableCell>
-                ))}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-32 text-center text-sm font-medium text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <span>Loading data...</span>
+                  </div>
+                </TableCell>
               </TableRow>
-            ))}
+            ) : data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-32 text-center text-sm font-medium text-muted-foreground italic">
+                  {noDataMessage}
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.map((row, ri) => (
+                <TableRow key={ri} className="border-border hover:bg-muted/50">
+                  {columns.map((col, ci) => {
+                    let content: React.ReactNode = "";
+                    
+                    if (col.cell) {
+                      content = col.cell({ row: { original: row } });
+                    } else if (col.accessorKey) {
+                      content = String(row[col.accessorKey] ?? "");
+                    } else if (col.accessor) {
+                      content = typeof col.accessor === "function" 
+                        ? col.accessor(row) 
+                        : String(row[col.accessor as keyof T] ?? "");
+                    }
+                    
+                    return (
+                      <TableCell key={ci} className={col.className}>
+                        {content}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

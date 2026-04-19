@@ -12,7 +12,7 @@ const getUnifiedProfile = async (req, res) => {
     // Base user info
     const baseQuery = `
       SELECT u.id, u.full_name, u.email, u.phone, u.role_code, u.is_active, 
-             u.created_at, u.updated_at, d.name as district_name, d.id as district_id,
+             u.pan_number, u.created_at, u.updated_at, d.name as district_name, d.id as district_id,
              s.name as subdivision_name, s.id as subdivision_id
       FROM users u
       LEFT JOIN districts d ON u.district_id = d.id
@@ -34,7 +34,9 @@ const getUnifiedProfile = async (req, res) => {
       case 'core_body_b':
       case 'dealer':
         const coreBodyQuery = `
-          SELECT cb.*, cbi.installment_no, cbi.amount as installment_amount, 
+          SELECT cb.id as profile_id, cb.type, cb.investment_amount, cb.installment_count,
+                 cb.ytd_earnings, cb.mtd_earnings, cb.annual_cap, cb.monthly_cap,
+                 cbi.installment_no, cbi.amount as installment_amount, 
                  cbi.due_date, cbi.paid_date, cbi.status as installment_status, cbi.payment_ref
           FROM core_body_profiles cb
           LEFT JOIN core_body_installments cbi ON cb.id = cbi.core_body_id
@@ -44,7 +46,9 @@ const getUnifiedProfile = async (req, res) => {
         const coreBodyResult = await pool.query(coreBodyQuery, [userId]);
         if (coreBodyResult.rows.length > 0) {
           const coreBodyData = coreBodyResult.rows[0];
-          profile = { ...profile, ...coreBodyData };
+          // Merging without overwriting base profile info
+          const { installment_no, installment_amount, due_date, paid_date, installment_status, payment_ref, ...profileFields } = coreBodyData;
+          profile = { ...profile, ...profileFields };
 
           // Group installments
           const installments = coreBodyResult.rows
@@ -63,7 +67,10 @@ const getUnifiedProfile = async (req, res) => {
 
       case 'businessman':
         const businessmanQuery = `
-          SELECT bp.*, bt.name as business_type_name
+          SELECT bp.id as profile_id, bp.type, bp.mode, bp.business_name, bp.business_address,
+                 bp.gst_number, bp.pan_number, bp.bank_account, bp.ifsc_code,
+                 bp.advance_amount, bp.monthly_target, bp.ytd_sales, bp.mtd_sales,
+                 bp.commission_earned, bt.name as business_type_name
           FROM businessman_profiles bp
           LEFT JOIN business_types bt ON bp.business_type_id = bt.id
           WHERE bp.user_id = $1
@@ -76,7 +83,8 @@ const getUnifiedProfile = async (req, res) => {
 
       case 'stock_point':
         const stockPointQuery = `
-          SELECT sp.*
+          SELECT sp.id as profile_id, sp.warehouse_address, sp.storage_capacity,
+                 sp.min_inventory_value, sp.sla_score
           FROM stock_point_profiles sp
           WHERE sp.user_id = $1
         `;
@@ -88,7 +96,9 @@ const getUnifiedProfile = async (req, res) => {
 
       case 'retailer':
         const retailerQuery = `
-          SELECT rp.*
+          SELECT rp.id as profile_id, rp.shop_name, rp.shop_address, rp.shop_type,
+                 rp.gst_number, rp.pan_number, rp.bank_account, rp.ifsc_code,
+                 rp.monthly_target, rp.ytd_sales, rp.mtd_sales, rp.commission_earned
           FROM retailer_profiles rp
           WHERE rp.user_id = $1
         `;
@@ -123,17 +133,18 @@ const updateUnifiedProfile = async (req, res) => {
       await client.query('BEGIN');
 
       // Update base user info
-      const { full_name, phone, district_id, subdivision_id } = updateData;
-      if (full_name || phone || district_id || subdivision_id) {
+      const { full_name, phone, district_id, subdivision_id, pan_number } = updateData;
+      if (full_name || phone || district_id || subdivision_id || pan_number) {
         await client.query(
           `UPDATE users SET 
             full_name = COALESCE($1, full_name), 
             phone = COALESCE($2, phone), 
             district_id = COALESCE($3, district_id),
             subdivision_id = COALESCE($4, subdivision_id),
+            pan_number = COALESCE($5, pan_number),
             updated_at = NOW() 
-           WHERE id = $5`,
-          [full_name, phone, district_id || null, subdivision_id || null, userId]
+           WHERE id = $6`,
+          [full_name, phone, district_id || null, subdivision_id || null, pan_number, userId]
         );
       }
 
@@ -179,11 +190,10 @@ const updateUnifiedProfile = async (req, res) => {
                  ifsc_code = COALESCE($6, ifsc_code),
                  monthly_target = COALESCE($7, monthly_target),
                  district_id = COALESCE($8, district_id),
-                 subdivision_id = COALESCE($9, subdivision_id),
                  updated_at = NOW()
-             WHERE user_id = $10`,
+             WHERE user_id = $9`,
             [business_name, business_address, gst_number, pan_number,
-              bank_account, ifsc_code, monthly_target, district_id, subdivision_id, userId]
+              bank_account, ifsc_code, monthly_target, district_id || null, userId]
           );
           break;
 
@@ -197,7 +207,7 @@ const updateUnifiedProfile = async (req, res) => {
                  subdivision_id = COALESCE($4, subdivision_id),
                  updated_at = NOW()
              WHERE user_id = $5`,
-            [warehouse_address, storage_capacity, district_id, subdivision_id, userId]
+            [warehouse_address, storage_capacity, district_id || null, subdivision_id || null, userId]
           );
           break;
 
@@ -214,12 +224,10 @@ const updateUnifiedProfile = async (req, res) => {
                  pan_number = COALESCE($5, pan_number),
                  bank_account = COALESCE($6, bank_account),
                  ifsc_code = COALESCE($7, ifsc_code),
-                 district_id = COALESCE($8, district_id),
-                 subdivision_id = COALESCE($9, subdivision_id),
                  updated_at = NOW()
-             WHERE user_id = $10`,
+             WHERE user_id = $8`,
             [shop_name, shop_address, shop_type, retailer_gst,
-              retailer_pan, retailer_bank, retailer_ifsc, district_id, subdivision_id, userId]
+              retailer_pan, retailer_bank, retailer_ifsc, userId]
           );
           break;
       }
@@ -377,7 +385,7 @@ const getDashboardStats = async (req, res) => {
             (SELECT COUNT(*) FROM users WHERE role_code IN ('core_body_a', 'core_body_b')) as corebody_count,
             (SELECT COUNT(*) FROM users WHERE role_code = 'dealer') as dealer_count,
             (SELECT COUNT(*) FROM users WHERE role_code = 'stock_point') as stockpoint_count,
-            (SELECT COUNT(*) FROM users WHERE approval_status = 'pending') as pending_approvals,
+            (SELECT COUNT(*) FROM users WHERE is_approved = FALSE AND (is_rejected = FALSE OR is_rejected IS NULL)) as pending_approvals,
             (SELECT COUNT(DISTINCT district_id) FROM users WHERE district_id IS NOT NULL) as active_districts
         `;
         const adminStats = await pool.query(adminStatsQuery);

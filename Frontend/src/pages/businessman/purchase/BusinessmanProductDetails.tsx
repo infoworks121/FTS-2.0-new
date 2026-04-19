@@ -117,7 +117,7 @@ export default function BusinessmanProductDetails() {
   const displayMRP = selectedVariant?.mrp || product?.mrp || 0;
   const discountPercent = displayMRP > displayPrice ? Math.round(((displayMRP - displayPrice) / displayMRP) * 100) : 0;
 
-  const isLocal = profile?.district_id === (product as any)?.source_district_id;
+  const isLocal = profile?.district_id == (product as any)?.source_district_id;
 
   const handlePurchase = async () => {
     if (pin.length !== 6) {

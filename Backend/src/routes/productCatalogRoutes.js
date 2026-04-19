@@ -39,6 +39,10 @@ router.put('/admin/products/:id', protect, adminOnly, productCatalogController.u
 router.patch('/admin/products/:id/toggle-status', protect, adminOnly, productCatalogController.toggleAdminProductStatus);
 router.delete('/admin/products/:id', protect, adminOnly, productCatalogController.deleteAdminProduct);
 
+// Product Approvals (Workflow for CoreBody/SPH added products)
+router.get('/approvals/pending', protect, adminOnly, productCatalogController.getPendingProductApprovals);
+router.patch('/approvals/:id/resolve', protect, adminOnly, productCatalogController.resolveProductApproval);
+
 // Pricing — admin only
 router.put('/pricing', protect, adminOnly, productCatalogController.updatePricing);
 router.get('/products/:id/price-history', protect, adminOnly, productCatalogController.getPriceHistory);

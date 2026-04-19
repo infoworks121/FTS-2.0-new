@@ -64,7 +64,7 @@ export const ProductCardGrid = ({
   onQuickList?: (p: any) => void
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
+  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id == product.source_district_id;
   const detailUrl = (() => {
     if (product.slug) return `/products-issued/${product.slug}`;
     const cleanName = (product.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -215,7 +215,7 @@ export const ProductCardList = ({
   onQuickList?: (p: any) => void
 }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id === product.source_district_id;
+  const isLocal = product.fulfiller_type !== 'admin' && user?.district_id == product.source_district_id;
   const detailUrl = `/products-issued/${product.slug || product.sku}`;
 
   return (

@@ -24,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AddressManager } from "./AddressManager";
 import api from "@/lib/api";
 
 interface ProfileProps {
@@ -41,6 +43,12 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   const [districts, setDistricts] = useState<{ id: number; name: string }[]>([]);
   const [subdivisions, setSubdivisions] = useState<{ id: number; name: string }[]>([]);
   const { toast } = useToast();
+
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? "N/A" : date.toLocaleDateString();
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -117,24 +125,29 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
         throw new Error('No user data found');
       }
 
-      // Try unified endpoint first, fallback to role-specific
-      let response = await fetch('http://localhost:5000/api/profile/profile', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        // Fallback to corebody profile endpoint
-        response = await fetch('http://localhost:5000/api/corebody-profile/profile', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data.profile);
-        setFormData(data.profile);
-      } else {
-        throw new Error('Failed to fetch profile');
+      // Fetch profile from unified endpoint
+      try {
+        const response = await api.get('/profile/profile');
+        if (response.data?.profile) {
+          setProfile((prev: any) => ({ ...prev, ...response.data.profile }));
+          setFormData((prev: any) => ({ ...prev, ...response.data.profile }));
+        }
+      } catch (err) {
+        console.error('Unified profile fetch failed, trying role-specific fallback:', err);
+        // Fallback to role-specific endpoint if needed
+        const role = profile?.role_code || JSON.parse(localStorage.getItem('user') || '{}').role_code;
+        let fallbackUrl = '/corebody-profile/profile';
+        if (role === 'businessman') fallbackUrl = '/businessman-profile/profile';
+        
+        try {
+          const response = await api.get(fallbackUrl);
+          if (response.data?.profile) {
+            setProfile((prev: any) => ({ ...prev, ...response.data.profile }));
+            setFormData((prev: any) => ({ ...prev, ...response.data.profile }));
+          }
+        } catch (innerErr) {
+          console.error('All profile fetch attempts failed');
+        }
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -180,20 +193,19 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
       }
 
       // Try unified endpoint first, fallback to role-specific
-      let response = await fetch('http://localhost:5000/api/profile/dashboard', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        // Fallback to corebody dashboard endpoint
-        response = await fetch('http://localhost:5000/api/corebody-profile/dashboard', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.stats);
+      try {
+        const response = await api.get('/profile/dashboard');
+        if (response.data?.stats) {
+          setStats(response.data.stats);
+        }
+      } catch (err) {
+        console.error('Unified dashboard fetch failed:', err);
+        try {
+          const response = await api.get('/corebody-profile/dashboard');
+          setStats(response.data.stats);
+        } catch (innerErr) {
+          console.error('Failed to fetch dashboard stats from both endpoints');
+        }
       }
     } catch (error) {
       console.error('Error fetching dashboard:', error);
@@ -220,56 +232,49 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
   };
 
   const handleSave = async () => {
+    setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/profile/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
+      const response = await api.put('/profile/profile', formData);
+      
+      if (response.status === 200) {
         toast({ title: "Success", description: "Profile updated successfully" });
         setEditing(false);
         fetchProfile();
         fetchDashboard();
-      } else {
-        throw new Error('Failed to update profile');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });
+      toast({ 
+        title: "Update Failed", 
+        description: error.response?.data?.message || "Failed to update profile", 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handlePayInstallment = async (installmentNo) => {
+  const handlePayInstallment = async (installmentNo: number) => {
     const paymentRef = prompt('Enter payment reference:');
     if (!paymentRef) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/corebody-profile/installment/pay', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          installment_no: installmentNo,
-          payment_ref: paymentRef
-        })
+      const response = await api.post('/corebody-profile/installment/pay', {
+        installment_no: installmentNo,
+        payment_ref: paymentRef
       });
 
-      if (response.ok) {
+      if (response.status === 200) {
         toast({ title: "Success", description: "Installment payment recorded" });
         fetchProfile();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error paying installment:', error);
-      toast({ title: "Error", description: "Failed to record payment", variant: "destructive" });
+      toast({ 
+        title: "Payment Failed", 
+        description: error.response?.data?.message || "Failed to record payment", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -631,13 +636,13 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
       <div key="created_at">
         <Label>Account Created</Label>
         <p className="mt-1 text-sm text-gray-900">
-          {new Date(profile.created_at).toLocaleDateString()}
+          {formatDate(profile.created_at)}
         </p>
       </div>,
       <div key="updated_at">
         <Label>Last Updated</Label>
         <p className="mt-1 text-sm text-gray-900">
-          {new Date(profile.updated_at).toLocaleDateString()}
+          {formatDate(profile.updated_at)}
         </p>
       </div>
     );
@@ -1144,11 +1149,11 @@ export default function UnifiedProfile({ variant = "legacy" }: ProfileProps) {
               <CardContent className="text-xs space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created:</span>
-                  <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : "N/A"}</span>
+                  <span>{formatDate(profile?.created_at)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last Update:</span>
-                  <span>{profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : "N/A"}</span>
+                  <span>{formatDate(profile?.updated_at)}</span>
                 </div>
               </CardContent>
             </Card>

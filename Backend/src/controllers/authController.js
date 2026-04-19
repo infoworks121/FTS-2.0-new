@@ -157,7 +157,7 @@ const register = async (req, res) => {
         // Create dealer profile if role is dealer
         if (role_code === 'dealer') {
             const { category_id } = req.body;
-            
+
             if (!final_subdivision_id || (!product_id && !category_id)) {
                 await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'Subdivision and Specialization (Product or Category) are required for Dealer registration' });
@@ -196,7 +196,7 @@ const register = async (req, res) => {
                 }
             }
         }
-        
+
         // Create stock_point profile if role is stock_point
         if (role_code === 'stock_point') {
             await client.query(
@@ -256,7 +256,7 @@ const register = async (req, res) => {
         }
 
         await client.query('COMMIT');
-        
+
         const token = generateToken({ id: user.id, role_code: role_code || 'customer' });
 
         res.status(201).json({
@@ -448,7 +448,7 @@ const getMe = async (req, res) => {
         }
 
         const user = userResult.rows[0];
-        
+
         // Fetch profiles
         let businessman_type = null;
         let core_body_type = null;

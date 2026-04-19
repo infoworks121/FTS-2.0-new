@@ -1199,7 +1199,7 @@ exports.getIssuedProductBySku = async (req, res) => {
              COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,
              ib.entity_type as fulfiller_type,
              ib.entity_id as fulfiller_id,
-             u.district_id as source_district_id,
+             COALESCE(u.district_id, cbp.district_id, dp.district_id, bp.district_id, sp.district_id) as source_district_id,
              CASE WHEN pp.selling_price > 0 THEN ((pp.selling_price - pp.base_price) / pp.selling_price) * 100 ELSE 0 END as margin_percent,
              true as stock_required
        FROM products p
@@ -1207,7 +1207,10 @@ exports.getIssuedProductBySku = async (req, res) => {
        LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
        LEFT JOIN inventory_balances ib ON p.id = ib.product_id
        LEFT JOIN users u ON ib.entity_id = u.id
+       LEFT JOIN core_body_profiles cbp ON u.id = cbp.user_id
+       LEFT JOIN dealer_profiles dp ON u.id = dp.user_id
        LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+       LEFT JOIN stock_point_profiles sp ON u.id = sp.user_id
        WHERE p.sku = $1 OR p.slug = $1
        LIMIT 1`,
       [sku]
@@ -1798,13 +1801,16 @@ exports.getIssuedProducts = async (req, res) => {
              COALESCE(ib.quantity_on_hand - ib.quantity_reserved, 0) as available_stock,
              ib.entity_type as fulfiller_type,
              ib.entity_id as fulfiller_id,
-             u.district_id as source_district_id
+             COALESCE(u.district_id, cbp.district_id, dp.district_id, bp.district_id, sp.district_id) as source_district_id
       FROM products p
       JOIN categories c ON p.category_id = c.id
       JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
       LEFT JOIN inventory_balances ib ON p.id = ib.product_id
       LEFT JOIN users u ON ib.entity_id = u.id
+      LEFT JOIN core_body_profiles cbp ON u.id = cbp.user_id
+      LEFT JOIN dealer_profiles dp ON u.id = dp.user_id
       LEFT JOIN businessman_profiles bp ON u.id = bp.user_id
+      LEFT JOIN stock_point_profiles sp ON u.id = sp.user_id
       ${whereClause}
       ORDER BY p.name ASC
       LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -1849,6 +1855,78 @@ exports.checkAvailability = async (req, res) => {
     }
 
     res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// =============================================================================
+// PRODUCT APPROVALS
+// =============================================================================
+
+exports.getPendingProductApprovals = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const countResult = await db.query(`
+      SELECT COUNT(*) 
+      FROM products 
+      WHERE (approval_status = 'pending' OR (is_active = false AND approval_status IS NULL))
+    `);
+
+    const result = await db.query(`
+      SELECT p.id, p.name, p.sku, p.type, p.created_at, p.approval_status,
+             c.name as category_name,
+             u.full_name as creator_name,
+             u.role_code as creator_role,
+             pp.mrp, pp.base_price, pp.selling_price
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN users u ON p.created_by = u.id
+      LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true
+      WHERE (p.approval_status = 'pending' OR (p.is_active = false AND p.approval_status IS NULL))
+      ORDER BY p.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    res.json({
+      products: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.resolveProductApproval = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body; // status: 'approved' | 'rejected'
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved or rejected' });
+    }
+
+    const is_active = status === 'approved';
+
+    const result = await db.query(`
+      UPDATE products 
+      SET approval_status = $1, is_active = $2, updated_at = NOW()
+      WHERE id = $3 
+      RETURNING id, name, sku
+    `, [status, is_active, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json({ 
+      message: `Product ${status} successfully`,
+      product: result.rows[0]
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

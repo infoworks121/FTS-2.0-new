@@ -199,6 +199,10 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               isSPHOnly: true,
             },
             {
+              title: "All Product",
+              url: "/corebody/all-product-listings",
+            },
+            {
               title: "Add Custom Product",
               url: "/corebody/b2c-manager/add-custom",
             },

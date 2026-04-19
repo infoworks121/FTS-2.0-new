@@ -123,7 +123,7 @@ function MarketplaceContent() {
 
     if (sourceFilter !== "all") {
       products = products.filter(p => {
-        const isLocalProduct = p.fulfiller_type !== 'admin' && user?.district_id === p.source_district_id;
+        const isLocalProduct = p.fulfiller_type !== 'admin' && user?.district_id == p.source_district_id;
         return sourceFilter === "local" ? isLocalProduct : !isLocalProduct;
       });
     }

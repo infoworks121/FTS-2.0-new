@@ -107,6 +107,7 @@ export function ProductTable({
             <TableHead className="text-right">Stock</TableHead>
             <TableHead className="text-right">Base Price</TableHead>
             <TableHead className="text-right">Margin %</TableHead>
+            <TableHead>Channel</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Created</TableHead>
             <TableHead className="w-12">Actions</TableHead>
@@ -187,6 +188,14 @@ export function ProductTable({
                   )}>
                     {Number(product.margin_percent).toFixed(1)}%
                   </span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] font-bold uppercase",
+                    product.profit_channel === 'B2B' ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-orange-50 text-orange-700 border-orange-200"
+                  )}>
+                    {product.profit_channel || 'B2C'}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <button 
