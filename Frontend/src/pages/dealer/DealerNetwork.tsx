@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { 
   Users, 
   Search, 
@@ -33,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export default function DealerNetwork() {
-  const navItems = getDealerNavItems();
+
   const [network, setNetwork] = useState<any[]>([]);
   const [directory, setDirectory] = useState<any[]>([]);
   const [kpis, setKpis] = useState<any>(null);
@@ -76,8 +75,7 @@ export default function DealerNetwork() {
   );
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any} roleLabel="Subdivision Agent">
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
             <div className="p-2 bg-indigo-600 text-white rounded-xl">
@@ -306,7 +304,6 @@ export default function DealerNetwork() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

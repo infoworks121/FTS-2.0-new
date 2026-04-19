@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { 
   Boxes, 
   History, 
@@ -58,7 +57,7 @@ export default function DealerInventory() {
     urgency_level: "normal"
   });
 
-  const navItems = getDealerNavItems();
+
 
   const fetchData = async () => {
     try {
@@ -233,8 +232,7 @@ export default function DealerInventory() {
   ];
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any} roleLabel="Subdivision Agent">
-      <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest">
@@ -372,7 +370,6 @@ export default function DealerInventory() {
                 </p>
             </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

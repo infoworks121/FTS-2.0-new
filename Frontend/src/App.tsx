@@ -164,6 +164,9 @@ import { WalletPageLayout } from "./components/finance/WalletPageLayout";
 // Core Body Layout
 import { CoreBodyLayoutWrapper } from "./components/corebody/CoreBodyLayoutWrapper";
 
+// Dealer Layout
+import { DealerLayoutWrapper } from "./components/dealer/DealerLayoutWrapper";
+
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -222,17 +225,19 @@ const App = () => {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/profile" element={<AdminProfile />} />
             <Route path="/corebody/profile" element={<CoreBodyProfile />} />
-            <Route path="/dealer" element={<DealerDashboard />} />
-            <Route path="/dealer/products" element={<DealerProducts />} />
-            <Route path="/dealer/products/insights" element={<DealerInsights />} />
-            <Route path="/dealer/inventory" element={<DealerInventory />} />
-            <Route path="/dealer/inventory/ledger" element={<DealerStockLedger />} />
-            <Route path="/dealer/orders" element={<DealerOrders />} />
-            <Route path="/dealer/orders/history" element={<DealerFulfillmentHistory />} />
-            <Route path="/dealer/network" element={<DealerNetwork />} />
-            <Route path="/dealer/wallet" element={<DealerWallet />} />
-            <Route path="/dealer/wallet/history" element={<DealerTransactionHistory />} />
-            <Route path="/dealer/profile" element={<DealerProfile />} />
+            {/* ── Dealer Panel (centralized DealerLayoutWrapper) ── */}
+            <Route path="/dealer" element={<DealerLayoutWrapper><DealerDashboard /></DealerLayoutWrapper>} />
+            <Route path="/dealer/products" element={<DealerLayoutWrapper><DealerProducts /></DealerLayoutWrapper>} />
+            <Route path="/dealer/products/insights" element={<DealerLayoutWrapper><DealerInsights /></DealerLayoutWrapper>} />
+            <Route path="/dealer/inventory" element={<DealerLayoutWrapper><DealerInventory /></DealerLayoutWrapper>} />
+            <Route path="/dealer/inventory/ledger" element={<DealerLayoutWrapper><DealerStockLedger /></DealerLayoutWrapper>} />
+            <Route path="/dealer/inventory/arrivals" element={<DealerLayoutWrapper><StockArrivals /></DealerLayoutWrapper>} />
+            <Route path="/dealer/orders" element={<DealerLayoutWrapper><DealerOrders /></DealerLayoutWrapper>} />
+            <Route path="/dealer/orders/history" element={<DealerLayoutWrapper><DealerFulfillmentHistory /></DealerLayoutWrapper>} />
+            <Route path="/dealer/network" element={<DealerLayoutWrapper><DealerNetwork /></DealerLayoutWrapper>} />
+            <Route path="/dealer/wallet" element={<DealerLayoutWrapper><DealerWallet /></DealerLayoutWrapper>} />
+            <Route path="/dealer/wallet/history" element={<DealerLayoutWrapper><DealerTransactionHistory /></DealerLayoutWrapper>} />
+            <Route path="/dealer/profile" element={<DealerLayoutWrapper><DealerProfile /></DealerLayoutWrapper>} />
             <Route path="/stockpoint/profile" element={<StockPointProfile />} />
 
             {/* Commission & Profit Engine Routes */}

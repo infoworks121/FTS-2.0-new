@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+
 import { KPICard } from "@/components/KPICard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { dealerApi } from "@/lib/dealerApi";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -23,7 +23,7 @@ export default function DealerDashboard() {
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
-  const navItems = getDealerNavItems();
+
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -44,12 +44,7 @@ export default function DealerDashboard() {
   }, []);
 
   return (
-    <DashboardLayout 
-      role="dealer" 
-      navItems={navItems as any} 
-      roleLabel="Subdivision Agent"
-    >
-      <div className="space-y-6 text-foreground">
+    <div className="space-y-6 text-foreground">
         <header className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">Dealer Portal: {userName} 👋</h1>
           <p className="text-muted-foreground">Manage your subdivision products and B2B fulfillment</p>
@@ -202,7 +197,6 @@ export default function DealerDashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

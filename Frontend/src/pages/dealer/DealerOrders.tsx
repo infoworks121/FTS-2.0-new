@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { 
   Truck, 
   Package, 
@@ -31,7 +30,7 @@ import { toast } from "sonner";
 import fulfillmentApi, { FulfillmentAssignment } from "@/lib/fulfillmentApi";
 
 export default function DealerOrders() {
-  const navItems = getDealerNavItems();
+
   const [assignments, setAssignments] = useState<FulfillmentAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
@@ -98,8 +97,7 @@ export default function DealerOrders() {
   });
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any} roleLabel="Subdivision Agent">
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Order Fulfillment</h1>
@@ -249,7 +247,6 @@ export default function DealerOrders() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

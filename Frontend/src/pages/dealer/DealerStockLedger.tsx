@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+
 import { 
   History, 
   Search, 
@@ -19,7 +19,7 @@ import {
   FileBarChart
 } from "lucide-react";
 import { dealerApi } from "@/lib/dealerApi";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { DataTable } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -195,11 +195,10 @@ export default function DealerStockLedger() {
     // Mock export logic
   };
 
-  const navItems = getDealerNavItems();
+
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any}>
-      <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-3xl shadow-2xl shadow-slate-100 border border-slate-100/50">
           <div className="space-y-1">
@@ -385,7 +384,6 @@ export default function DealerStockLedger() {
                 </div>
             </DialogContent>
         </Dialog>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

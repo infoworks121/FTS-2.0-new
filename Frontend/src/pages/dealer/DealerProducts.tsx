@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { Package, Search, Filter, AlertTriangle, Info } from "lucide-react";
 import { dealerApi } from "@/lib/dealerApi";
 import { DataTable } from "@/components/DataTable";
@@ -18,7 +17,7 @@ export default function DealerProducts() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const navItems = getDealerNavItems();
+
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -120,8 +119,7 @@ export default function DealerProducts() {
   ];
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any} roleLabel="Subdivision Agent">
-      <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-1">
@@ -195,7 +193,6 @@ export default function DealerProducts() {
             </div>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

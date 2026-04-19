@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+
 import { 
   PackageCheck, 
   Truck, 
@@ -14,7 +14,7 @@ import {
   Check
 } from "lucide-react";
 import { dealerApi } from "@/lib/dealerApi";
-import { getDealerNavItems } from "@/config/dealerSidebarConfig";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,11 +55,10 @@ export default function StockArrivals() {
     }
   };
 
-  const navItems = getDealerNavItems();
+
 
   return (
-    <DashboardLayout role="dealer" navItems={navItems as any}>
-      <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-700">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
@@ -168,9 +167,6 @@ export default function StockArrivals() {
                 </div>
              </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
-
-import { History } from "lucide-react";
