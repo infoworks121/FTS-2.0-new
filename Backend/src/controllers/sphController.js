@@ -5,19 +5,20 @@ const db = require('../config/db');
 // =============================================================================
 
 /**
- * Get products from the global catalog that an SPH can list for B2C
+ * Get products from the global catalog that an SPH can list for B2C or B2B
  */
 exports.getBulkCatalogForSPH = async (req, res) => {
   try {
-    const { category_id, search, page = 1, limit = 20 } = req.query;
+    const { category_id, search, type = 'B2C', page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
     
-    // We only show products that the seller HAS NOT already listed
+    // We only show products that the seller HAS NOT already listed for THIS TYPE
     let whereClause = 'WHERE p.is_active = true AND p.created_by != $1';
     const params = [req.user.id];
     
-    // Also exclude products already in market_listings for this seller
-    whereClause += ' AND p.id NOT IN (SELECT product_id FROM market_listings WHERE seller_id = $1)';
+    // Also exclude products already in market_listings for this seller and this listing type
+    params.push(type);
+    whereClause += ` AND p.id NOT IN (SELECT product_id FROM market_listings WHERE seller_id = $1 AND listing_type = $${params.length})`;
 
     if (category_id && category_id !== 'all') {
       params.push(category_id);
@@ -59,11 +60,11 @@ exports.getBulkCatalogForSPH = async (req, res) => {
 };
 
 /**
- * Link a system product to SPH's B2C shop
+ * Link a system product to SPH's B2C or B2B shop
  */
 exports.addListingFromCatalog = async (req, res) => {
   try {
-    const { product_id, retail_price, stock_quantity = 0 } = req.body;
+    const { product_id, retail_price, stock_quantity = 0, listing_type = 'B2C' } = req.body;
     const seller_id = req.user.id;
 
     if (!product_id || !retail_price) {
@@ -82,28 +83,28 @@ exports.addListingFromCatalog = async (req, res) => {
 
     const { base_price, mrp } = pricingResult.rows[0];
 
-    // Business Logic: Retail price should be within [base_price, mrp]
+    // Business Logic: Retail price should be within [base_price, mrp] (for both B2B/B2C in this simple implementation)
     if (parseFloat(retail_price) < parseFloat(base_price)) {
-      return res.status(400).json({ error: `Retail price cannot be lower than bulk price (₹${base_price})` });
+      return res.status(400).json({ error: `Price cannot be lower than base price (₹${base_price})` });
     }
     if (parseFloat(retail_price) > parseFloat(mrp)) {
-      return res.status(400).json({ error: `Retail price cannot exceed MRP (₹${mrp})` });
+      return res.status(400).json({ error: `Price cannot exceed MRP (₹${mrp})` });
     }
 
     const result = await db.query(
-      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity, listing_type)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [product_id, seller_id, retail_price, stock_quantity]
+      [product_id, seller_id, retail_price, stock_quantity, listing_type]
     );
 
     res.status(201).json({
-      message: 'Product listed successfully in your B2C shop',
+      message: `Product listed successfully in your ${listing_type} marketplace`,
       listing: result.rows[0]
     });
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(400).json({ error: 'You have already listed this product' });
+      return res.status(400).json({ error: 'You have already listed this product for this marketplace' });
     }
     console.error('addListingFromCatalog error:', error);
     res.status(500).json({ error: error.message });
@@ -111,12 +112,12 @@ exports.addListingFromCatalog = async (req, res) => {
 };
 
 /**
- * Get SPH's own B2C listings
+ * Get SPH's own listings (B2C or B2B)
  */
 exports.getMyB2CListings = async (req, res) => {
   try {
     const seller_id = req.user.id;
-    const { search, category_id } = req.query;
+    const { search, category_id, type = 'B2C' } = req.query;
 
     let query = `
       SELECT ml.*, p.name, p.sku, p.thumbnail_url, c.name as category_name,
@@ -125,10 +126,10 @@ exports.getMyB2CListings = async (req, res) => {
       JOIN products p ON ml.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN product_pricing pp ON p.id = pp.product_id AND pp.is_current = true AND pp.variant_id IS NULL
-      WHERE ml.seller_id = $1
+      WHERE ml.seller_id = $1 AND ml.listing_type = $2
     `;
     
-    const params = [seller_id];
+    const params = [seller_id, type];
 
     if (category_id && category_id !== 'all') {
       params.push(category_id);
@@ -206,12 +207,24 @@ exports.createCustomSPHProduct = async (req, res) => {
   try {
     const {
       name, sku, category_id, description, thumbnail_url, image_urls = [],
-      retail_price, mrp, cost_price, stock_quantity = 0,
-      variants = [], type = 'physical'
+      retail_price, mrp, cost_price, bulk_price, stock_quantity = 0,
+       variants = [], type = 'physical', listing_type = 'B2C',
+      // New fields from Admin creation flow
+      unit, is_dealer_routed = false, brand, highlights = [], specifications = {},
+      is_returnable = true, return_policy_days = 7, min_order_quantity = 1,
+      is_subscription = false, tags = []
     } = req.body;
 
-    if (!name || !sku || !category_id || !retail_price || !mrp) {
-      return res.status(400).json({ error: 'Required fields missing: name, sku, category_id, retail_price, mrp' });
+    // Validation: Require name, sku, category, mrp, and AT LEAST one relevant price
+    if (!name || !sku || !category_id || !mrp) {
+      return res.status(400).json({ error: 'Required fields missing: name, sku, category_id, mrp' });
+    }
+
+    if (listing_type === 'B2B' && !bulk_price) {
+      return res.status(400).json({ error: 'Bulk price is required for B2B listings' });
+    }
+    if (listing_type === 'B2C' && !retail_price) {
+      return res.status(400).json({ error: 'Retail price is required for B2C listings' });
     }
 
     await client.query('BEGIN');
@@ -219,26 +232,36 @@ exports.createCustomSPHProduct = async (req, res) => {
     // 1. Create Product
     const productResult = await client.query(
       `INSERT INTO products 
-       (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8) 
+       (category_id, name, sku, description, type, thumbnail_url, image_urls, is_active, created_by,
+        unit, is_dealer_routed, brand, highlights, specifications, is_returnable, return_policy_days,
+        is_subscription, tags) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
        RETURNING id`,
-      [category_id, name, sku, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id]
+      [
+        category_id, name, sku, description, type, thumbnail_url, JSON.stringify(image_urls), req.user.id,
+        unit || null, is_dealer_routed, brand || null, highlights, JSON.stringify(specifications),
+        is_returnable, return_policy_days, is_subscription, tags
+      ]
     );
     const productId = productResult.rows[0].id;
 
     // 2. Create Pricing (Base Product)
-    // For custom products, we use retail_price as selling_price and cost_price (or retail_price) as base_price
+    // Map prices: selling_price gets retail_price, base_price gets cost_price or bulk_price
     await client.query(
       `INSERT INTO product_pricing 
-       (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
-       VALUES ($1, NULL, $2, $3, $4, true, $5)`,
-      [productId, mrp, cost_price || retail_price, retail_price, req.user.id]
+       (product_id, variant_id, mrp, base_price, selling_price, bulk_price, min_order_quantity, is_current, created_by) 
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, true, $7)`,
+      [productId, mrp, cost_price || bulk_price || retail_price, retail_price || bulk_price, bulk_price || null, min_order_quantity || 1, req.user.id]
     );
 
     // 3. Handle Variants if provided
     if (variants && variants.length > 0) {
       for (const variant of variants) {
-        const { variant_name, sku_suffix, attributes = {}, mrp: vMrp, basePrice: vBase, sellingPrice: vSell } = variant;
+        const { 
+          variant_name, sku_suffix, attributes = {}, mrp: vMrp, 
+          basePrice: vBase, sellingPrice: vSell, bulkPrice: vBulk, 
+          minOrderQuantity: vMin 
+        } = variant;
         
         if (!variant_name) continue;
         
@@ -253,9 +276,12 @@ exports.createCustomSPHProduct = async (req, res) => {
         // Variant Pricing
         await client.query(
           `INSERT INTO product_pricing 
-           (product_id, variant_id, mrp, base_price, selling_price, is_current, created_by) 
-           VALUES ($1, $2, $3, $4, $5, true, $6)`,
-          [productId, variantId, vMrp || mrp, vBase || cost_price || retail_price, vSell || retail_price, req.user.id]
+           (product_id, variant_id, mrp, base_price, selling_price, bulk_price, min_order_quantity, is_current, created_by) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+          [
+            productId, variantId, vMrp || mrp, vBase || cost_price || retail_price, 
+            vSell || retail_price, vBulk || bulk_price || null, vMin || min_order_quantity || 1, req.user.id
+          ]
         );
       }
     }
@@ -268,14 +294,24 @@ exports.createCustomSPHProduct = async (req, res) => {
          VALUES ('admin', $1, $2, NULL, $3)`,
         [req.user.id, productId, stock_quantity]
       );
+
+      // Log in inventory_ledger for traceability (Matching admin behavior)
+      await client.query(
+        `INSERT INTO inventory_ledger 
+         (product_id, variant_id, entity_type, entity_id, transaction_type, 
+          quantity, reference_type, note, created_by) 
+         VALUES ($1, NULL, 'admin', $2, 'initial_stock', $3, 'product_creation', 
+                 'Initial stock added during collection listing creation', $4)`,
+        [productId, req.user.id, stock_quantity, req.user.id]
+      );
     }
 
     // 5. Create Marketplace Listing immediately for the creator
     const listingResult = await client.query(
-      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO market_listings (product_id, seller_id, retail_price, stock_quantity, listing_type)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [productId, req.user.id, retail_price, stock_quantity]
+      [productId, req.user.id, listing_type === 'B2B' ? bulk_price : retail_price, stock_quantity, listing_type]
     );
 
     await client.query('COMMIT');

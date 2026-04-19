@@ -120,7 +120,6 @@ function MarketplaceContent() {
       rating: 4 + (Number(p.id) % 10) / 10
     }));
 
-    // Source Filtering Logic
     if (sourceFilter !== "all") {
       products = products.filter(p => {
         const isLocalProduct = p.fulfiller_type !== 'admin' && user?.district_id === p.source_district_id;
@@ -168,108 +167,99 @@ function MarketplaceContent() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Professional Page Title */}
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
       <MarketplaceHero />
 
-      {/* Optimized Filter Bar */}
-      <div className="sticky top-0 z-30 flex flex-col gap-4 bg-background/95 backdrop-blur-md py-4 border-b border-slate-100 mb-6">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="relative w-full md:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+      {/* Premium Glassmorphic Filter Bar */}
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl py-2.5 border-b border-border -mx-4 px-4 md:-mx-8 md:px-8 mb-3 transition-all duration-300">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="relative w-full lg:max-w-md group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
             <Input
-              placeholder="Search products..."
-              className="h-9 w-full rounded-lg border-slate-200 bg-white pl-9 focus-visible:ring-emerald-500/20 text-[11px] font-medium"
+              placeholder="Search premium stock..."
+              className="h-10 w-full rounded-xl border-border bg-background pl-10 focus-visible:ring-emerald-500/20 text-[11px] font-bold tracking-tight shadow-sm transition-all"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-             <button 
-               onClick={() => setSourceFilter("all")}
-               className={cn(
-                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
-                 sourceFilter === "all" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
-               )}
-             >
-               All
-             </button>
-             <button 
-               onClick={() => setSourceFilter("local")}
-               className={cn(
-                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
-                 sourceFilter === "local" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
-               )}
-             >
-               Local
-             </button>
-             <button 
-               onClick={() => setSourceFilter("admin")}
-               className={cn(
-                 "px-4 py-1 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider",
-                 sourceFilter === "admin" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
-               )}
-             >
-               Admin
-             </button>
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 rounded-lg border-slate-200 bg-white font-semibold gap-2 px-4 shadow-sm text-[11px]">
-                  <ArrowUpDown className="h-3 w-3" /> {sortLabels[sortBy]}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44 rounded-lg p-1 shadow-lg border-slate-100">
-                {(Object.keys(sortLabels) as SortOption[]).map((option) => (
-                  <DropdownMenuItem
-                    key={option}
+          <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+             <div className="flex bg-muted p-1 rounded-xl border border-border">
+                {[
+                  { id: "all", label: "Consolidated" },
+                  { id: "local", label: "Local" },
+                  { id: "admin", label: "Corporate" }
+                ].map((opt) => (
+                  <button 
+                    key={opt.id}
+                    onClick={() => setSourceFilter(opt.id as any)}
                     className={cn(
-                      "rounded-md text-[10px] font-bold cursor-pointer mb-0.5 p-2 px-3 uppercase tracking-wider",
-                      sortBy === option ? "bg-slate-50 text-emerald-600" : "text-slate-500 hover:bg-slate-50"
+                      "px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all uppercase tracking-widest whitespace-nowrap",
+                      sourceFilter === opt.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
                     )}
-                    onClick={() => setSortBy(option)}
                   >
-                    {sortLabels[option]}
-                  </DropdownMenuItem>
+                    {opt.label}
+                  </button>
                 ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+             </div>
 
-            <div className="h-9 flex items-center gap-1 p-1 bg-white rounded-lg border border-slate-200">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={cn(
-                  "p-1.5 rounded-md transition-all",
-                  viewMode === "grid" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-500"
-                )}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={cn(
-                  "p-1.5 rounded-md transition-all",
-                  viewMode === "list" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-500"
-                )}
-              >
-                <List className="h-3.5 w-3.5" />
-              </button>
-            </div>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 rounded-xl border-border bg-white font-bold gap-2 px-4 shadow-sm text-[10px] uppercase tracking-widest">
+                    <SlidersHorizontal className="h-3 w-3" /> {sortLabels[sortBy]}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-2xl border-border p-1">
+                  {(Object.keys(sortLabels) as SortOption[]).map((option) => (
+                    <DropdownMenuItem
+                      key={option}
+                      className={cn(
+                        "rounded-lg text-[10px] font-bold cursor-pointer p-2 px-3 uppercase tracking-widest mb-0.5",
+                        sortBy === option ? "bg-emerald-50 text-emerald-600" : "text-slate-500 hover:bg-slate-50"
+                      )}
+                      onClick={() => setSortBy(option)}
+                    >
+                      {sortLabels[option]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+             </DropdownMenu>
+
+             <div className="h-9 flex items-center gap-1 p-1 bg-muted rounded-xl border border-border">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewMode === "grid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" />
+                </button>
+             </div>
           </div>
         </div>
 
-        <CategoryStrip
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
+        <div className="mt-2.5 pt-2.5 border-t border-border">
+          <CategoryStrip
+            categories={categories}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+        </div>
       </div>
 
       {/* Content Grid */}
-      <div className="pb-12">
+      <div className="pb-8">
         {isLoading ? (
           <div className={cn(
             "grid gap-6",
@@ -295,7 +285,7 @@ function MarketplaceContent() {
           </div>
         ) : (
           <div className={cn(
-            "grid gap-6",
+            "grid gap-8",
             viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 whitespace-normal" : "grid-cols-1 md:grid-cols-2"
           )}>
             {processedProducts.map((product) => (
@@ -402,8 +392,8 @@ export default function IssuedProducts() {
 
   if (!layoutProps) {
     return (
-      <div className="min-h-screen bg-slate-50 pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="min-h-screen bg-background pb-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
           <MarketplaceContent />
         </div>
       </div>

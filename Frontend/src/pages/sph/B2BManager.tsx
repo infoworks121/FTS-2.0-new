@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ShoppingCart, Search, Plus, Filter, ListChecks, Loader2, Eye, Info, Package, BarChart3, Tag } from "lucide-react";
+import { ShoppingBag, Search, Plus, ListChecks, Loader2, Eye, Info, Package, BarChart3, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/DataTable";
 import api from "@/lib/api";
 import { useNavigate, useLocation } from "react-router-dom";
+import { KPICard } from "@/components/KPICard";
 import { 
   Sheet, 
   SheetContent, 
@@ -14,10 +15,11 @@ import {
   SheetTitle, 
   SheetDescription 
 } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-interface B2CListing {
+interface B2BListing {
   id: string;
   name: string;
   sku: string;
@@ -30,21 +32,22 @@ interface B2CListing {
   [key: string]: any; 
 }
 
-export default function B2CManager() {
-  const [listings, setListings] = useState<B2CListing[]>([]);
+export default function B2BManager() {
+  const [listings, setListings] = useState<B2BListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedListing, setSelectedListing] = useState<B2CListing | null>(null);
+  const [selectedListing, setSelectedListing] = useState<B2BListing | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   const fetchListings = async () => {
     try {
-      const res = await api.get("/sph/listings/my");
+      setLoading(true);
+      const res = await api.get("/sph/listings/my?type=B2B");
       setListings(res.data.listings);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to fetch listings");
+      toast.error(err.response?.data?.error || "Failed to fetch B2B listings");
     } finally {
       setLoading(false);
     }
@@ -69,7 +72,7 @@ export default function B2CManager() {
     l.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleViewDetails = (listing: B2CListing) => {
+  const handleViewDetails = (listing: B2BListing) => {
     setSelectedListing(listing);
     setIsDetailsOpen(true);
   };
@@ -83,9 +86,7 @@ export default function B2CManager() {
     }).format(val || 0);
   };
 
-  const basePath = location.pathname.startsWith("/stockpoint") 
-    ? "/stockpoint" 
-    : location.pathname.startsWith("/corebody") 
+  const basePath = location.pathname.startsWith("/corebody") 
     ? "/corebody" 
     : "/businessman";
   
@@ -93,11 +94,11 @@ export default function B2CManager() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My B2C Marketplace</h1>
-          <p className="text-sm text-muted-foreground">Manage your products listed for direct customer sales</p>
+          <h1 className="text-2xl font-bold text-foreground">B2B Product Management</h1>
+          <p className="text-sm text-muted-foreground">Manage products available for bulk ordering by dealers in your district.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => navigate(`${basePath}/b2c-manager/browse`)}>
+          <Button variant="outline" className="gap-2" onClick={() => navigate(`${basePath}/b2b-manager/browse`)}>
             <Search className="h-4 w-4" /> Browse Catalog
           </Button>
           <Button className="gap-2" onClick={() => navigate(`${basePath}/b2c-manager/add-custom`)}>
@@ -106,10 +107,31 @@ export default function B2CManager() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard 
+          title="B2B Products" 
+          value={String(listings.length)} 
+          subtitle="Currently Listed"
+          icon={ShoppingBag}
+        />
+        <KPICard 
+          title="Active Listings" 
+          value={String(listings.filter(l => l.is_active).length)} 
+          variant="profit"
+          icon={ListChecks}
+        />
+        <KPICard 
+          title="Inactive Listings" 
+          value={String(listings.filter(l => !l.is_active).length)} 
+          variant="warning"
+          icon={ListChecks}
+        />
+      </div>
+
       <div className="flex items-center gap-3 bg-card border border-border p-4 rounded-lg">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input 
-          placeholder="Search your listings by name or SKU..." 
+          placeholder="Search B2B listings by name or SKU..." 
           className="border-none bg-transparent focus-visible:ring-0"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -122,7 +144,7 @@ export default function B2CManager() {
         </div>
       ) : (
         <DataTable 
-          title="Your Live Listings"
+          title="Your B2B Catalog"
           columns={[
             {
               header: "Product",
@@ -144,27 +166,19 @@ export default function B2CManager() {
             },
             { header: "Category", accessor: "category_name" },
             { 
-              header: "Pricing", 
+              header: "B2B Bulk Price", 
               accessor: (row: any) => (
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-emerald-500">₹{row.retail_price}</span>
-                  <span className="text-[10px] text-muted-foreground italic">Cost: ₹{row.bulk_price}</span>
+                  <span className="text-sm font-bold text-blue-500">₹{row.retail_price}</span>
+                  <span className="text-[10px] text-muted-foreground italic">Base: ₹{row.bulk_price}</span>
                 </div>
-              )
-            },
-            { 
-              header: "Stock", 
-              accessor: (row: any) => (
-                <Badge variant={parseFloat(row.stock_quantity) < 10 ? "destructive" : "outline"} className="text-[10px]">
-                  {row.stock_quantity} units
-                </Badge>
               )
             },
             {
               header: "Status",
               accessor: (row: any) => (
                 <Badge variant={row.is_active ? "default" : "secondary"}>
-                  {row.is_active ? "LIVE" : "PAUSED"}
+                  {row.is_active ? "ACTIVE" : "PAUSED"}
                 </Badge>
               )
             },
@@ -204,13 +218,13 @@ export default function B2CManager() {
               <SheetHeader className="p-6 pb-0">
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant={selectedListing.is_active ? "default" : "secondary"} className="h-5 text-[10px] px-1.5">
-                    {selectedListing.is_active ? "LIVE" : "PAUSED"}
+                    {selectedListing.is_active ? "ACTIVE" : "PAUSED"}
                   </Badge>
                   <span className="text-[10px] font-mono text-muted-foreground">{selectedListing.sku}</span>
                 </div>
                 <SheetTitle className="text-xl font-bold leading-tight">{selectedListing.name}</SheetTitle>
                 <SheetDescription className="text-xs">
-                  Detailed specifications and pricing for this B2C marketplace item.
+                  Detailed specifications and pricing for this B2B catalog item.
                 </SheetDescription>
               </SheetHeader>
 
@@ -232,9 +246,9 @@ export default function B2CManager() {
                     <div className="p-4 rounded-xl bg-muted/20 border border-border/50">
                       <div className="flex items-center gap-2 mb-1 text-muted-foreground">
                         <Tag className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Selling Price</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Bulk Price</span>
                       </div>
-                      <div className="text-lg font-bold text-emerald-500">{formatCurrency(selectedListing.retail_price)}</div>
+                      <div className="text-lg font-bold text-blue-500">{formatCurrency(selectedListing.retail_price)}</div>
                     </div>
                     <div className="p-4 rounded-xl bg-muted/20 border border-border/50">
                       <div className="flex items-center gap-2 mb-1 text-muted-foreground">
@@ -243,7 +257,7 @@ export default function B2CManager() {
                       </div>
                       <div className={cn(
                         "text-lg font-bold",
-                        parseFloat(selectedListing.stock_quantity) < 10 ? "text-red-500" : "text-foreground"
+                        parseFloat(selectedListing.stock_quantity) < 10 ? "text-orange-500" : "text-foreground"
                       )}>
                         {selectedListing.stock_quantity} <span className="text-xs font-normal text-muted-foreground">Units</span>
                       </div>
@@ -262,12 +276,12 @@ export default function B2CManager() {
                           <span className="font-medium">{selectedListing.category_name}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm py-2 border-b border-border/50">
-                          <span className="text-muted-foreground">Base Cost Price</span>
+                          <span className="text-muted-foreground">Base Supply Price</span>
                           <span className="font-medium">{formatCurrency(selectedListing.bulk_price)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm py-2 border-b border-border/50">
                           <span className="text-muted-foreground">Listing Type</span>
-                          <Badge variant="outline" className="text-[10px]">B2C RETAIL</Badge>
+                          <Badge variant="outline" className="text-[10px]">B2B BULK</Badge>
                         </div>
                       </div>
                     </div>
@@ -288,11 +302,12 @@ export default function B2CManager() {
 
               <div className="p-6 border-t border-border bg-muted/5">
                 <Button 
-                  className="w-full gap-2 border-none bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white" 
+                  className="w-full gap-2" 
+                  variant={selectedListing.is_active ? "outline" : "default"}
                   onClick={() => handleToggleStatus(selectedListing.id, selectedListing.is_active)}
                 >
                   <ListChecks className="h-4 w-4" />
-                  {selectedListing.is_active ? "Pause Listing" : "Go Live Now"}
+                  {selectedListing.is_active ? "Pause This Listing" : "Resume This Listing"}
                 </Button>
               </div>
             </div>

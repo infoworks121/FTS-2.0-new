@@ -97,33 +97,33 @@ function SPHHome({ user }: { user: any }) {
 
       {/* Primary Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         <div className="lg:col-span-2 space-y-4">
-            <div className="p-6 rounded-xl border bg-card shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-profit" /> 
-                    Fulfillment Operations
-                </h2>
-                <div className="text-sm text-muted-foreground mb-4">
-                    Your Stock Point is currently <span className={stats?.fulfillment?.is_active ? "text-green-500 font-bold" : "text-red-500 font-bold"}>
-                        {stats?.fulfillment?.is_active ? "ACTIVE" : "INACTIVE"}
-                    </span> for new assignments.
-                </div>
-                <div className="flex gap-3">
-                   <Button variant="outline" size="sm">View Active Orders</Button>
-                   <Button variant="outline" size="sm">Manage Inventory</Button>
-                </div>
+        <div className="lg:col-span-2 space-y-4">
+          <div className="p-6 rounded-xl border bg-card shadow-sm">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-profit" /> 
+              Fulfillment Operations
+            </h2>
+            <div className="text-sm text-muted-foreground mb-4">
+              Your Stock Point is currently <span className={stats?.fulfillment?.is_active ? "text-green-500 font-bold" : "text-red-500 font-bold"}>
+                {stats?.fulfillment?.is_active ? "ACTIVE" : "INACTIVE"}
+              </span> for new assignments.
             </div>
-         </div>
-         <div className="space-y-4">
-            <div className="p-6 rounded-xl border bg-card shadow-sm">
-                <h3 className="font-bold mb-3 flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" /> Quick Wallet
-                </h3>
-                <div className="text-2xl font-black mb-1">₹42,500.00</div>
-                <p className="text-xs text-muted-foreground mb-4">Main balance available for withdrawal</p>
-                <Button className="w-full text-xs" size="sm">Go to Wallet</Button>
+            <div className="flex gap-3">
+              <Button variant="outline" size="sm">View Active Orders</Button>
+              <Button variant="outline" size="sm">Manage Inventory</Button>
             </div>
-         </div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div className="p-6 rounded-xl border bg-card shadow-sm">
+            <h3 className="font-bold mb-3 flex items-center gap-2">
+              <IndianRupee className="h-4 w-4" /> Quick Wallet
+            </h3>
+            <div className="text-2xl font-black mb-1">₹42,500.00</div>
+            <p className="text-xs text-muted-foreground mb-4">Main balance available for withdrawal</p>
+            <Button className="w-full text-xs" size="sm">Go to Wallet</Button>
+          </div>
+        </div>
       </div>
     </div>
   );

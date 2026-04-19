@@ -57,9 +57,11 @@ import StockPointShareRules from "./pages/commission/StockPointShareRules";
 // Products & Categories Pages
 import AllProducts from "./pages/products/AllProducts";
 import AddNewProduct from "./pages/products/AddNewProduct";
-import B2CManageView from "./pages/sph/B2CManager";
-import CatalogPickView from "./pages/sph/CatalogPicker";
-
+import B2CManager from "./pages/sph/B2CManager";
+import B2BManager from "./pages/sph/B2BManager";
+import CatalogPicker from "./pages/sph/CatalogPicker";
+import B2BCatalogPicker from "./pages/sph/B2BCatalogPicker";
+import AddCustomProduct from "./pages/sph/AddCustomProduct";
 import ProductPricing from "./pages/products/ProductPricing";
 import ProductStatus from "./pages/products/ProductStatus";
 import ProductDetails from "./pages/products/ProductDetails";
@@ -96,6 +98,7 @@ import StatusActiveInactive from "./pages/corebody/dealers-businessmen/StatusAct
 import PerformanceSnapshot from "./pages/corebody/dealers-businessmen/PerformanceSnapshot";
 import CoreBodyAllUsers from "./pages/corebody/dealers-businessmen/CoreBodyAllUsers";
 import ActiveOrders from "./pages/corebody/orders/ActiveOrders";
+import B2CFulfillment from "./pages/corebody/orders/B2CFulfillment";
 import CompletedOrders from "./pages/corebody/orders/CompletedOrders";
 import DistributionHistory from "./pages/corebody/orders/DistributionHistory";
 import FulfilmentIssues from "./pages/corebody/orders/FulfilmentIssues";
@@ -183,9 +186,11 @@ const App = () => {
   // Only show splash on landing page
   React.useEffect(() => {
     const path = window.location.pathname;
-    if (path !== '/') {
-      setLoading(false);
-      setShowSplash(false);
+    if (path === '/' || path === '') {
+       // Only show on root
+    } else {
+       setLoading(false);
+       setShowSplash(false);
     }
     syncSession();
   }, []);
@@ -374,6 +379,7 @@ const App = () => {
             <Route path="/corebody/directory/businessmen/:id" element={<UnifiedMemberProfile />} />
             <Route path="/corebody/dealers-businessmen/performance-snapshot" element={<PerformanceSnapshot />} />
             <Route path="/corebody/orders/active" element={<ActiveOrders />} />
+            <Route path="/corebody/orders/b2c-fulfillment" element={<B2CFulfillment />} />
             <Route path="/corebody/orders/b2b-orders" element={<CoreBodyB2BOrders />} />
             <Route path="/corebody/orders/completed" element={<CompletedOrders />} />
             <Route path="/corebody/orders/distribution" element={<DistributionHistory />} />
@@ -394,10 +400,13 @@ const App = () => {
              <Route path="/corebody/referrals/earnings" element={<CoreBodyLayout><ReferralEarningsPage /></CoreBodyLayout>} />
              <Route path="/corebody/referrals/history" element={<CoreBodyLayout><ReferralHistoryPage /></CoreBodyLayout>} />
 
-             {/* Core Body B2C Manager (SPH) Routes */}
-             <Route path="/corebody/b2c-manager/listings" element={<CoreBodyLayout><B2CManageView /></CoreBodyLayout>} />
-             <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayout><CatalogPickView /></CoreBodyLayout>} />
-             <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayout><AddNewProduct /></CoreBodyLayout>} />
+             {/* Core Body SPH Market Management (B2B & B2C) */}
+             <Route path="/corebody/b2c-manager/listings" element={<CoreBodyLayout><B2CManager /></CoreBodyLayout>} />
+             <Route path="/corebody/b2c-manager/browse" element={<CoreBodyLayout><CatalogPicker /></CoreBodyLayout>} />
+             <Route path="/corebody/b2c-manager/add-custom" element={<CoreBodyLayout><AddCustomProduct /></CoreBodyLayout>} />
+             
+             <Route path="/corebody/b2b-manager/listings" element={<CoreBodyLayout><B2BManager /></CoreBodyLayout>} />
+             <Route path="/corebody/b2b-manager/browse" element={<CoreBodyLayout><B2BCatalogPicker /></CoreBodyLayout>} />
 
             {/* Other Routes */}
             <Route path="/stockpoint/*" element={<SPHDashboard />} />

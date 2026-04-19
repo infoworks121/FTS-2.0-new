@@ -346,3 +346,57 @@ exports.getCoreBodyInventory = async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 };
+// Get all fulfillments in a district (for Core Body/SPH monitoring)
+exports.getDistrictFulfillments = async (req, res) => {
+    try {
+        const user = req.user;
+        const { status, order_type = 'B2C' } = req.query;
+
+        // 1. Get Core Body District
+        const profileQuery = `SELECT district_id FROM core_body_profiles WHERE user_id = $1`;
+        const profile = await db.query(profileQuery, [user.id]);
+        
+        if (profile.rows.length === 0) {
+            return res.status(403).json({ error: 'Core Body profile not found. Access denied.' });
+        }
+        
+        const district_id = profile.rows[0].district_id;
+
+        // 2. Fetch fulfillments for orders in this district
+        let query = `
+            SELECT fa.*, 
+                   o.order_number, o.total_amount, o.created_at as order_date, o.order_type,
+                   u.full_name as customer_name, u.phone as customer_phone,
+                   CASE 
+                       WHEN fa.fulfiller_type = 'stock_point' THEN (SELECT full_name FROM users JOIN stock_point_profiles ON users.id = stock_point_profiles.user_id WHERE stock_point_profiles.id = fa.fulfiller_id)
+                       WHEN fa.fulfiller_type = 'dealer' THEN (SELECT full_name FROM users JOIN dealer_profiles ON users.id = dealer_profiles.user_id WHERE dealer_profiles.id = fa.fulfiller_id)
+                       WHEN fa.fulfiller_type = 'core_body' THEN (SELECT full_name FROM users JOIN core_body_profiles ON users.id = core_body_profiles.user_id WHERE core_body_profiles.id = fa.fulfiller_id)
+                       ELSE 'Admin'
+                   END as fulfiller_name
+            FROM fulfillment_assignments fa
+            JOIN orders o ON fa.order_id = o.id
+            JOIN users u ON o.customer_id = u.id
+            WHERE o.district_id = $1
+        `;
+        
+        const params = [district_id];
+
+        if (order_type && order_type !== 'all') {
+            params.push(order_type);
+            query += ` AND o.order_type = $${params.length}`;
+        }
+
+        if (status && status !== 'all') {
+            params.push(status);
+            query += ` AND fa.status = $${params.length}`;
+        }
+
+        query += ` ORDER BY fa.assigned_at DESC`;
+
+        const result = await db.query(query, params);
+        res.json({ fulfillments: result.rows });
+    } catch (error) {
+        console.error('Error fetching district fulfillments:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};

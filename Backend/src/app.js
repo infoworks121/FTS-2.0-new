@@ -90,6 +90,7 @@ app.use('/api/admin/profit-rules', profitRuleRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/stock-allocations', stockAllocationRoutes);
+app.use('/api/stock', stockAllocationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

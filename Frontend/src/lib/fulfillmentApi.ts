@@ -20,6 +20,11 @@ export const fulfillmentApi = {
     const res = await api.get('/fulfillments', { params });
     return res.data;
   },
+  
+  getDistrictFulfillments: async (params?: { status?: string, order_type?: string }): Promise<{ fulfillments: FulfillmentAssignment[] }> => {
+    const res = await api.get('/fulfillments/district', { params });
+    return res.data;
+  },
 
   updateStatus: async (assignmentId: string, status: string, trackingData: any = {}) => {
     // Backend route is PUT /api/fulfillments/:assignment_id/status

@@ -194,6 +194,15 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
             : undefined,
           submenu: [
             {
+              title: "B2B Product",
+              url: "/corebody/b2b-manager/listings",
+              isSPHOnly: true,
+            },
+            {
+              title: "Add Custom Product",
+              url: "/corebody/b2c-manager/add-custom",
+            },
+            {
               title: "Stock Inventory",
               url: "/corebody/stock/current-inventory",
               readOnly: coreBodyType === "B",
@@ -251,6 +260,14 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
               }
             : undefined,
           submenu: [
+            {
+              title: "My B2C Listings",
+              url: "/corebody/b2c-manager/listings",
+            },
+            {
+              title: "Browse Bulk Catalog",
+              url: "/corebody/b2c-manager/browse",
+            },
             {
               title: "B2C Fulfillment",
               url: "/corebody/orders/b2c-fulfillment",
@@ -479,25 +496,6 @@ export function getCoreBodyNavGroups(context: CoreBodySidebarContext): CoreBodyN
         },
       ],
     },
-    // ── 8) B2C MARKET MANAGER (SPH ONLY) ──
-    ...(isSPH ? [{
-      groupLabel: "B2C Market Manager",
-      groupIcon: ShoppingCart,
-      purpose: "Manage listings, browse catalog, and add custom products for B2C marketplace.",
-      items: [
-        {
-          key: "b2cMarketplace",
-          title: "B2C Market Manager",
-          url: "/corebody/b2c-manager",
-          icon: ShoppingCart,
-          submenu: [
-            { title: "My B2C Listings", url: "/corebody/b2c-manager/listings", icon: ListChecks },
-            { title: "Browse Bulk Catalog", url: "/corebody/b2c-manager/browse", icon: Package },
-            { title: "Add Custom Product", url: "/corebody/b2c-manager/add-custom", icon: UserPlus },
-          ],
-        },
-      ],
-    }] : []),
   ];
 }
 

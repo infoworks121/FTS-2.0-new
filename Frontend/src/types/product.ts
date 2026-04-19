@@ -79,6 +79,7 @@ export interface ProductFormData {
   thumbnailUrl?: string;
   imageUrls?: string[];
   status?: string;
+  unit?: string;
   variants?: ProductVariant[];
 }
 

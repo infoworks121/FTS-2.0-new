@@ -1,231 +1,833 @@
 import { useState, useEffect } from "react";
-import { Plus, Upload, Trash2, Loader2, Package, ArrowLeft, Save, XCircle } from "lucide-react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { productApi } from "@/lib/productApi";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import api from "@/lib/api";
-import { useNavigate } from "react-router-dom";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Package,
+  DollarSign,
+  Tag,
+  AlertTriangle,
+  Save,
+  Eye,
+  X,
+  Upload,
+  Loader2,
+  Trash2,
+  PlusCircle,
+  Layers,
+  TrendingUp,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { uploadApi } from "@/lib/uploadApi";
+import { Product, ProductFormData, ProductVariant } from "@/types/product";
+import { IMAGE_BASE_URL } from "@/lib/api";
 
-interface Category {
-  id: number;
-  name: string;
-}
+// Steps configuration
+const steps = [
+  { id: 1, title: "Basic Info", description: "Details, Stock & Variants", icon: Package },
+  { id: 2, title: "Media", description: "Thumbnail and gallery images", icon: Eye },
+  { id: 3, title: "Pricing", description: "Price, cost, margin settings", icon: DollarSign },
+  { id: 4, title: "Review", description: "Confirm and publish", icon: Check },
+];
 
 export default function AddCustomProduct({ onProductCreated }: { onProductCreated?: () => void }) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [catLoading, setCatLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const editingProduct = location.state?.product as Product | undefined;
 
-  const [formData, setFormData] = useState({
-    name: "",
-    sku: "",
-    category_id: "",
-    description: "",
-    thumbnail_url: "",
-    retail_price: "",
-    mrp: "",
-    cost_price: "",
-    stock_quantity: "0"
-  });
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await api.get("/catalog/categories");
-        setCategories(res.data.categories || []);
-      } catch (err) {
-        toast.error("Failed to load categories");
-      } finally {
-        setCatLoading(false);
-      }
-    };
-    fetchCategories();
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.sku || !formData.category_id || !formData.retail_price || !formData.mrp) {
-      toast.error("Please fill all required fields");
-      return;
+  const getRedirectPath = () => {
+    return "/corebody/b2c-manager/listings";
+  };
+
+  useEffect(() => {
+    productApi.getCategories()
+      .then((data) => {
+        const cats = (data.categories || []).map((c: { id: number; name: string }) => ({
+          id: String(c.id),
+          name: c.name,
+        }));
+        setCategories(cats);
+      })
+      .catch((err) => {
+        console.error('Categories fetch error:', err?.response?.data || err.message);
+        setCategories([]);
+      });
+  }, []);
+
+  // Form state
+  const [formData, setFormData] = useState<ProductFormData>({
+    name: editingProduct?.name || "",
+    sku: editingProduct?.sku || "",
+    categoryId: editingProduct?.category_id || "",
+    type: editingProduct?.product_type || "physical",
+    mrp: editingProduct?.mrp || 0,
+    basePrice: editingProduct?.base_price || 0,
+    sellingPrice: editingProduct?.selling_price || 0,
+    bulkPrice: editingProduct?.bulk_price || 0,
+    minOrderQuantity: editingProduct?.min_order_quantity || 1,
+    adminMarginPct: editingProduct?.admin_margin_pct || 0,
+    profitChannel: "B2B",
+    minMarginPercent: editingProduct?.min_margin_percent || 15,
+    stockRequired: editingProduct?.stock_required ?? true,
+    stockQuantity: editingProduct?.stock_quantity || 0,
+    isDigital: editingProduct?.is_digital ?? false,
+    isService: editingProduct?.is_service ?? false,
+    is_dealer_routed: editingProduct?.is_dealer_routed ?? false,
+    description: editingProduct?.description || "",
+    brand: (editingProduct as any)?.brand || "",
+    highlights: (editingProduct as any)?.highlights || [""],
+    specifications: (editingProduct as any)?.specifications || {},
+    is_returnable: (editingProduct as any)?.is_returnable ?? true,
+    return_policy_days: (editingProduct as any)?.return_policy_days || 7,
+    thumbnailUrl: editingProduct?.thumbnail_url || "",
+    imageUrls: editingProduct?.image_urls || [],
+    unit: (editingProduct as any)?.unit || "pcs",
+    variants: editingProduct?.variants || [],
+  });
+
+  // Derived calculations
+  const marginPercent = formData.sellingPrice > 0
+    ? ((formData.sellingPrice - formData.basePrice) / formData.sellingPrice) * 100
+    : 0;
+  const marginWarning = marginPercent < formData.minMarginPercent;
+
+  const handleInputChange = (field: keyof ProductFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  const handleVariantChange = (index: number, field: keyof ProductVariant, value: any) => {
+    const newVariants = [...(formData.variants || [])];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    handleInputChange("variants", newVariants);
+  };
+
+  const addVariant = () => {
+    const newVariant: ProductVariant = {
+      variant_name: "",
+      sku_suffix: "",
+      attributes: { },
+      mrp: formData.mrp || 0,
+      basePrice: formData.basePrice || 0,
+      sellingPrice: formData.sellingPrice || 0,
+      bulkPrice: formData.bulkPrice || 0,
+      minOrderQuantity: formData.minOrderQuantity || 1,
+    };
+    handleInputChange("variants", [...(formData.variants || []), newVariant]);
+  };
+
+  const removeVariant = (index: number) => {
+    const newVariants = (formData.variants || []).filter((_, i) => i !== index);
+    handleInputChange("variants", newVariants);
+  };
+
+  const handleAttributeChange = (vIdx: number, key: string, value: string, oldKey?: string) => {
+    const newVariants = [...(formData.variants || [])];
+    const newAttrs = { ...newVariants[vIdx].attributes };
+
+    if (oldKey && oldKey !== key) {
+      delete newAttrs[oldKey];
     }
 
-    setLoading(true);
-    try {
-      await api.post("/sph/products/custom", formData);
-      toast.success("Custom product created and listed!");
-      
-      if (onProductCreated) onProductCreated();
-      else {
-        const basePath = window.location.pathname.startsWith("/stockpoint") ? "/stockpoint" : "/businessman";
-        navigate(`${basePath}/b2c-manager/listings`);
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to create product");
-    } finally {
-      setLoading(false);
+    if (key) {
+      newAttrs[key] = value;
+    }
+    
+    newVariants[vIdx].attributes = newAttrs;
+    handleInputChange("variants", newVariants);
+  };
+
+  const addAttribute = (vIdx: number) => {
+    const newVariants = [...(formData.variants || [])];
+    const newAttrs = { ...newVariants[vIdx].attributes, "": "" };
+    newVariants[vIdx].attributes = newAttrs;
+    handleInputChange("variants", newVariants);
+  };
+
+  const removeAttribute = (vIdx: number, key: string) => {
+    const newVariants = [...(formData.variants || [])];
+    const newAttrs = { ...newVariants[vIdx].attributes };
+    delete newAttrs[key];
+    newVariants[vIdx].attributes = newAttrs;
+    handleInputChange("variants", newVariants);
+  };
+
+  const handleNext = () => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-4">
-        <Button variant="ghost" size="sm" className="w-fit gap-2" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" /> Back to Marketplace
-        </Button>
-        <div className="flex flex-col gap-2">
-            <h2 className="text-3xl font-extrabold tracking-tight">List a Unique Product</h2>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-              Can't find your product in our catalog? Create a custom listing. 
-              This product will be uniquely yours and managed exclusively in your shop.
-            </p>
-        </div>
-      </div>
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 border-b border-border pb-4 mb-2">
-                <Package className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-base tracking-tight">Product Information</h3>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Product Title *</label>
-                <Input 
-                  placeholder="e.g. Premium Handcrafted Organic Honey" 
-                  className="h-11 text-base font-medium"
-                  value={formData.name} 
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                />
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      if (editingProduct?.id) {
+        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'active' });
+      } else {
+        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'active' };
+        await productApi.createSPH(finalData);
+      }
+      setHasChanges(false);
+      if (onProductCreated) onProductCreated();
+      navigate(getRedirectPath());
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to publish product';
+      setError(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      if (editingProduct?.id) {
+        await productApi.update(editingProduct.id, { ...formData, mrp: formData.mrp || 0, status: 'draft' });
+      } else {
+        const finalData = { ...formData, mrp: formData.mrp || 0, status: 'draft' };
+        await productApi.createSPH(finalData);
+      }
+      navigate(getRedirectPath());
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to save draft';
+      setError(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [isUploading, setIsUploading] = useState<string | null>(null);
+
+  const handleFileUpload = async (file: File, field: "thumbnailUrl" | "imageUrls", index?: number) => {
+    try {
+      const uploadId = index !== undefined ? `${field}-${index}` : field;
+      setIsUploading(uploadId);
+      const res = await uploadApi.uploadSingle(file);
+      const fileUrl = res.url;
+
+      if (field === "thumbnailUrl") {
+        handleInputChange("thumbnailUrl", fileUrl);
+      } else if (field === "imageUrls" && index !== undefined) {
+        const newUrls = [...(formData.imageUrls || [])];
+        newUrls[index] = fileUrl;
+        handleInputChange("imageUrls", newUrls);
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+    } finally {
+      setIsUploading(null);
+    }
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1:
+        return formData.name && formData.sku && formData.categoryId && formData.type;
+      case 2:
+        return true;
+      case 3:
+        const isB2BValid = formData.profitChannel === 'B2B' && (formData.bulkPrice || 0) > 0;
+        const isB2CValid = formData.profitChannel === 'B2C' && (formData.sellingPrice || 0) > 0;
+        return formData.mrp > 0 && formData.basePrice >= 0 && (isB2BValid || isB2CValid);
+      case 4:
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-6">
+            <Card className="border-t-4 border-t-primary shadow-md">
+              <CardHeader className="bg-muted/30 pb-4 border-b">
+                <CardTitle className="text-lg">Basic Information</CardTitle>
+                <CardDescription>Enter the basic identification details about your product.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-400">Primary Channel (Fixed)</Label>
+                    <div className="h-10 px-3 flex items-center bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-widest gap-2">
+                      <TrendingUp className="h-4 w-4 text-emerald-500" />
+                      B2B Wholesale (Bulk Sales Only)
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Product Name *</Label>
+                    <Input
+                      id="name"
+                      placeholder="Enter product name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sku">SKU / Code *</Label>
+                    <Input
+                      id="sku"
+                      placeholder="e.g., WBH-001"
+                      value={formData.sku}
+                      onChange={(e) => handleInputChange("sku", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="brand">Brand Name (Optional)</Label>
+                    <Input
+                      id="brand"
+                      placeholder="e.g. Samsung, Tata"
+                      value={formData.brand}
+                      onChange={(e) => handleInputChange("brand", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(value) => handleInputChange("categoryId", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="unit">Unit of Measurement (e.g. Pcs, Kg) *</Label>
+                    <Input
+                      id="unit"
+                      placeholder="e.g. pcs, kg, box"
+                      value={formData.unit}
+                      onChange={(e) => handleInputChange("unit", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Product Type *</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { value: "physical", label: "Physical", icon: Package },
+                        { value: "digital", label: "Digital", icon: DollarSign },
+                        { value: "service", label: "Service", icon: Tag },
+                      ].map((type) => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => handleInputChange("type", type.value)}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all",
+                            formData.type === type.value
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <type.icon className={cn("h-6 w-6", formData.type === type.value ? "text-primary" : "text-muted-foreground")} />
+                          <span className={cn("text-sm font-medium", formData.type === type.value ? "text-primary" : "text-muted-foreground")}>{type.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Product description..."
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    rows={4}
+                  />
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Key Highlights (Bullet Points)</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="xs" 
+                      onClick={() => handleInputChange("highlights", [...(formData.highlights || []), ""])}
+                      className="h-7 text-[10px]"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add Point
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(formData.highlights || []).map((point, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input 
+                          placeholder={`Highlight ${idx + 1}`}
+                          value={point}
+                          onChange={(e) => {
+                            const newHighlights = [...(formData.highlights || [])];
+                            newHighlights[idx] = e.target.value;
+                            handleInputChange("highlights", newHighlights);
+                          }}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 h-9 w-9 shrink-0" 
+                          onClick={() => {
+                            const newHighlights = (formData.highlights || []).filter((_, i) => i !== idx);
+                            handleInputChange("highlights", newHighlights.length ? newHighlights : [""]);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Technical Specifications (Key-Value)</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="xs" 
+                      onClick={() => {
+                        const newSpecs = { ...formData.specifications, "": "" };
+                        handleInputChange("specifications", newSpecs);
+                      }}
+                      className="h-7 text-[10px]"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add Spec
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {Object.entries(formData.specifications || {}).map(([key, value], idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input 
+                          placeholder="Spec Name (e.g. Material)"
+                          value={key}
+                          className="flex-1"
+                          onChange={(e) => {
+                            const newSpecs = { ...formData.specifications };
+                            const newKey = e.target.value;
+                            if (newKey !== key) {
+                              newSpecs[newKey] = value;
+                              delete newSpecs[key];
+                              handleInputChange("specifications", newSpecs);
+                            }
+                          }}
+                        />
+                        <Input 
+                          placeholder="Value (e.g. Cotton)"
+                          value={value}
+                          className="flex-1"
+                          onChange={(e) => {
+                            const newSpecs = { ...formData.specifications };
+                            newSpecs[key] = e.target.value;
+                            handleInputChange("specifications", newSpecs);
+                          }}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 h-9 w-9 shrink-0" 
+                          onClick={() => {
+                            const newSpecs = { ...formData.specifications };
+                            delete newSpecs[key];
+                            handleInputChange("specifications", newSpecs);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-t-4 border-t-orange-500 shadow-sm">
+              <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center gap-2">
+                <Tag className="h-4 w-4 text-orange-500" />
+                <CardTitle className="text-sm">Inventory & Stock Tracking</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="stockRequired" checked={formData.stockRequired} onCheckedChange={(checked) => handleInputChange("stockRequired", checked)} />
+                  <Label htmlFor="stockRequired">Track inventory for this product</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="isDealerRouted" checked={formData.is_dealer_routed} onCheckedChange={(checked) => handleInputChange("is_dealer_routed", checked)} />
+                  <div className="space-y-1">
+                    <Label htmlFor="isDealerRouted" className="font-medium">Dealer Routed Product (B2B Auto-assignment)</Label>
+                    <p className="text-[10px] text-muted-foreground">B2B orders will be auto-assigned to the nearest Dealer.</p>
+                  </div>
+                </div>
+                {formData.stockRequired && (
+                  <div className="space-y-1.5 max-w-xs pl-6">
+                    <Label className="text-xs">Initial Stock Quantity</Label>
+                    <Input className="h-8" type="number" min="0" value={formData.stockQuantity} onChange={(e) => handleInputChange("stockQuantity", parseInt(e.target.value) || 0)} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-t-4 border-t-indigo-500 shadow-sm">
+              <CardHeader className="bg-muted/30 pb-3 border-b flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-indigo-500" />
+                  <CardTitle className="text-sm">Product Variations</CardTitle>
+                </div>
+                <Button onClick={addVariant} variant="outline" size="xs" className="gap-1 h-7 text-[10px]"><PlusCircle className="h-3 w-3" /> Add Variant</Button>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {(formData.variants || []).length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground italic text-center py-2">No variations added. Product sold as single item.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {formData.variants?.map((v, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border bg-card/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Input className="h-7 max-w-[180px] font-bold text-xs" value={v.variant_name} placeholder="Variant Name" onChange={(e) => handleVariantChange(idx, "variant_name", e.target.value)} />
+                          <Button variant="ghost" size="icon" className="text-red-500 h-6 w-6" onClick={() => removeVariant(idx)}><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 mt-4 border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                              <Layers className="h-3 w-3" /> Attributes (e.g. Color, Size)
+                            </Label>
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="xs" 
+                              onClick={() => addAttribute(idx)} 
+                              className="h-6 text-[9px] px-2 shadow-sm"
+                            >
+                              <PlusCircle className="h-3 w-3 mr-1 text-primary" /> Add Attribute
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {Object.entries(v.attributes || {}).map(([key, val], aIdx) => (
+                              <div key={aIdx} className="flex gap-2 items-center">
+                                <Input 
+                                  className="h-8 text-[11px] flex-1 bg-muted/20 border-muted-foreground/10" 
+                                  placeholder="Key (e.g. Color)" 
+                                  value={key} 
+                                  onChange={(e) => handleAttributeChange(idx, e.target.value, val, key)} 
+                                />
+                                <Input 
+                                  className="h-8 text-[11px] flex-1 bg-muted/20 border-muted-foreground/10" 
+                                  placeholder="Value (e.g. Red)" 
+                                  value={val} 
+                                  onChange={(e) => handleAttributeChange(idx, key, e.target.value)} 
+                                />
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" 
+                                  onClick={() => removeAttribute(idx, key)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 border-t pt-4">
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">SKU Suffix</Label>
+                            <Input className="h-8 text-[10px]" value={v.sku_suffix} placeholder="-RED" onChange={(e) => handleVariantChange(idx, "sku_suffix", e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">MRP ₹</Label>
+                            <Input className="h-8 text-[10px]" type="number" value={v.mrp} onChange={(e) => handleVariantChange(idx, "mrp", parseFloat(e.target.value) || 0)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-bold text-blue-600">Base ₹</Label>
+                            <Input className="h-8 text-[10px]" type="number" value={v.basePrice} onChange={(e) => handleVariantChange(idx, "basePrice", parseFloat(e.target.value) || 0)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] uppercase font-bold text-emerald-600">Sale ₹</Label>
+                            <Input className="h-8 text-[10px]" type="number" value={v.sellingPrice} onChange={(e) => handleVariantChange(idx, "sellingPrice", parseFloat(e.target.value) || 0)} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 2:
+        return (
+          <Card className="border-t-4 border-t-blue-500 shadow-md">
+            <CardHeader className="bg-muted/30 pb-4 border-b">
+              <CardTitle className="text-lg flex items-center">
+                <Eye className="h-5 w-5 mr-2 text-blue-500" /> Product Media
+              </CardTitle>
+              <CardDescription>Add a main thumbnail and gallery images.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-10 pt-6">
+              <div className="space-y-4">
+                <Label className="text-base font-bold">Main Thumbnail</Label>
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                    <TabsTrigger value="upload" className="flex gap-2"><Upload className="h-4 w-4" /> Upload</TabsTrigger>
+                    <TabsTrigger value="link" className="flex gap-2"><Tag className="h-4 w-4" /> Paste Link</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="upload" className="space-y-4 pt-4">
+                    <div className="flex items-center gap-6">
+                      <div className="relative group h-32 w-32 rounded-xl bg-muted border-2 border-dashed flex items-center justify-center overflow-hidden">
+                        {formData.thumbnailUrl ? (
+                          <img src={formData.thumbnailUrl.startsWith('data:') || formData.thumbnailUrl.startsWith('http') ? formData.thumbnailUrl : `${IMAGE_BASE_URL}${formData.thumbnailUrl}`} alt="Thumbnail" className="h-full w-full object-cover" />
+                        ) : (
+                          <Upload className="h-8 w-8 text-muted-foreground/30" />
+                        )}
+                        {isUploading === "thumbnailUrl" && (
+                          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <Button type="button" variant="outline" className="relative">
+                          Choose File
+                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*"
+                            onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileUpload(file, "thumbnailUrl"); }} />
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="link" className="pt-4">
+                    <Input placeholder="https://example.com/image.jpg" value={formData.thumbnailUrl} onChange={(e) => handleInputChange("thumbnailUrl", e.target.value)} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              <div className="space-y-4 pt-10 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-bold">Product Gallery</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => handleInputChange("imageUrls", [...(formData.imageUrls || []), ""])}>+ Add New Image</Button>
+                </div>
+                <div className="grid gap-4">
+                  {(formData.imageUrls || []).map((url, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border bg-muted/30 flex items-center gap-4">
+                      <div className="relative h-16 w-16 bg-background rounded border overflow-hidden">
+                        {url ? <img src={url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url}`} className="h-full w-full object-cover" /> : <Upload className="h-4 w-4 m-auto mt-6 opacity-20" />}
+                      </div>
+                      <Input className="flex-1" placeholder="Gallery image URL" value={url} onChange={(e) => { const newUrls = [...(formData.imageUrls || [])]; newUrls[idx] = e.target.value; handleInputChange("imageUrls", newUrls); }} />
+                      <Button variant="ghost" size="icon" className="text-red-500" onClick={() => { const newUrls = (formData.imageUrls || []).filter((_, i) => i !== idx); handleInputChange("imageUrls", newUrls); }}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+      case 3:
+        return (
+          <Card className="border-t-4 border-t-emerald-500 shadow-md">
+            <CardHeader className="bg-muted/30 pb-4 border-b">
+              <CardTitle className="text-lg flex items-center">
+                <DollarSign className="h-5 w-5 mr-2 text-emerald-500" /> Pricing & Commission
+              </CardTitle>
+              <CardDescription>Set your product pricing and margin settings.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-6">
+              <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-bold text-indigo-900">Return Policy</Label>
+                    <p className="text-xs text-muted-foreground">Define if this product can be returned by the customer.</p>
+                  </div>
+                  <Switch 
+                    checked={formData.is_returnable} 
+                    onCheckedChange={(val) => handleInputChange("is_returnable", val)}
+                  />
+                </div>
+                
+                {formData.is_returnable && (
+                  <div className="flex items-center gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Return Window (Days)</Label>
+                      <Input 
+                        type="number" 
+                        className="w-32 h-9" 
+                        value={formData.return_policy_days} 
+                        onChange={(e) => handleInputChange("return_policy_days", parseInt(e.target.value) || 0)} 
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Unique SKU / Model No. *</label>
-                  <Input 
-                    placeholder="e.g. HON-PREM-500" 
-                    value={formData.sku} 
-                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                  />
+                  <Label htmlFor="basePrice">Base/Landing Price (Cost) ₹ *</Label>
+                  <Input id="basePrice" type="number" value={formData.basePrice || ""} onChange={(e) => handleInputChange("basePrice", parseFloat(e.target.value) || 0)} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bulkPrice" className="text-emerald-600 font-bold">Bulk Price (B2B) ₹ *</Label>
+                  <Input id="bulkPrice" type="number" className="border-emerald-200" value={formData.bulkPrice || ""} onChange={(e) => handleInputChange("bulkPrice", parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Product Category *</label>
-                  <select 
-                    className="w-full h-10 px-3 bg-muted/30 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({...formData, category_id: e.target.value})}
-                  >
-                    <option value="">Choose Category</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <Label htmlFor="minOrderQuantity" className="text-emerald-600 font-bold">Min Order Quantity (B2B) *</Label>
+                  <Input id="minOrderQuantity" type="number" min="1" className="border-emerald-200" value={formData.minOrderQuantity || 1} onChange={(e) => handleInputChange("minOrderQuantity", parseInt(e.target.value) || 1)} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mrp" className="text-slate-900 font-bold">Maximum Retail Price (MRP) ₹ *</Label>
+                  <Input id="mrp" type="number" placeholder="0.00" value={formData.mrp || ""} onChange={(e) => handleInputChange("mrp", parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Detailed Description</label>
-                <Textarea 
-                  placeholder="Tell your customers what makes this product special..." 
-                  className="min-h-[160px] resize-none leading-relaxed"
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                />
+            </CardContent>
+          </Card>
+        );
+
+      case 4:
+        return (
+          <Card className="border-t-4 border-t-blue-600 shadow-md">
+            <CardHeader className="bg-muted/30 pb-4 border-b">
+              <CardTitle className="text-lg">Review & Publish</CardTitle>
+              <CardDescription>Final check of your product configuration.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-6">
+              <div className="p-4 rounded-lg bg-emerald-50/20 border border-emerald-100 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold uppercase">Wholesale Price</p><p className="font-bold text-emerald-600">₹{(formData.bulkPrice || 0).toFixed(2)}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold uppercase">Category</p><p className="text-xs font-bold line-clamp-1">{categories.find(c => c.id === formData.categoryId)?.name || 'N/A'}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-muted-foreground font-bold uppercase">Variants</p><p className="text-xs font-bold">{formData.variants?.length || 0} Options</p></div>
               </div>
-            </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase">Confirmation</p>
+                <div className="p-4 rounded-xl border bg-muted/20 flex items-center gap-3">
+                  <Check className="h-5 w-5 text-green-500" />
+                  <p className="text-sm">Ready to push product to live marketplace.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-6 pb-24 max-w-5xl mx-auto px-4 md:px-0 pt-6">
+      <div className="flex flex-col gap-1 mb-8">
+         <h1 className="text-3xl font-bold tracking-tight text-slate-900">Add New Product</h1>
+         <p className="text-sm text-slate-500">Create and publish a new product to the marketplace.</p>
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-sm text-red-600 flex items-center">
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          {error}
+        </div>
+      )}
+
+      {/* Stepper Navigation */}
+      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-muted-foreground/10">
+        {steps.map((step, idx) => (
+          <div key={step.id} className="flex items-center group">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(step.id)}
+              className="flex items-center gap-3 transition-opacity hover:opacity-80"
+            >
+              <div className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all",
+                currentStep >= step.id ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30 text-muted-foreground"
+              )}>
+                {currentStep > step.id ? <Check className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
+              </div>
+              <div className="hidden md:block text-left">
+                <p className={cn("text-xs font-bold", currentStep >= step.id ? "text-foreground" : "text-muted-foreground")}>{step.title}</p>
+                <p className="text-[10px] text-muted-foreground opacity-60">{step.description.split(',')[0]}</p>
+              </div>
+            </button>
+            {idx < steps.length - 1 && <div className={cn("w-6 h-[2px] mx-4", currentStep > step.id ? "bg-primary" : "bg-muted-foreground/20")} />}
           </div>
+        ))}
+      </div>
 
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 border-b border-border pb-4 mb-2">
-                <Upload className="h-5 w-5 text-blue-500" />
-                <h3 className="font-bold text-base tracking-tight">Product Media</h3>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Thumbnail Image URL</label>
-                <div className="flex gap-2">
-                    <Input 
-                        placeholder="https://example.com/image.jpg" 
-                        value={formData.thumbnail_url} 
-                        onChange={(e) => setFormData({...formData, thumbnail_url: e.target.value})}
-                    />
-                </div>
-                <p className="text-[10px] text-muted-foreground italic">Tip: Use high-quality 1:1 aspect ratio images for best visibility.</p>
-              </div>
-            </div>
+      {renderStepContent()}
+
+      {/* Navigation Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur z-50 p-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+        <div className="container max-w-5xl mx-auto flex items-center justify-between">
+          <div>
+            {currentStep > 1 && (
+              <Button type="button" variant="outline" onClick={handleBack}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" type="button" onClick={() => navigate(getRedirectPath())}>Discard</Button>
+            <Button variant="outline" type="button" onClick={handleSaveDraft} disabled={isSaving}><Save className="h-4 w-4 mr-2" /> Save Draft</Button>
+            {currentStep < 4 ? (
+              <Button type="button" onClick={handleNext} disabled={!canProceed()}>Next Step <ArrowRight className="h-4 w-4 ml-2" /></Button>
+            ) : (
+              <Button type="button" onClick={handleSave} disabled={!canProceed() || isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]">
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : <><Check className="h-4 w-4 mr-2" /> Publish Product</>}
+              </Button>
+            )}
           </div>
         </div>
-
-        {/* Sidebar / Sidebar Settings */}
-        <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-6 sticky top-20">
-            <div className="flex items-center gap-2 border-b border-border pb-4 mb-2">
-                <Plus className="h-5 w-5 text-emerald-500" />
-                <h3 className="font-bold text-base tracking-tight">Pricing & Inventory</h3>
-            </div>
-
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">MRP (Tax Incl.) *</label>
-                <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground text-sm font-bold">₹</span>
-                    <Input 
-                      type="number"
-                      className="pl-7 h-10 font-bold"
-                      placeholder="0.00" 
-                      value={formData.mrp} 
-                      onChange={(e) => setFormData({...formData, mrp: e.target.value})}
-                    />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Customer Selling Price *</label>
-                <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-emerald-600 text-sm font-bold">₹</span>
-                    <Input 
-                      type="number"
-                      className="pl-7 h-10 font-bold border-emerald-500/50 focus-visible:ring-emerald-500/20 text-emerald-700 bg-emerald-50/10"
-                      placeholder="0.00" 
-                      value={formData.retail_price} 
-                      onChange={(e) => setFormData({...formData, retail_price: e.target.value})}
-                    />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Initial Stock *</label>
-                <Input 
-                  type="number"
-                  placeholder="0" 
-                  value={formData.stock_quantity} 
-                  onChange={(e) => setFormData({...formData, stock_quantity: e.target.value})}
-                />
-              </div>
-
-              <div className="pt-4 space-y-3">
-                 <Button type="submit" disabled={loading} className="w-full h-11 font-bold gap-2 shadow-lg">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4" /> Publish Listing</>}
-                 </Button>
-                 <Button type="button" variant="ghost" onClick={() => navigate(-1)} className="w-full gap-2 font-medium text-muted-foreground h-11">
-                    <XCircle className="h-4 w-4" /> Cancel & Discard
-                 </Button>
-              </div>
-              
-              <div className="p-3 bg-muted/40 rounded-lg border border-border/50">
-                 <p className="text-[10px] text-muted-foreground text-center">
-                    By publishing, you agree that this product complies with our marketplace policies.
-                 </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </form>
+      </footer>
     </div>
   );
 }

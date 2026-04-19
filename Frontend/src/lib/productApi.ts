@@ -219,12 +219,27 @@ export const productApi = {
       category_id: data.categoryId,
       type: data.type,
       cost_price: data.basePrice,
+      bulk_price: data.bulkPrice,
       mrp: data.mrp,
       retail_price: data.sellingPrice,
+      listing_type: data.profitChannel,
       description: data.description,
       thumbnail_url: data.thumbnailUrl,
       image_urls: data.imageUrls,
       stock_quantity: data.stockQuantity ?? 0,
+      
+      // Metadata fields matching Admin creation
+      unit: (data as any).unit || "pcs",
+      brand: data.brand,
+      highlights: data.highlights,
+      specifications: data.specifications,
+      is_returnable: data.is_returnable,
+      return_policy_days: data.return_policy_days,
+      is_dealer_routed: data.is_dealer_routed,
+      min_order_quantity: data.minOrderQuantity || 1,
+      stock_required: data.stockRequired,
+      min_margin_percent: data.minMarginPercent,
+
       variants: data.variants?.map(v => ({
         variant_name: v.variant_name,
         sku_suffix: v.sku_suffix,
@@ -232,6 +247,8 @@ export const productApi = {
         mrp: v.mrp,
         basePrice: v.basePrice,
         sellingPrice: v.sellingPrice,
+        bulkPrice: v.bulkPrice,
+        minOrderQuantity: v.minOrderQuantity || 1,
       })),
     };
     const res = await api.post('/sph/products/custom', payload);
